@@ -32,6 +32,11 @@ MIN_INSIDER_SALE = 50_000
 
 
 def read_watchlist(path="watchlist.txt"):
+    """Tickers from the WATCHLIST environment variable (comma/space separated;
+    how the GitHub run gets it, from a private repo secret) or watchlist.txt."""
+    env = os.environ.get("WATCHLIST", "").replace(",", " ").split()
+    if env:
+        return sorted({t.strip().upper() for t in env})
     if not os.path.exists(path):
         return []
     out = []
@@ -160,6 +165,11 @@ def selftest():
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
         f.write("# comment\naapl  # owned\n\nMSFT\nAAPL\n")
     assert read_watchlist(f.name) == ["AAPL", "MSFT"]
+    os.environ["WATCHLIST"] = "vti, msft  aapl"
+    try:
+        assert read_watchlist(f.name) == ["AAPL", "MSFT", "VTI"], "env var wins over the file"
+    finally:
+        del os.environ["WATCHLIST"]
     os.unlink(f.name)
     print(text)
     print("alerts selftest ok")

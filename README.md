@@ -34,7 +34,33 @@ Everything comes free from government websites. No paid data.
 > as a research list, keep the backtest honest, and keep the core of a Roth in
 > index funds unless the numbers clearly say otherwise.
 
-## Setup (once)
+## The website (runs itself on GitHub)
+
+A GitHub Actions workflow ([`tracker.yml`](.github/workflows/tracker.yml))
+runs everything on GitHub's computers each morning and publishes a dashboard
+at **https://treyda6.github.io/Quantreyda/** with three pages: today's digest,
+a searchable list of every trade from the last 180 days, and the backtest.
+Nothing needs to run on your computer.
+
+One-time setup in the repo's **Settings**:
+
+1. **Pages** → Build and deployment → Source: **GitHub Actions**.
+2. **Secrets and variables → Actions → New repository secret**:
+   - `SEC_CONTACT_EMAIL`: required (sec.gov wants a contact email)
+   - `WATCHLIST`: your tickers, e.g. `VTI MSFT COST`. Kept private, never
+     shown on the site.
+   - `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_TO`: optional, for alert and Sunday
+     emails (see the Email section below for the Gmail app password).
+3. **Actions** tab → *tracker* → **Run workflow**, tick **backfill**. The first
+   fill takes a few hours and may need two or three runs (each picks up where
+   the last stopped). After that it runs daily by itself, and on Sundays it
+   also runs the backtest and sends the weekly email.
+
+The repo and site are public; they only contain code and public filings.
+
+## Running it on your own computer instead
+
+### Setup (once)
 
 You need Python 3.10 or newer.
 
