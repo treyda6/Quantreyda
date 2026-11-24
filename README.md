@@ -4,14 +4,20 @@ A personal tracker for what members of Congress and company insiders are buying.
 It's meant for finding long-term ideas (for example for a Roth IRA), not for
 day trading.
 
-It does three things:
+It does five things:
 
 1. **Collects public filings** every day: stock trades that members of Congress
    must disclose (STOCK Act), and SEC Form 4 filings that company executives and
    directors file when they buy or sell their own company's stock.
 2. **Writes a short digest** (`reports/digest-YYYY-MM-DD.md`) listing the buys
    worth a look, with a plain-English note on what each section means.
-3. **Checks whether any of it has ever worked** (`reports/backtest.md`): if you'd
+3. **Checks each company's health** from its own SEC filings: is it growing,
+   profitable, not over-borrowed, not printing new shares? Each stock gets a
+   plain verdict: Solid, Mixed, Shaky or Unknown.
+4. **Watches your stocks**: put tickers in `watchlist.txt` and get an email
+   when a member of Congress or an insider buys or sells one. A **Sunday email**
+   sums up the week.
+5. **Checks whether any of it has ever worked** (`reports/backtest.md`): if you'd
    bought every signal and held it for 3, 6 or 12 months, would you have beaten
    just owning SPY (an S&P 500 index fund)?
 
@@ -40,6 +46,19 @@ The SEC refuses requests without a contact email in them, so `.env` needs
 committed). Without it, the congress half still works and insider trades are
 skipped.
 
+### Email (optional, for alerts and the Sunday digest)
+
+Add these to `.env`. With Gmail you need an **App password** (Google Account →
+Security → 2-Step Verification → App passwords), not your normal password:
+
+```
+SMTP_USER=you@gmail.com
+SMTP_PASSWORD=abcd efgh ijkl mnop
+EMAIL_TO=you@gmail.com
+```
+
+Without email set up, alerts and the weekly digest are saved in `reports/` instead.
+
 ## First fill (one-time, slow)
 
 ```bash
@@ -59,8 +78,9 @@ Every script can be stopped with Ctrl-C and re-run; it picks up where it left of
 python daily.py
 ```
 
-That pulls new filings, matches tickers, grabs the last 7 days of Form 4s and
-writes today's digest. To run it automatically on Windows:
+That pulls new filings, matches tickers, grabs the last 7 days of Form 4s,
+health-checks every company in the digest, writes today's digest, and emails
+any new activity on your watchlist. To run it automatically on Windows:
 
 ```
 schtasks /create /tn "Quantreyda Daily" /sc daily /st 09:00 ^
@@ -69,6 +89,54 @@ schtasks /create /tn "Quantreyda Daily" /sc daily /st 09:00 ^
 
 On a Mac or Linux, a cron line does the same:
 `0 9 * * * cd ~/Quantreyda && .venv/bin/python daily.py >> daily.log 2>&1`
+
+## Every Sunday
+
+```bash
+python weekly.py
+```
+
+Emails you the week's digest with a health table for your watchlist on top.
+Schedule it like `daily.py`, but weekly:
+
+```
+schtasks /create /tn "Quantreyda Weekly" /sc weekly /d SUN /st 08:00 ^
+  /tr "cmd /c cd /d C:\path\to\Quantreyda && .venv\Scripts\python weekly.py >> weekly.log 2>&1" /f
+```
+
+Mac/Linux: `0 8 * * 0 cd ~/Quantreyda && .venv/bin/python weekly.py >> weekly.log 2>&1`
+
+## Your watchlist
+
+Edit `watchlist.txt`, one ticker per line:
+
+```
+VTI    # core index fund
+MSFT
+COST
+```
+
+You'll get an email when a member of Congress buys or sells one (any size), an
+insider buys one, or an insider sells $50k+ of one. Each filing is only sent once.
+
+## Company health check
+
+```bash
+python health.py MSFT INTC SGI
+```
+
+| Verdict | Means |
+|---|---|
+| **Solid** | No red flags |
+| **Mixed** | One red flag. Read why before buying |
+| **Shaky** | Two or more |
+| **Unknown** | No SEC numbers: ETFs, funds, foreign companies |
+
+Red flags: sales shrank more than 5% last year; lost money last year; debt more
+than 2x equity (or negative equity); share count up more than 5% (your slice
+gets diluted); price/earnings over 40. These are blunt rules. Banks, utilities
+and REITs normally carry lots of debt, and young growth companies often lose
+money, so a red flag means "look closer", not "never".
 
 ## Did it ever work?
 
@@ -123,6 +191,9 @@ Query the `trades` view (both chambers, real dates, recovered tickers) and the
   we can't match). They're kept, but signals ignore them.
 - Yahoo Finance has no prices for companies that later went bust or were
   bought out, which makes backtest numbers look a bit better than reality.
+- The health check uses each company's last annual report, so it can be up to
+  a year behind. P/E needs a current price from Yahoo; if
+  that download fails, the check runs without it.
 - Small banks converting to public companies show up as big insider clusters
   (their directors all buy at the IPO). Worth skipping when you see one.
 

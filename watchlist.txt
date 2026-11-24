@@ -1,0 +1,7 @@
+# Tickers you own or are watching, one per line. Anything after # is ignored.
+# alerts.py emails you when a member of Congress or an insider buys or sells
+# one of these, and weekly.py adds a health check for each to the Sunday email.
+#
+# Examples (delete or replace):
+# AAPL
+# MSFT

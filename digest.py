@@ -22,6 +22,7 @@ import sys
 
 import duckdb
 
+import health
 import signals
 from schema import DB_PATH, ensure_schema
 
@@ -55,8 +56,27 @@ def _d(x):
     return str(x)[:10] if x is not None and x == x else "?"
 
 
+def digest_tickers(con, today, days=7):
+    """Every ticker the digest will mention, so health checks can run first."""
+    start = today - datetime.timedelta(days=days)
+    t = set()
+    if signals.has_table(con, "senate_trades"):
+        t |= set(signals.congress_buys(con, start, today).tkr)
+        t |= set(signals.congress_buys(con, today - datetime.timedelta(days=30), today, 1001).tkr)
+    if signals.has_table(con, "insider_trades"):
+        t |= set(signals.insider_clusters(con, start, today).tkr)
+        t |= set(signals.big_insider_buys(con, start, today).tkr)
+    return t
+
+
 def build(con, today, days=7):
     start = today - datetime.timedelta(days=days)
+    hl = health.lookup(con, digest_tickers(con, today, days))
+
+    def hp(tkr):
+        """' Health: Solid (sales up 8%, profitable)' or '' if never checked."""
+        h = hl.get(tkr)
+        return f"{h['verdict']} ({h['reasons']})" if h else "not checked"
     out = [f"# Digest for {today}", "",
            f"New public filings from {start} to {today}.", "",
            "**How to use this:** these are companies that people with an inside view "
@@ -64,7 +84,12 @@ def build(con, today, days=7):
            "buy signal. Before adding anything to a long-term account, check whether you'd "
            "still want to own it in 5 years if you'd never seen this list, and look at "
            "`reports/backtest.md` to see whether each kind of signal has actually beaten "
-           "an index fund.", ""]
+           "an index fund.", "",
+           "**Company health** is a quick check of the company's own SEC filings: "
+           "*Solid* = growing or steady sales, profitable, reasonable debt; *Mixed* = one "
+           "warning sign; *Shaky* = two or more; *Unknown* = ETFs, funds and foreign "
+           "companies the SEC doesn't have numbers for. For a long-term account, start "
+           "with the Solid ones.", ""]
 
     if signals.has_table(con, "senate_trades"):
         cb = signals.congress_buys(con, start, today)
@@ -87,13 +112,13 @@ def build(con, today, days=7):
                       first=("txn_date", "min"), last=("txn_date", "max"),
                       lag=("lag_days", "min"))
                  .reset_index().sort_values(["lo", "filed"], ascending=False))
-            out += ["| Ticker | Who | Amount (total) | Traded | Days late | Filed |",
-                    "|---|---|---|---|---|---|"]
+            out += ["| Ticker | Who | Amount (total) | Traded | Days late | Filed | Company health |",
+                    "|---|---|---|---|---|---|---|"]
             for r in g.itertuples():
                 traded = _d(r.first) if _d(r.first) == _d(r.last) else f"{_d(r.first)} to {_d(r.last)}"
                 n = f" ({r.trades} buys)" if r.trades > 1 else ""
                 out.append(f"| **{r.tkr}** | {r.who} | {_bracket(r.lo, r.hi)}{n} | {traded} | "
-                           f"{'' if r.lag != r.lag else int(r.lag)} | {_d(r.filed)} |")
+                           f"{'' if r.lag != r.lag else int(r.lag)} | {_d(r.filed)} | {hp(r.tkr)} |")
             out.append("")
         if len(stale):
             out += [f"_Left out {len(stale)} buys filed more than {MAX_LAG_DAYS} days after "
@@ -111,7 +136,8 @@ def build(con, today, days=7):
                 "Several members buying the same stock independently is a stronger hint "
                 "than one.", ""]
         out += (["None."] if multi.empty else
-                [f"- **{t}**: {r.members} members ({r.names}), at least {_money(r.floor)}"
+                [f"- **{t}**: {r.members} members ({r.names}), at least {_money(r.floor)}. "
+                 f"Health: {hp(t)}"
                  for t, r in multi.iterrows()])
         out.append("")
 
@@ -125,7 +151,8 @@ def build(con, today, days=7):
         out += (["None this period."] if cl.empty else
                 [f"- **{r.tkr}**{_co(r.issuer_name)}: {r.insiders} insiders, "
                  f"{_money(r.total_value)} total, triggered {_d(r.event_date)}"
-                 f"{' (incl. an officer)' if r.any_officer else ''}. Buyers: {r.buyers}"
+                 f"{' (incl. an officer)' if r.any_officer else ''}. Buyers: {r.buyers}. "
+                 f"Health: {hp(r.tkr)}"
                  for r in cl.itertuples()])
         out.append("")
         big = signals.big_insider_buys(con, start, today)
@@ -134,7 +161,8 @@ def build(con, today, days=7):
         out += (["None this period."] if big.empty else
                 [f"- **{r.tkr}**{_co(r.issuer_name)}: {r.owner_name} "
                  f"[{(r.owner_relationship or '?').lower()}] bought {_money(r.total_value)}, "
-                 f"filed {_d(r.event_date)}" for r in big.head(25).itertuples()])
+                 f"filed {_d(r.event_date)}. Health: {hp(r.tkr)}"
+                 for r in big.head(25).itertuples()])
         out.append("")
     else:
         out += ["_No insider data yet: set SEC_CONTACT_EMAIL in .env and run "
@@ -145,7 +173,12 @@ def build(con, today, days=7):
 def selftest():
     con = duckdb.connect()
     signals.make_fixture(con)
+    health.ensure_table(con)
+    con.execute("INSERT INTO health (tkr, checked_on, verdict, reasons) VALUES "
+                "('AAA', '2025-03-30', 'Solid', 'sales up 12%, profitable')")
     text = build(con, datetime.date(2025, 3, 31), days=30)
+    assert "Solid (sales up 12%, profitable)" in text
+    assert "XYZ**: 3 insiders" in text and "Health: not checked" in text
     assert "**AAA**" in text and "Alpha" in text
     assert "**XYZ**" in text and "3 insiders" in text
     assert "**SEL**" in text, "a $200k single buy shows in the big-buys section"
@@ -162,6 +195,10 @@ def main(days=7):
     today = datetime.date.today()
     con = duckdb.connect(DB_PATH)
     ensure_schema(con)
+    try:
+        health.refresh(con, digest_tickers(con, today, days))
+    except SystemExit as e:  # no SEC_CONTACT_EMAIL: digest still works
+        print(f"health check skipped: {e}")
     text = build(con, today, days)
     os.makedirs("reports", exist_ok=True)
     path = f"reports/digest-{today}.md"
