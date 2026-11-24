@@ -1,4 +1,4 @@
-"""Phase 4: daily incremental pull -- run all three scrapers back to back.
+"""Daily run: pull new filings, match tickers, write the digest.
 
 STOCK Act gives filers 30-45 days to disclose, so once-a-day is plenty. Each
 step already does the incremental work itself (senate skips links already in
@@ -11,7 +11,7 @@ January, so the prior year stays live for a few weeks after New Year's.
 Older years never gain filings after publication.
 
 Usage:
-    py daily.py            # senate (all years) + house (this year, last year) + tickers
+    py daily.py            # senate + house + tickers + insiders (7 days) + digest
     py daily.py --selftest # offline check of the year window, no network
 
 Meant to run under Windows Task Scheduler once a day; stdout/stderr redirect
@@ -23,10 +23,11 @@ script with three print-heavy steps already.
 import datetime
 import sys
 
+import digest
 import entities
 import scrape_house
+import scrape_insiders
 import scrape_senate
-import scrape_short_volume
 
 
 def house_years(today=None):
@@ -35,7 +36,7 @@ def house_years(today=None):
 
 
 def main():
-    print(f"=== Quantgress daily run: {datetime.datetime.now()} ===")
+    print(f"=== Quantreyda daily run: {datetime.datetime.now()} ===")
 
     print("\n--- Senate ---")
     scrape_senate.main()
@@ -47,15 +48,16 @@ def main():
     print("\n--- Resolve entities ---")
     entities.main()
 
-    # Phase 11: the first dataset in this file that's genuinely daily -- one
-    # new file per trade date, posted by 6pm ET, no year-window bookkeeping
-    # needed like Senate/House above (scrape_short_volume's own done-set skip
-    # handles resumption). Its own default trailing window (DAYS_DEFAULT) is
-    # plenty for a once-a-day cron.
-    today = datetime.date.today()
-    print("\n--- Off-exchange short volume ---")
-    scrape_short_volume.main(today - datetime.timedelta(days=scrape_short_volume.DAYS_DEFAULT), today)
+    # Form 4 needs SEC_CONTACT_EMAIL; skip (don't crash) without it so the
+    # congress half still runs on a fresh checkout.
+    print("\n--- Insider trades (Form 4, last 7 days) ---")
+    try:
+        scrape_insiders.main_live(days=7)
+    except SystemExit as e:
+        print(f"skipped: {e}")
 
+    print("\n--- Digest ---")
+    digest.main(days=7)
 
 def selftest():
     assert house_years(datetime.date(2026, 1, 15)) == [2025, 2026]

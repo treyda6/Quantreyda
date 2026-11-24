@@ -51,7 +51,7 @@ from collections import Counter, defaultdict
 import duckdb
 import requests
 
-from schema import DB_PATH
+from schema import DB_PATH, sec_user_agent
 
 INDEX_URL = "https://www.sec.gov/data-research/sec-markets-data/insider-transactions-data-sets"
 # Path prefix isn't stable across quarters -- older zips sit under
@@ -265,7 +265,7 @@ def parse_form4_xml(xml_text, filed_date):
 
 def _session():
     s = requests.Session()
-    s.headers["User-Agent"] = "quantgress/0.1 (mmulajkar@gmail.com)"  # sec.gov 403s without a contact email
+    s.headers["User-Agent"] = sec_user_agent()  # sec.gov 403s without a contact email
     return s
 
 
