@@ -8,3 +8,4 @@ pdfplumber
 yfinance
 # nicer HTML emails (optional; plain text without it)
 markdown
+pyyaml

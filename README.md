@@ -4,7 +4,7 @@ A personal tracker for what members of Congress and company insiders are buying.
 It's meant for finding long-term ideas (for example for a Roth IRA), not for
 day trading.
 
-It does five things:
+It does six things:
 
 1. **Collects public filings** every day: stock trades that members of Congress
    must disclose (STOCK Act), and SEC Form 4 filings that company executives and
@@ -17,7 +17,12 @@ It does five things:
 4. **Watches your stocks**: put tickers in `watchlist.txt` and get an email
    when a member of Congress or an insider buys or sells one. A **Sunday email**
    sums up the week.
-5. **Checks whether any of it has ever worked** (`reports/backtest.md`): if you'd
+5. **Adds context**: big new government contracts, what a few proven
+   long-term funds (Berkshire and others in `funds.txt`) bought last quarter,
+   a ⚑ when a member of Congress trades in an industry their committee
+   oversees, and a "where signals agree" list of stocks with several kinds of
+   support at once.
+6. **Checks whether any of it has ever worked** (`reports/backtest.md`): if you'd
    bought every signal and held it for 3, 6 or 12 months, would you have beaten
    just owning SPY (an S&P 500 index fund)?
 
@@ -155,6 +160,22 @@ and prints a table like:
 The report explains each column. In short: a signal is only interesting if it
 beats SPY on average *and* typically *and* more than half the time, at 6 and 12
 months, over a decent number of examples.
+
+## Extra context (runs inside daily.py)
+
+- `python contracts.py --days 30`: federal contracts of $50M+ that just started,
+  matched to the winning company's ticker (from USAspending.gov).
+- `python funds.py`: the latest two quarterly 13F filings for each fund in
+  `funds.txt`, and what changed (new, added, sold). Edit `funds.txt` to follow
+  other investors; the script prints each fund's official SEC name so you can
+  check the number.
+- `python committees.py`: loads current committee rosters and shows which
+  recent filers it could match. Committee → industry links are in
+  `COMMITTEE_SECTORS` in [`committees.py`](committees.py). Rosters are *current*
+  members, so an old trade is judged by today's committee seats.
+
+`backtest.py` also tests "Congress buys in their committee's industry" as its
+own signal, so you can see whether that ⚑ means anything.
 
 ## What the signals are
 

@@ -1,0 +1,8 @@
+# Funds to follow: SEC CIK number, then a short label. Anything after # is ignored.
+# Find a fund's CIK by searching its name at https://www.sec.gov/edgar/search/
+# (it's the number in the URL). funds.py prints each filer's official SEC name
+# so you can check you've got the right one.
+1067983 Berkshire     # Berkshire Hathaway (Warren Buffett / successors)
+1336528 Pershing      # Pershing Square (Bill Ackman)
+1112520 Akre          # Akre Capital Management
+1709323 Himalaya      # Himalaya Capital (Li Lu)
