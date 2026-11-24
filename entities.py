@@ -30,7 +30,7 @@ from collections import Counter
 import duckdb
 import requests
 
-from schema import DB_PATH, ensure_schema
+from schema import DB_PATH, ensure_schema, sec_user_agent
 
 # Types whose rows genuinely have a symbol. Bonds, munis, real property and
 # private LLCs do not, so a NULL ticker there is correct, not a parse failure.
@@ -106,7 +106,7 @@ def _session():
     # SEC 403s on a generic UA -- unlike LDA/USAspending, it insists on a
     # contact email in the string specifically, confirmed live (a UA without
     # one, "quantgress/0.1 (personal research)", 403'd where this doesn't).
-    s.headers["User-Agent"] = "quantgress/0.1 (mmulajkar@gmail.com)"
+    s.headers["User-Agent"] = sec_user_agent()
     return s
 
 
@@ -122,39 +122,10 @@ SOURCES = [
     dict(table="house_trades", name_col="asset_name", real_col="ticker",
          guess_col="ticker_guess", how_col="ticker_guess_how",
          extra_where=CONGRESS_TICKERED, kind="extract"),
-    dict(table="lobbying_filings", name_col="client_name", real_col=None,
-         guess_col="client_ticker_guess", how_col="client_ticker_guess_how",
-         extra_where=None, kind="sec_name"),
-    dict(table="gov_contracts", name_col="recipient_name", real_col=None,
-         guess_col="recipient_ticker_guess", how_col="recipient_ticker_guess_how",
-         extra_where=None, kind="sec_name"),
-    # Phase 10 (13F): INFOTABLE has no ticker/symbol field at all, only free-text
-    # issuer_name -- same shape as lobbying/contracts, not Phase 9's free lookup.
-    dict(table="f13_holdings", name_col="issuer_name", real_col=None,
-         guess_col="issuer_ticker_guess", how_col="issuer_ticker_guess_how",
-         extra_where=None, kind="sec_name"),
-    # Phase 12: assignee_name is a raw company name off the grant record,
-    # same shape as lobbying/contracts -- no ticker field to begin with.
-    dict(table="patents", name_col="assignee_name", real_col=None,
-         guess_col="assignee_ticker_guess", how_col="assignee_ticker_guess_how",
-         extra_where=None, kind="sec_name"),
-    # Phase 13: contributor_name is a committee/PAC name ("ACME WIDGET CORP
-    # PAC"), not the bare company name SEC's list has -- expect a lower hit
-    # rate than Phase 6/7/12 until normalize_name learns to strip PAC-style
-    # suffixes too. Still safe: an unmatched name is dropped, never guessed.
-    dict(table="corporate_donations", name_col="contributor_name", real_col=None,
-         guess_col="contributor_ticker_guess", how_col="contributor_ticker_guess_how",
-         extra_where=None, kind="sec_name"),
-    # Phase 20: owner_name is the FAA registrant on the aircraft's registration
-    # -- a bare company name like "EXXON MOBIL CORP", so the same sec_name shape
-    # as lobbying/contracts/patents. Expect a low hit rate anyway: the single
-    # most common registrant class is an ownership-anonymizing trust ("BANK OF
-    # UTAH TRUSTEE", 1,293 airframes), and a jet held through a shell LLC has no
-    # public link to the operating company at all. An unmatched name is dropped,
-    # never guessed, so those stay NULL rather than wrong.
-    dict(table="aircraft", name_col="owner_name", real_col=None,
-         guess_col="owner_ticker_guess", how_col="owner_ticker_guess_how",
-         extra_where=None, kind="sec_name"),
+    # Quantgress also registered lobbying, contracts, 13F, patents, donors and
+    # aircraft here as "sec_name" adapters. This build only scrapes congress
+    # trades (Form 4 already carries its own ticker), so they're dropped; add
+    # one back when its scraper comes back.
 ]
 
 

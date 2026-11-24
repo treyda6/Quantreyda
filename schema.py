@@ -4,9 +4,33 @@ Lives in its own module because two scrapers write the same view -- if each
 owned a copy of the DDL, whichever ran last would silently redefine `trades`.
 """
 
+import os
 import re
 
-DB_PATH = "congress_trades.duckdb"
+DB_PATH = os.environ.get("QT_DB", "congress_trades.duckdb")
+
+
+def load_dotenv(path=".env"):
+    """Read KEY=VALUE lines from .env into os.environ (no override). Tiny on
+    purpose -- one optional setting doesn't justify a python-dotenv dependency."""
+    if not os.path.exists(path):
+        return
+    for line in open(path, encoding="utf-8"):
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
+def sec_user_agent():
+    """sec.gov 403s any client whose User-Agent lacks a contact email, so the
+    SEC scrapers need one -- yours, set once in .env, never hardcoded here."""
+    load_dotenv()
+    email = os.environ.get("SEC_CONTACT_EMAIL", "").strip()
+    if "@" not in email:
+        raise SystemExit("Set SEC_CONTACT_EMAIL=you@example.com in .env "
+                         "(sec.gov requires a contact email in the User-Agent).")
+    return f"quantreyda/0.1 ({email})"
 
 # Both chambers land in the same shape so the view is one SELECT body twice.
 # House has no ticker column on the form (the symbol is inside asset_name), so
@@ -39,6 +63,11 @@ def _select(table, chamber):
             -- secondary columns: filtering, auditing, provenance
             asset_type, owner,
             ticker IS NULL AND ticker_guess IS NOT NULL AS tkr_recovered,
+            -- a trade dated after its own filing is a typo in the filing
+            -- (seen live: a Feb 2026 filing listing a Dec 2026 trade). Keep
+            -- the row, but flag it; signals key off filed_date anyway.
+            coalesce(try_strptime(tx_date, '%m/%d/%Y')::DATE
+                     > try_strptime(filed, '%m/%d/%Y')::DATE, false) AS txn_date_suspect,
             first_name, office, link
         FROM {table}"""
 

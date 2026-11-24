@@ -134,7 +134,7 @@ TX_TYPES = {"P": "Purchase", "S": "Sale (Full)", "E": "Exchange"}
 
 def _session():
     s = requests.Session()
-    s.headers["User-Agent"] = "quantgress/0.1 (personal research)"
+    s.headers["User-Agent"] = "quantreyda/0.1 (personal research)"
     return s
 
 

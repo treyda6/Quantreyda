@@ -40,7 +40,7 @@ RATE_LIMIT_SECS = 2  # be polite to a .gov host
 def _session():
     """Return a session that has accepted the eFD prohibition agreement."""
     s = requests.Session()
-    s.headers["User-Agent"] = "congress-trades/0.1 (personal research)"
+    s.headers["User-Agent"] = "quantreyda/0.1 (personal research)"
     r = s.get(LANDING)
     token = BeautifulSoup(r.text, "html.parser").find(
         attrs={"name": "csrfmiddlewaretoken"}
