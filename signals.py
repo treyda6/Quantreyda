@@ -25,6 +25,8 @@ hand the backtest information nobody had yet (look-ahead bias).
 
 import datetime
 
+import pandas as pd
+
 CONGRESS_BUYS = """
 SELECT filed_date AS event_date, tkr, chamber, last_name, first_name, owner,
        asset_name, amount_low, amount_high, txn_date, lag_days
@@ -100,8 +102,8 @@ def insider_clusters(con, start, end, window=30, min_insiders=3, min_total=50_00
             keep.append(i)
         last[row.tkr] = d
     out = df.loc[keep]
-    return out[out.event_date.apply(lambda x: (x.date() if hasattr(x, "date") else x) >= start)] \
-        .reset_index(drop=True)
+    in_range = [(x.date() if hasattr(x, "date") else x) >= start for x in out.event_date]
+    return out[pd.Series(in_range, index=out.index, dtype=bool)].reset_index(drop=True)
 
 
 def big_insider_buys(con, start, end, min_value=100_000):
@@ -173,7 +175,9 @@ def selftest():
     assert str(cl.event_date[0])[:10] == "2025-03-20", cl
     assert cl.insiders[0] == 3 and bool(cl.any_officer[0])
     # a range starting after the cluster's first day must not re-emit it
-    assert insider_clusters(con, D(2025, 3, 21), D(2025, 12, 31)).empty
+    none = insider_clusters(con, D(2025, 3, 21), D(2025, 12, 31))
+    assert none.empty and "tkr" in none.columns, "empty result keeps its columns"
+    assert "tkr" in insider_clusters(con, D(2030, 1, 1), D(2030, 2, 1)).columns
 
     big = big_insider_buys(con, D(2025, 1, 1), D(2025, 12, 31), min_value=100_000)
     assert list(big.tkr) == ["SEL"], big

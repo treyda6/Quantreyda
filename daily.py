@@ -11,7 +11,7 @@ January, so the prior year stays live for a few weeks after New Year's.
 Older years never gain filings after publication.
 
 Usage:
-    py daily.py            # senate + house + tickers + insiders (7 days) + digest
+    py daily.py            # senate + house + tickers + insiders (7 days) + digest + alerts
     py daily.py --selftest # offline check of the year window, no network
 
 Meant to run under Windows Task Scheduler once a day; stdout/stderr redirect
@@ -23,6 +23,7 @@ script with three print-heavy steps already.
 import datetime
 import sys
 
+import alerts
 import digest
 import entities
 import scrape_house
@@ -58,6 +59,9 @@ def main():
 
     print("\n--- Digest ---")
     digest.main(days=7)
+
+    print("\n--- Watchlist alerts ---")
+    alerts.main()
 
 def selftest():
     assert house_years(datetime.date(2026, 1, 15)) == [2025, 2026]
