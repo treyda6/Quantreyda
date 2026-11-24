@@ -25,6 +25,7 @@ import sys
 import duckdb
 import pandas as pd
 
+import committees
 import prices
 import signals
 from schema import DB_PATH, ensure_schema
@@ -110,6 +111,10 @@ def build_events(con, start, end):
         groups["Congress buys ≥ $15k"] = cb
         groups["Congress buys ≥ $50k"] = cb[cb.amount_low >= 50001]
         groups["Congress buys ≥ $250k"] = cb[cb.amount_low >= 250001]
+        if signals.has_table(con, "committee_members") and len(cb):
+            flagged = cb.apply(lambda r: bool(committees.committee_flag(
+                con, r.tkr, r.last_name, r.first_name, r.chamber)), axis=1)
+            groups["Congress buys in their committee's industry"] = cb[flagged]
     if signals.has_table(con, "insider_trades"):
         cl = signals.insider_clusters(con, start, end)
         groups["Insider cluster buys (3+ in 30d)"] = cl
@@ -118,6 +123,8 @@ def build_events(con, start, end):
 
 
 def run(con, start, end, fetch=True):
+    if fetch and signals.has_table(con, "senate_trades"):
+        committees.ensure_flags_ready(con, set(signals.congress_buys(con, start, end).tkr))
     groups = build_events(con, start, end)
     tickers = set().union(*(set(g.tkr) for g in groups.values())) if groups else set()
     if fetch:
@@ -161,6 +168,9 @@ def write_report(summary, start, end, path="reports/backtest.md"):
 def selftest():
     con = duckdb.connect()
     signals.make_fixture(con)
+    committees.load_fixture(con)
+    con.execute("INSERT INTO committee_members VALUES ('A1','S','A',NULL,'Alpha','SSAS',"
+                "'Senate Committee on Armed Services','2025-01-01')")
     prices.ensure_tables(con)
     days = pd.bdate_range("2025-01-01", "2025-12-31")
     # SPY flat; AAA rises 1%/day; XYZ falls 0.5%/day
@@ -183,6 +193,8 @@ def selftest():
         ["2025-03-10", "2025-03-11", "2025-03-12"])), D(2025, 3, 10))
     assert fr == {}, "too few days for any horizon"
     assert "CCC" in set(detail.tkr)
+    assert by["Congress buys in their committee's industry"]["events"] == 1, \
+        "Alpha (Armed Services) buying AAA (missiles) is the one committee-linked buy"
     print(_fmt_table(summary))
     print("backtest selftest ok")
 

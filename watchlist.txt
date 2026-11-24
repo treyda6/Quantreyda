@@ -1,0 +1,12 @@
+# Tickers you own or are watching, one per line. Anything after # is ignored.
+#
+# THIS REPO IS PUBLIC: don't list real holdings here if you'd rather keep
+# them private. For the GitHub run, put them in the WATCHLIST repo secret
+# instead (Settings > Secrets and variables > Actions), e.g. "VTI MSFT COST".
+# This file is only read when WATCHLIST isn't set, e.g. on your own computer.
+# alerts.py emails you when a member of Congress or an insider buys or sells
+# one of these, and weekly.py adds a health check for each to the Sunday email.
+#
+# Examples (delete or replace):
+# AAPL
+# MSFT

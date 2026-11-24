@@ -4,14 +4,25 @@ A personal tracker for what members of Congress and company insiders are buying.
 It's meant for finding long-term ideas (for example for a Roth IRA), not for
 day trading.
 
-It does three things:
+It does six things:
 
 1. **Collects public filings** every day: stock trades that members of Congress
    must disclose (STOCK Act), and SEC Form 4 filings that company executives and
    directors file when they buy or sell their own company's stock.
 2. **Writes a short digest** (`reports/digest-YYYY-MM-DD.md`) listing the buys
    worth a look, with a plain-English note on what each section means.
-3. **Checks whether any of it has ever worked** (`reports/backtest.md`): if you'd
+3. **Checks each company's health** from its own SEC filings: is it growing,
+   profitable, not over-borrowed, not printing new shares? Each stock gets a
+   plain verdict: Solid, Mixed, Shaky or Unknown.
+4. **Watches your stocks**: put tickers in `watchlist.txt` and get an email
+   when a member of Congress or an insider buys or sells one. A **Sunday email**
+   sums up the week.
+5. **Adds context**: big new government contracts, what a few proven
+   long-term funds (Berkshire and others in `funds.txt`) bought last quarter,
+   a ⚑ when a member of Congress trades in an industry their committee
+   oversees, and a "where signals agree" list of stocks with several kinds of
+   support at once.
+6. **Checks whether any of it has ever worked** (`reports/backtest.md`): if you'd
    bought every signal and held it for 3, 6 or 12 months, would you have beaten
    just owning SPY (an S&P 500 index fund)?
 
@@ -23,7 +34,33 @@ Everything comes free from government websites. No paid data.
 > as a research list, keep the backtest honest, and keep the core of a Roth in
 > index funds unless the numbers clearly say otherwise.
 
-## Setup (once)
+## The website (runs itself on GitHub)
+
+A GitHub Actions workflow ([`tracker.yml`](.github/workflows/tracker.yml))
+runs everything on GitHub's computers each morning and publishes a dashboard
+at **https://treyda6.github.io/Quantreyda/** with three pages: today's digest,
+a searchable list of every trade from the last 180 days, and the backtest.
+Nothing needs to run on your computer.
+
+One-time setup in the repo's **Settings**:
+
+1. **Pages** → Build and deployment → Source: **GitHub Actions**.
+2. **Secrets and variables → Actions → New repository secret**:
+   - `SEC_CONTACT_EMAIL`: required (sec.gov wants a contact email)
+   - `WATCHLIST`: your tickers, e.g. `VTI MSFT COST`. Kept private, never
+     shown on the site.
+   - `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_TO`: optional, for alert and Sunday
+     emails (see the Email section below for the Gmail app password).
+3. **Actions** tab → *tracker* → **Run workflow**, tick **backfill**. The first
+   fill takes a few hours and may need two or three runs (each picks up where
+   the last stopped). After that it runs daily by itself, and on Sundays it
+   also runs the backtest and sends the weekly email.
+
+The repo and site are public; they only contain code and public filings.
+
+## Running it on your own computer instead
+
+### Setup (once)
 
 You need Python 3.10 or newer.
 
@@ -39,6 +76,19 @@ The SEC refuses requests without a contact email in them, so `.env` needs
 `SEC_CONTACT_EMAIL=you@example.com`. It stays on your computer (`.env` is never
 committed). Without it, the congress half still works and insider trades are
 skipped.
+
+### Email (optional, for alerts and the Sunday digest)
+
+Add these to `.env`. With Gmail you need an **App password** (Google Account →
+Security → 2-Step Verification → App passwords), not your normal password:
+
+```
+SMTP_USER=you@gmail.com
+SMTP_PASSWORD=abcd efgh ijkl mnop
+EMAIL_TO=you@gmail.com
+```
+
+Without email set up, alerts and the weekly digest are saved in `reports/` instead.
 
 ## First fill (one-time, slow)
 
@@ -59,8 +109,9 @@ Every script can be stopped with Ctrl-C and re-run; it picks up where it left of
 python daily.py
 ```
 
-That pulls new filings, matches tickers, grabs the last 7 days of Form 4s and
-writes today's digest. To run it automatically on Windows:
+That pulls new filings, matches tickers, grabs the last 7 days of Form 4s,
+health-checks every company in the digest, writes today's digest, and emails
+any new activity on your watchlist. To run it automatically on Windows:
 
 ```
 schtasks /create /tn "Quantreyda Daily" /sc daily /st 09:00 ^
@@ -69,6 +120,54 @@ schtasks /create /tn "Quantreyda Daily" /sc daily /st 09:00 ^
 
 On a Mac or Linux, a cron line does the same:
 `0 9 * * * cd ~/Quantreyda && .venv/bin/python daily.py >> daily.log 2>&1`
+
+## Every Sunday
+
+```bash
+python weekly.py
+```
+
+Emails you the week's digest with a health table for your watchlist on top.
+Schedule it like `daily.py`, but weekly:
+
+```
+schtasks /create /tn "Quantreyda Weekly" /sc weekly /d SUN /st 08:00 ^
+  /tr "cmd /c cd /d C:\path\to\Quantreyda && .venv\Scripts\python weekly.py >> weekly.log 2>&1" /f
+```
+
+Mac/Linux: `0 8 * * 0 cd ~/Quantreyda && .venv/bin/python weekly.py >> weekly.log 2>&1`
+
+## Your watchlist
+
+Edit `watchlist.txt`, one ticker per line:
+
+```
+VTI    # core index fund
+MSFT
+COST
+```
+
+You'll get an email when a member of Congress buys or sells one (any size), an
+insider buys one, or an insider sells $50k+ of one. Each filing is only sent once.
+
+## Company health check
+
+```bash
+python health.py MSFT INTC SGI
+```
+
+| Verdict | Means |
+|---|---|
+| **Solid** | No red flags |
+| **Mixed** | One red flag. Read why before buying |
+| **Shaky** | Two or more |
+| **Unknown** | No SEC numbers: ETFs, funds, foreign companies |
+
+Red flags: sales shrank more than 5% last year; lost money last year; debt more
+than 2x equity (or negative equity); share count up more than 5% (your slice
+gets diluted); price/earnings over 40. These are blunt rules. Banks, utilities
+and REITs normally carry lots of debt, and young growth companies often lose
+money, so a red flag means "look closer", not "never".
 
 ## Did it ever work?
 
@@ -87,6 +186,22 @@ and prints a table like:
 The report explains each column. In short: a signal is only interesting if it
 beats SPY on average *and* typically *and* more than half the time, at 6 and 12
 months, over a decent number of examples.
+
+## Extra context (runs inside daily.py)
+
+- `python contracts.py --days 30`: federal contracts of $50M+ that just started,
+  matched to the winning company's ticker (from USAspending.gov).
+- `python funds.py`: the latest two quarterly 13F filings for each fund in
+  `funds.txt`, and what changed (new, added, sold). Edit `funds.txt` to follow
+  other investors; the script prints each fund's official SEC name so you can
+  check the number.
+- `python committees.py`: loads current committee rosters and shows which
+  recent filers it could match. Committee → industry links are in
+  `COMMITTEE_SECTORS` in [`committees.py`](committees.py). Rosters are *current*
+  members, so an old trade is judged by today's committee seats.
+
+`backtest.py` also tests "Congress buys in their committee's industry" as its
+own signal, so you can see whether that ⚑ means anything.
 
 ## What the signals are
 
@@ -123,6 +238,9 @@ Query the `trades` view (both chambers, real dates, recovered tickers) and the
   we can't match). They're kept, but signals ignore them.
 - Yahoo Finance has no prices for companies that later went bust or were
   bought out, which makes backtest numbers look a bit better than reality.
+- The health check uses each company's last annual report, so it can be up to
+  a year behind. P/E needs a current price from Yahoo; if
+  that download fails, the check runs without it.
 - Small banks converting to public companies show up as big insider clusters
   (their directors all buy at the IPO). Worth skipping when you see one.
 

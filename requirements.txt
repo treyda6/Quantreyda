@@ -6,3 +6,6 @@ duckdb
 pdfplumber
 # prices for backtest.py only (unofficial Yahoo Finance client)
 yfinance
+# nicer HTML emails (optional; plain text without it)
+markdown
+pyyaml
