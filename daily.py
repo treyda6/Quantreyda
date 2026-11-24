@@ -11,7 +11,7 @@ January, so the prior year stays live for a few weeks after New Year's.
 Older years never gain filings after publication.
 
 Usage:
-    py daily.py            # senate + house + tickers + insiders (7 days) + digest + alerts
+    py daily.py            # senate + house + tickers + insiders (7 days) + contracts + 13Fs + committees + digest + alerts
     py daily.py --selftest # offline check of the year window, no network
 
 Meant to run under Windows Task Scheduler once a day; stdout/stderr redirect
@@ -24,11 +24,20 @@ import datetime
 import sys
 
 import alerts
+import committees
+import contracts
 import digest
+import funds
 import entities
 import scrape_house
 import scrape_insiders
 import scrape_senate
+
+
+def _con():
+    import duckdb
+    from schema import DB_PATH
+    return duckdb.connect(DB_PATH)
 
 
 def house_years(today=None):
@@ -56,6 +65,18 @@ def main():
         scrape_insiders.main_live(days=7)
     except SystemExit as e:
         print(f"skipped: {e}")
+
+    # Each extra source is optional: a failure there shouldn't cost you the digest.
+    for label, step in (("Big government contracts", lambda: contracts.main(days=14)),
+                        ("Top fund 13Fs", lambda: funds.fetch(_con())),
+                        ("Committee rosters", lambda: committees.refresh_rosters(_con()))):
+        print(f"\n--- {label} ---")
+        try:
+            step()
+        except SystemExit as e:
+            print(f"skipped: {e}")
+        except Exception as e:
+            print(f"skipped ({type(e).__name__}: {e})")
 
     print("\n--- Digest ---")
     digest.main(days=7)

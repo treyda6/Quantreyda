@@ -5,7 +5,7 @@
 import importlib
 
 MODULES = ["entities", "scrape_senate", "scrape_house", "scrape_insiders",
-           "daily", "signals", "health", "digest", "backtest",
+           "daily", "signals", "health", "committees", "funds", "contracts", "digest", "backtest",
            "mailer", "alerts", "weekly"]
 
 for name in MODULES:

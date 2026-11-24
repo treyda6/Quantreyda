@@ -22,6 +22,9 @@ import sys
 
 import duckdb
 
+import committees
+import contracts
+import funds
 import health
 import signals
 from schema import DB_PATH, ensure_schema
@@ -66,7 +69,44 @@ def digest_tickers(con, today, days=7):
     if signals.has_table(con, "insider_trades"):
         t |= set(signals.insider_clusters(con, start, today).tkr)
         t |= set(signals.big_insider_buys(con, start, today).tkr)
+    c = contracts.recent(con, start, today)
+    if c is not None:
+        t |= set(c.tkr)
+    f = funds.changes(con, since=start)
+    if f is not None:
+        t |= set(f.tkr.dropna())
     return t
+
+
+def agreement(con, today, days=30):
+    """{tkr: [reasons]} for tickers with 2+ independent kinds of support in
+    the last 30 days (congress buy, insider buy, top fund holding/adding,
+    big contract). One kind is a hint; several pointing the same way is
+    worth more of your attention."""
+    start = today - datetime.timedelta(days=days)
+    src = {}
+
+    def add(t, why):
+        src.setdefault(t, {})[why.split(":")[0]] = why
+    if signals.has_table(con, "senate_trades"):
+        cb = signals.congress_buys(con, start, today, min_amount=1001)
+        cb = cb[~(cb.lag_days > MAX_LAG_DAYS)]
+        for t, g in cb.groupby("tkr"):
+            add(t, f"Congress: {g.last_name.str.strip(' ,.').nunique()} member(s) bought")
+    if signals.has_table(con, "insider_trades"):
+        rows = con.execute("""SELECT upper(trim(ticker)), count(DISTINCT owner_cik)
+            FROM insider_trades WHERE trans_code = 'P' AND price_per_share > 0
+              AND try_cast(filed_date AS DATE) BETWEEN ? AND ? GROUP BY 1""",
+                           [start, today]).fetchall()
+        for t, n in rows:
+            add(t, f"Insiders: {n} bought on the open market")
+    c = contracts.recent(con, start, today)
+    if c is not None:
+        for r in c.itertuples():
+            add(r.tkr, f"Contract: won {_money(r.amount)} from {r.agency}")
+    for t, names in funds.holders(con, list(src)).items():
+        add(t, f"Funds: held by {', '.join(names)}")
+    return {t: list(v.values()) for t, v in src.items() if len(v) >= 2}
 
 
 def build(con, today, days=7):
@@ -90,13 +130,26 @@ def build(con, today, days=7):
            "warning sign; *Shaky* = two or more; *Unknown* = ETFs, funds and foreign "
            "companies the SEC doesn't have numbers for. For a long-term account, start "
            "with the Solid ones.", ""]
+    window = max(days, 30)
+    agree = agreement(con, today, window)
+    out += [f"## Where signals agree (last {window} days)", "",
+            "Stocks with two or more different kinds of support: Congress buying, "
+            "insiders buying, a top long-term fund holding it, or a big new government "
+            "contract. These are the best starting points for research.", ""]
+    out += (["None right now."] if not agree else
+            [f"- **{t}**: " + "; ".join(why) + f". Health: {hp(t)}"
+             for t, why in sorted(agree.items(), key=lambda kv: -len(kv[1]))])
+    out.append("")
 
     if signals.has_table(con, "senate_trades"):
         cb = signals.congress_buys(con, start, today)
         out += ["## Congress buys ($15k+)", "",
                 "Members of Congress (or their spouses) who disclosed buying a stock. "
                 "They only report a dollar range, and up to 45 days after the trade, so "
-                "check \"Days late\": the price may already have moved.", ""]
+                "check \"Days late\": the price may already have moved. A ⚑ means the "
+                "member sits on a committee that oversees that company's industry "
+                "(e.g. Armed Services and a defense contractor), which is when they're "
+                "most likely to know something.", ""]
         # Filings years late (amendments, slow filers) are history, not news.
         stale = cb[cb.lag_days > MAX_LAG_DAYS]
         cb = cb[~(cb.lag_days > MAX_LAG_DAYS)]
@@ -105,20 +158,22 @@ def build(con, today, days=7):
         else:
             # One line per person+ticker: a member often buys the same stock
             # several days running, which is one decision, not five.
-            cb = cb.assign(who=cb.apply(_who, axis=1))
+            cb = cb.assign(who=cb.apply(_who, axis=1),
+                           flag=cb.apply(lambda r: committees.committee_flag(
+                               con, r.tkr, r.last_name, r.first_name, r.chamber), axis=1))
             g = (cb.groupby(["tkr", "who"], sort=False)
                  .agg(filed=("event_date", "max"), trades=("tkr", "size"),
                       lo=("amount_low", "sum"), hi=("amount_high", "sum"),
                       first=("txn_date", "min"), last=("txn_date", "max"),
-                      lag=("lag_days", "min"))
+                      lag=("lag_days", "min"), flag=("flag", "first"))
                  .reset_index().sort_values(["lo", "filed"], ascending=False))
-            out += ["| Ticker | Who | Amount (total) | Traded | Days late | Filed | Company health |",
+            out += ["| Ticker | Who | Amount (total) | Traded | Days late | Their committee covers this industry | Company health |",
                     "|---|---|---|---|---|---|---|"]
             for r in g.itertuples():
                 traded = _d(r.first) if _d(r.first) == _d(r.last) else f"{_d(r.first)} to {_d(r.last)}"
                 n = f" ({r.trades} buys)" if r.trades > 1 else ""
                 out.append(f"| **{r.tkr}** | {r.who} | {_bracket(r.lo, r.hi)}{n} | {traded} | "
-                           f"{'' if r.lag != r.lag else int(r.lag)} | {_d(r.filed)} | {hp(r.tkr)} |")
+                           f"{'' if r.lag != r.lag else int(r.lag)} | {('⚑ ' + r.flag) if r.flag else ''} | {hp(r.tkr)} |")
             out.append("")
         if len(stale):
             out += [f"_Left out {len(stale)} buys filed more than {MAX_LAG_DAYS} days after "
@@ -167,6 +222,33 @@ def build(con, today, days=7):
     else:
         out += ["_No insider data yet: set SEC_CONTACT_EMAIL in .env and run "
                 "`py scrape_insiders.py --live --days 30`._", ""]
+
+    c = contracts.recent(con, start, today)
+    if c is not None:
+        out += [f"## Big new government contracts (${contracts.MIN_AMOUNT / 1e6:.0f}M+)", "",
+                "Public companies that just started a large federal contract. The amount "
+                "is the total over the contract's whole life, often several years, so "
+                "it matters most when it's big compared to the company's yearly sales.", ""]
+        out += (["None this period."] if c.empty else
+                [f"- **{r.tkr}**: {_money(r.amount)} from {r.agency}"
+                 f"{' / ' + r.sub_agency if r.sub_agency and r.sub_agency != r.agency else ''}, "
+                 f"{_d(r.start_date)} to {_d(r.end_date)}. {str(r.description or '').capitalize()[:90]}. "
+                 f"Health: {hp(r.tkr)}" for r in c.head(20).itertuples()])
+        out.append("")
+
+    f = funds.changes(con, since=start)
+    if f is not None and len(f):
+        out += ["## What top funds changed (13F filings this period)", "",
+                "Quarterly holdings reports from the long-term investors in `funds.txt`. "
+                "These are filed up to 45 days after the quarter ends, so they show what "
+                "the fund believed then, not today.", ""]
+        label = {"new": "new position", "added": "added 10%+", "sold": "sold out"}
+        for fund, g in f.groupby("fund"):
+            bits = [f"{label[r.change]}: **{r.tkr or r.issuer}**"
+                    f"{' (' + _money(r.value) + ')' if r.value == r.value and (r.value or 0) >= 1e3 else ''}"
+                    for r in g.itertuples()]
+            out.append(f"- **{fund}**, quarter ending {_d(g.period.iloc[0])}: " + "; ".join(bits))
+        out.append("")
     return "\n".join(out)
 
 
@@ -183,6 +265,22 @@ def selftest():
     assert "**XYZ**" in text and "3 insiders" in text
     assert "**SEL**" in text, "a $200k single buy shows in the big-buys section"
     assert "Gamma" not in text, "sales never appear"
+    assert "None right now." in text, "one kind of support isn't agreement"
+
+    # now add a committee seat, a fund holding and a contract for AAA
+    committees.load_fixture(con)
+    con.execute("INSERT INTO committee_members VALUES ('A1','S','A',NULL,'Alpha','SSAS',"
+                "'Senate Committee on Armed Services','2025-01-01')")
+    funds.load_fixture(con)
+    contracts.ensure_table(con)
+    con.execute("INSERT INTO big_contracts VALUES ('k1','AAA INC','AAA','Department of Defense',"
+                "'Department of the Navy','2025-03-20','2030-03-20',250e6,'MISSILES','2025-03-30')")
+    text = build(con, datetime.date(2025, 5, 20), days=90)
+    assert "⚑ Armed Services (defense)" in text, text
+    assert "- **AAA**: Congress:" in text and "Contract: won $250.0M" in text \
+        and "Funds: held by Berkshire (new)" in text, text
+    assert "**Berkshire**, quarter ending 2025-03-31: new position: **AAA**" in text, text
+    assert "**AAA**: $250.0M from Department of Defense / Department of the Navy" in text
     print(text)
     print("digest selftest ok")
 
@@ -195,8 +293,10 @@ def main(days=7):
     today = datetime.date.today()
     con = duckdb.connect(DB_PATH)
     ensure_schema(con)
+    tickers = digest_tickers(con, today, days)
+    committees.ensure_flags_ready(con, tickers)
     try:
-        health.refresh(con, digest_tickers(con, today, days))
+        health.refresh(con, tickers)
     except SystemExit as e:  # no SEC_CONTACT_EMAIL: digest still works
         print(f"health check skipped: {e}")
     text = build(con, today, days)
