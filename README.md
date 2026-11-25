@@ -231,6 +231,11 @@ months, over a decent number of examples.
   the database and served from the site itself. No picture means a lettered
   circle instead. The all-trades page also shows each stock's return since the
   trade, compared with the S&P 500.
+- `python secextras.py short AAPL`: shares sold short and "days to cover"
+  (FINRA, twice a month, no key). `python secextras.py risks AAPL`: compares
+  the risk-factor section of the last two annual reports and lists the new
+  warnings. CEO pay (from the proxy's pay table) and the last stock split come
+  with the health check.
 - Federal Reserve governors are followed through `whitehouse_officials.txt`
   too (same Form 278-T). Regional Fed bank presidents only publish annual
   reports, not trades, so they aren't included.
