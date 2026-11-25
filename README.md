@@ -208,6 +208,11 @@ months, over a decent number of examples.
 - `python activists.py`: new 13D filings (an investor took 5%+ of a company
   and may push for changes), from EDGAR's daily index.
 
+- `python companyintel.py TKR "Company name"`: lobbying spend (Senate LDA),
+  federal contract dollars (USAspending) and Wikipedia page-view "buzz" for one
+  company. The daily run refreshes a few dozen companies of each per day.
+  Buybacks and dividends come with the SEC health check.
+
 `backtest.py` also tests "Congress buys in their committee's industry" as its
 own signal, so you can see whether that ⚑ means anything.
 

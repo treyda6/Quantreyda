@@ -49,6 +49,8 @@ EQUITY = ["StockholdersEquity",
 DEBT_PARTS = [["LongTermDebt"], ["LongTermDebtNoncurrent", "LongTermDebtCurrent"]]
 CASH = ["CashAndCashEquivalentsAtCarryingValue"]
 SHARES = ["EntityCommonStockSharesOutstanding"]  # dei, cover page
+BUYBACKS = ["PaymentsForRepurchaseOfCommonStock", "PaymentsForRepurchaseOfEquity"]
+DIVIDENDS = ["PaymentsOfDividendsCommonStock", "PaymentsOfDividends"]
 
 
 def ensure_table(con):
@@ -57,6 +59,9 @@ def ensure_table(con):
         fiscal_year_end DATE, revenue DOUBLE, revenue_growth DOUBLE,
         net_income DOUBLE, debt DOUBLE, equity DOUBLE, cash DOUBLE,
         share_growth DOUBLE, pe DOUBLE, verdict VARCHAR, reasons VARCHAR)""")
+    # added later; older databases get the columns on first use
+    for col in ("buybacks", "dividends"):
+        con.execute(f"ALTER TABLE health ADD COLUMN IF NOT EXISTS {col} DOUBLE")
 
 
 # ----------------------------------------------------------------- parsing
@@ -146,6 +151,9 @@ def analyze(facts, price=None):
     s_end, shares = latest_instant(facts, SHARES, unit="shares")
     prev = instant_year_ago(facts, SHARES, s_end, unit="shares")
     m["share_growth"] = shares / prev - 1 if shares and prev else None
+    bb, dv = annual_series(facts, BUYBACKS), annual_series(facts, DIVIDENDS)
+    m["buybacks"] = bb[sorted(bb)[-1]] if bb and sorted(bb)[-1] >= (m["fiscal_year_end"] or "") else None
+    m["dividends"] = dv[sorted(dv)[-1]] if dv and sorted(dv)[-1] >= (m["fiscal_year_end"] or "") else None
     m["pe"] = None
     if price and shares and m["net_income"] and m["net_income"] > 0:
         m["pe"] = price * shares / m["net_income"]
@@ -245,7 +253,8 @@ def refresh(con, tickers, force=False):
                     m = analyze(r.json(), latest_price(con, t))
                     m["company"] = m.get("company") or hit[1]
             cols = ["company", "fiscal_year_end", "revenue", "revenue_growth", "net_income",
-                    "debt", "equity", "cash", "share_growth", "pe", "verdict", "reasons"]
+                    "debt", "equity", "cash", "share_growth", "pe", "verdict", "reasons",
+                    "buybacks", "dividends"]
             con.execute(f"INSERT OR REPLACE INTO health (tkr, checked_on, {', '.join(cols)}) "
                         f"VALUES (?, ?, {', '.join('?' * len(cols))})",
                         [t, today] + [m.get(c) for c in cols])
@@ -284,6 +293,8 @@ def sample_facts(rev=(100e6, 120e6), ni=10e6, equity=50e6, debt=40e6,
             "NetIncomeLoss": {"units": {"USD": [_fact("2025-12-31", ni, "2025-01-01")]}},
             "StockholdersEquity": {"units": {"USD": [_fact("2025-12-31", equity)]}},
             "LongTermDebt": {"units": {"USD": [_fact("2025-12-31", debt)]}},
+            "PaymentsForRepurchaseOfCommonStock": {"units": {"USD": [
+                _fact("2024-12-31", 3e6, "2024-01-01"), _fact("2025-12-31", 5e6, "2025-01-01")]}},
         },
         "dei": {"EntityCommonStockSharesOutstanding": {"units": {"shares": [
             _fact("2025-02-01", shares[0]), _fact("2026-02-01", shares[1])]}}},
@@ -293,6 +304,7 @@ def sample_facts(rev=(100e6, 120e6), ni=10e6, equity=50e6, debt=40e6,
 def selftest():
     m = analyze(sample_facts(), price=20.0)
     assert abs(m["revenue_growth"] - 0.2) < 1e-9, m
+    assert m["buybacks"] == 5e6 and m["dividends"] is None, m
     assert m["verdict"] == "Solid", m
     assert abs(m["pe"] - 20 * 10.2e6 / 10e6) < 1e-9, m
     assert "sales up 20%" in m["reasons"] and "profitable" in m["reasons"], m

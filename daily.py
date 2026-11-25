@@ -26,6 +26,7 @@ import sys
 import activists
 import alerts
 import committees
+import companyintel
 import contracts
 import digest
 import funds
@@ -44,6 +45,18 @@ def _con():
     import duckdb
     from schema import DB_PATH
     return duckdb.connect(DB_PATH)
+
+
+def company_names(con, tickers):
+    """{tkr: company name} from the health check, else SEC's company list."""
+    names = {}
+    for t in tickers:
+        r = con.execute("""SELECT coalesce((SELECT company FROM health WHERE tkr = ?),
+                                           (SELECT name FROM companies WHERE tkr = ?))""",
+                        [t, t]).fetchone()
+        if r and r[0]:
+            names[t] = r[0]
+    return names
 
 
 def house_years(today=None):
@@ -103,7 +116,9 @@ def main():
                                                          start=today - datetime.timedelta(days=740))),
                         ("industry codes", lambda: committees.refresh_companies(con, pages)),
                         ("health", lambda: health.refresh(con, pages)),
-                        ("news", lambda: news.refresh(con, pages))):
+                        ("news", lambda: news.refresh(con, pages)),
+                        ("lobbying, contracts, buzz",
+                         lambda: companyintel.refresh(con, company_names(con, pages)))):
         try:
             step()
         except SystemExit as e:
