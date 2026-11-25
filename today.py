@@ -19,6 +19,7 @@ import datetime
 import html
 
 import committees
+import companyintel
 import contracts
 import digest
 import funds
@@ -74,7 +75,7 @@ display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow);transition:
 .b-Unknown,.b-none{background:var(--chip);color:var(--mut)}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chip{font-size:12px;font-weight:600;background:var(--chip);border-radius:8px;padding:3px 9px}
-.chip.flag{color:var(--warn)}
+.chip.flag{color:var(--warn)}.chip.buzz{color:var(--ins)}
 .hint{color:var(--mut);font-size:13px}
 .who{position:relative;border-bottom:1px dotted var(--mut);cursor:help;outline:none}
 .bio{display:none;position:absolute;left:0;top:calc(100% + 8px);z-index:30;width:300px;
@@ -331,6 +332,7 @@ def collect(con, today, days=7, records=None):
         i["company"] = (h or {}).get("company") or i["company"]
         i["score"] += 3 * len(i["kinds"]) + {"Solid": 2, "Shaky": -3}.get(i["health"], 0)
         i["profile"] = profiles.company(con, t)
+        i["intel"] = companyintel.intel(con, t)
         i["company"] = i["company"] or i["profile"].get("name")
         i["track"] = max((leaders.record_points(records.get(k)) for k in i["buyers"]),
                          key=lambda p: p[0], default=(0, None))
@@ -379,6 +381,16 @@ def _card(i):
     if i["flag"]:
         chips += (f"<span class='chip flag' title='Their committee oversees this industry'>"
                   f"⚑ {E(i['flag'].split(' (')[0])}</span>")
+    ci = i.get("intel") or {}
+    if ci.get("buzz") and ci["buzz"] >= 2:
+        chips += (f"<span class='chip buzz' title='Wikipedia views vs its usual week'>"
+                  f"Buzz {ci['buzz']:.1f}×</span>")
+    if ci.get("buybacks"):
+        chips += (f"<span class='chip' title='Spent {E(profiles.money(ci['buybacks']))} buying back "
+                  f"its own shares last year'>Buying back stock</span>")
+    if (ci.get("contracts") or 0) >= 100e6:
+        chips += (f"<span class='chip' title='{E(profiles.money(ci['contracts']))} in federal "
+                  f"contracts over 12 months'>Gov't customer</span>")
     why = "".join(f"<li>{w}</li>" for w in i["why"][:4])  # already escaped HTML
     price = ""
     if pr.get("price"):
@@ -607,6 +619,11 @@ def selftest():
     assert "JD Vance<span class='bio'" in p2 and "Vice President" in p2
     assert "1 muni bond purchase ($50k–$100k)" in p2, p2[p2.find("everything they"):][:600]
     assert "Pershing Road Capital filed a 13D" in p2
+    companyintel.ensure_tables(con)
+    companyintel._save(con, "AAA", "buzz", 900, "Aaa Inc|3.2")
+    companyintel._save(con, "AAA", "contracts", 4.2e9, None)
+    p3 = render(collect(con, today, days=90), today, 90)
+    assert "Buzz 3.2×" in p3 and "Gov't customer" in p3, p3[:300]
     quiet = render(collect(duckdb.connect(), today), today)
     assert "quiet week" in quiet and "No ideas this week" in quiet
     win = {"signal": "X", "n_12m": 80, "avg_excess_12m": .05, "median_excess_12m": .02,

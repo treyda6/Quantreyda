@@ -17,6 +17,7 @@ import re
 
 import activists
 import committees
+import companyintel
 import health
 import leaders
 import news
@@ -198,7 +199,7 @@ def _people(n, one, many):
     return f"{n} {one if n == 1 else many}"
 
 
-def explain(tkr, pr, h, marks, sells, records, flags, news_rows, stakes=()):
+def explain(tkr, pr, h, marks, sells, records, flags, news_rows, stakes=(), ci=None):
     """[(question, answer html)] written from the data, in plain English."""
     qa = []
     name = pr.get("name") or (h or {}).get("company") or tkr
@@ -229,6 +230,13 @@ def explain(tkr, pr, h, marks, sells, records, flags, news_rows, stakes=()):
     if dr is not None:
         bits.append("Debt is <b>high</b> compared with what shareholders own." if dr > 2 else
                     "Debt looks <b>manageable</b>." if dr < 1 else "Debt is <b>moderate</b>.")
+    ci = ci or {}
+    if ci.get("buybacks"):
+        bits.append(f"It spent <b>{E(profiles.money(ci['buybacks']))}</b> buying back its own "
+                    "stock last year, which usually means management thinks the shares are worth it "
+                    "(and it leaves each remaining share a bigger slice).")
+    if ci.get("dividends"):
+        bits.append(f"It paid {E(profiles.money(ci['dividends']))} in dividends.")
     qa.append(("Is the business healthy?", "<p>" + (" ".join(bits) or
                "Not enough SEC financial data yet (common for funds, foreign companies and very new "
                "listings). Read the latest annual report before deciding anything.") + "</p>"))
@@ -292,6 +300,25 @@ def explain(tkr, pr, h, marks, sells, records, flags, news_rows, stakes=()):
               f"({best[1]['n']} buys).")
     qa.append(("Who's been buying, and should I care?", f"<p>{p}</p>"))
 
+    dc = []
+    if ci.get("contracts"):
+        dc.append(f"It received <b>{E(profiles.money(ci['contracts']))}</b> in federal contracts "
+                  "over the last 12 months")
+    if ci.get("lobbying"):
+        issues = ", ".join(ci.get("lobbying_issues") or [])
+        dc.append(f"spent <b>{E(profiles.money(ci['lobbying']))}</b> on lobbying"
+                  + (f" (mostly on {E(issues)})" if issues else ""))
+    if dc:
+        txt = "; it ".join(dc) if dc[0].startswith("It") else "It " + "; it ".join(dc)
+        qa.append(("How tied is it to Washington?",
+                   f"<p>{txt}. Companies that depend on government money or rules have more to gain "
+                   "or lose from what Congress and agencies do, which is one reason a "
+                   "politician's trade in it can be worth a closer look.</p>"))
+    if ci.get("buzz") and ci["buzz"] >= 2:
+        qa.append(("Why is everyone looking it up?",
+                   f"<p>Its Wikipedia page got <b>{ci['buzz']:.1f}×</b> its usual traffic this week "
+                   f"(about {ci['views']:,.0f} views a day). A spike usually follows news; check the "
+                   "filings below for what happened, and be careful buying into hype.</p>"))
     todo = []
     tenk = next((r for r in news_rows if r[1] in ("10-K", "20-F")), None)
     q = next((r for r in news_rows if "quarterly results" in r[2]), None)
@@ -344,8 +371,9 @@ def render(con, tkr, today, records=None):
               "<span>Hover a marker for who and how much.</span></div>")
     chart_panel = f"<section class='panel'><h2>Two years of price, with the buys</h2>{chart(px, marks)}{legend}</section>"
 
+    ci = companyintel.intel(con, tkr)
     qa = explain(tkr, pr, h, marks, _sells(con, tkr, since), records, flags, news_rows,
-                 activists.for_ticker(con, tkr))
+                 activists.for_ticker(con, tkr), ci)
     about = ("<section class='panel qa'><h2>About this stock, in plain English</h2>"
              + "".join(f"<h3>{E(q)}</h3>{a}" for q, a in qa)
              + "<p class='hint' style='margin-top:12px'>Written automatically from public filings and "
@@ -361,6 +389,19 @@ def render(con, tkr, today, records=None):
                     f"{E((h or {}).get('reasons') or 'Not checked yet.')}</span></div><div class='kv'>"
                     + "".join(f"<div><span>{k}</span><b>{E(v)}</b></div>" for k, v in stats)
                     + "</div></section>")
+    intel_rows = [("Buybacks (last year)", profiles.money(ci.get("buybacks")) or "—"),
+                  ("Dividends (last year)", profiles.money(ci.get("dividends")) or "—"),
+                  ("Lobbying (12 months)", profiles.money(ci.get("lobbying")) if "lobbying" in ci else "—"),
+                  ("Federal contracts (12 mo)", profiles.money(ci.get("contracts")) if "contracts" in ci else "—"),
+                  ("Wikipedia views / day", f"{ci['views']:,.0f}" if ci.get("views") else "—"),
+                  ("Buzz vs usual", f"{ci['buzz']:.1f}×" if ci.get("buzz") else "—")]
+    intel_panel = ("<section class='panel'><h2>Money, Washington and buzz</h2><div class='kv'>"
+                   + "".join(f"<div><span>{k}</span><b>{E(v or '—')}</b></div>" for k, v in intel_rows)
+                   + "</div>"
+                   + (f"<p class='hint'>Lobbying on: {E(', '.join(ci['lobbying_issues']))}.</p>"
+                      if ci.get("lobbying_issues") else "")
+                   + "<p class='hint'>Sources: SEC cash-flow statements, Senate lobbying "
+                     "disclosures, USAspending.gov, Wikipedia page views.</p></section>")
     if news_rows:
         items = "".join(f"<li><span class='d'>{d:%b %d}</span><a href='{E(u)}'>{E(w)}</a> "
                         f"<span class='hint'>({E(f)})</span></li>" for d, f, w, u in news_rows)
@@ -383,7 +424,7 @@ def render(con, tkr, today, records=None):
                   + ("".join(rows) or "<li class='hint'>No buys in the last two years.</li>")
                   + "</ul></section>")
     return (head + chart_panel + about + f"<div class='two'>{health_panel}{news_panel}</div>"
-            + buys_panel)
+            + intel_panel + buys_panel)
 
 
 def selftest():
@@ -411,6 +452,13 @@ def selftest():
     assert "Congress purchase" in body and "latest earnings release" in body
     assert "fill='var(--warn)'" in body and "JD Vance (Vice President)" in body
     assert "Pershing Road</b> took a 5%+ stake as an activist" in body
+    companyintel.ensure_tables(con)
+    companyintel._save(con, "AAA", "lobbying", 3.3e6, "Defense")
+    companyintel._save(con, "AAA", "contracts", 4.2e9, None)
+    companyintel._save(con, "AAA", "buzz", 900, "Aaa Inc|3.2")
+    body = render(con, "AAA", today)
+    assert "How tied is it to Washington?" in body and "$4.2B</b> in federal contracts" in body
+    assert "3.2×" in body and "Money, Washington and buzz" in body
     assert "<script" not in body.lower()
     assert "AAA" in pick(con, today, ["ZZZ"]) and pick(con, today, ["ZZZ"])[0] == "ZZZ"
     empty = render(duckdb.connect(), "QQQQ", today)
