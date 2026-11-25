@@ -80,8 +80,18 @@ ORDER BY total_value DESC
 """
 
 
+def clean(df):
+    """Text columns: missing values as None, not pandas' float NaN (which
+    is truthy and has no .lower() -- it crashed the first live digest)."""
+    for c in df.columns:
+        if df[c].dtype == object or str(df[c].dtype) in ("string", "str"):
+            df[c] = pd.Series([None if v is None or (isinstance(v, float) and v != v)
+                               else v for v in df[c]], index=df.index, dtype=object)
+    return df
+
+
 def _df(con, sql, params):
-    return con.execute(sql, params).df()
+    return clean(con.execute(sql, params).df())
 
 
 def congress_buys(con, start, end, min_amount=15001):
@@ -151,6 +161,8 @@ def make_fixture(con):
         ("c1", "2025-03-05", "SEL", "8", "Ha", "OFFICER", "S", "D", 9e6, 10),
         ("c2", "2025-03-06", "SEL", "9", "Io", "OFFICER", "A", "A", 9e6, 0),
         ("c3", "2025-03-07", "SEL", "10", "Jo", "OFFICER", "P", "A", 20000, 10),
+        # big buy with no relationship on file (live data has these)
+        ("n1", "2025-03-08", "NOR", "14", "No Role", None, "P", "A", 50000, 10),
     ]
     con.executemany("""INSERT INTO insider_trades (accession_number, trans_seq, filed_date,
         ticker, owner_cik, owner_name, owner_relationship, trans_code, acquired_disposed,
@@ -180,7 +192,8 @@ def selftest():
     assert "tkr" in insider_clusters(con, D(2030, 1, 1), D(2030, 2, 1)).columns
 
     big = big_insider_buys(con, D(2025, 1, 1), D(2025, 12, 31), min_value=100_000)
-    assert list(big.tkr) == ["SEL"], big
+    assert list(big.tkr) == ["NOR", "SEL"], big
+    assert big.owner_relationship[0] is None, "missing text is None, not NaN"
     print("signals selftest ok")
 
 

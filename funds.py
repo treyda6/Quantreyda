@@ -162,8 +162,9 @@ def changes(con, since=None):
         if since:
             q += " AND filed >= ?"
             params.append(since)
-        return con.execute(q + " ORDER BY fund, CASE change WHEN 'new' THEN 0 WHEN 'added' THEN 1 ELSE 2 END,"
-                                 " value DESC NULLS LAST", params).df()
+        from signals import clean
+        return clean(con.execute(q + " ORDER BY fund, CASE change WHEN 'new' THEN 0 WHEN 'added' THEN 1 ELSE 2 END,"
+                                 " value DESC NULLS LAST", params).df())
     except duckdb.CatalogException:
         return None
 

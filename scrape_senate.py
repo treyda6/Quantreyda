@@ -182,7 +182,10 @@ def _ensure_filings(con):
         ON CONFLICT (link) DO NOTHING""")
 
 
-def main(limit=None):
+def main(limit=None, max_minutes=None):
+    """max_minutes: stop cleanly after this long (daily.py uses it so a
+    half-finished history fill can't starve the rest of the daily run)."""
+    stop_at = time.time() + max_minutes * 60 if max_minutes else None
     con = duckdb.connect(DB_PATH)
     ensure_schema(con)  # tables + the `trades` view, shared with scrape_house
     _ensure_filings(con)
@@ -197,6 +200,9 @@ def main(limit=None):
     seen = {"ok": 0, "paper": 0, "empty": 0, "no_table": 0, "error": 0}
     for first, last, office, link, filed in list_ptrs(s):
         if limit is not None and sum(seen.values()) >= limit:
+            break
+        if stop_at and time.time() > stop_at:
+            print(f"time budget of {max_minutes} min used; the rest resumes next run")
             break
         if link in done:
             continue

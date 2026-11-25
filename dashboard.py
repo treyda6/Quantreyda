@@ -152,9 +152,15 @@ def build(con, today, out=OUT):
     os.makedirs(out, exist_ok=True)
     updated = datetime.datetime.now().strftime("%b %d, %Y %H:%M UTC") \
         if os.environ.get("GITHUB_ACTIONS") else f"{today:%b %d, %Y}"
-    text = digest.build(con, today, days=7)
+    try:
+        body = md(digest.build(con, today, days=7))
+    except Exception as e:  # one bad row shouldn't take the whole site down
+        import traceback
+        traceback.print_exc()
+        body = (f"<h1>Today</h1><p>The digest couldn't be built this run "
+                f"({html.escape(type(e).__name__)}). The other pages are current.</p>")
     with open(f"{out}/index.html", "w", encoding="utf-8") as f:
-        f.write(page("Today", "digest", md(text), updated))
+        f.write(page("Today", "digest", body, updated))
     with open(f"{out}/trades.html", "w", encoding="utf-8") as f:
         f.write(trades_page(trade_rows(con, today), updated))
     bt = "reports/backtest.md"
