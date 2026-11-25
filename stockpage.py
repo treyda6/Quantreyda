@@ -315,8 +315,8 @@ def explain(tkr, pr, h, marks, sells, records, flags, news_rows, stakes=(), ci=N
         side = ("" if lean is None else
                 f", {lean * 100:.0f}% of it to Republicans" if lean >= .5 else
                 f", {(1 - lean) * 100:.0f}% of it to Democrats")
-        dc.append(f"its PAC gave <b>{E(profiles.money(ci['pac']))}</b> to federal candidates this "
-                  f"election cycle{side}")
+        dc.append(f"gave <b>{E(profiles.money(ci['pac']))}</b> to federal candidates through its "
+                  f"PAC this election cycle{side}")
     if dc:
         txt = "; it ".join(dc) if dc[0].startswith("It") else "It " + "; it ".join(dc)
         qa.append(("How tied is it to Washington?",
@@ -484,7 +484,7 @@ def selftest():
     companyintel._save(con, "AAA", "buzz", 900, "Aaa Inc|3.2")
     companyintel._save(con, "AAA", "pac", 412000, "AAA INC PAC|0.62|Smith For Senate; Jones For Congress")
     body = render(con, "AAA", today)
-    assert "its PAC gave <b>$412k</b>" in body and "62% of it to Republicans" in body, body
+    assert "gave <b>$412k</b> to federal candidates through its PAC" in body and "62% of it to Republicans" in body, body
     assert "Smith For Senate" in body
     assert "How tied is it to Washington?" in body and "$4.2B</b> in federal contracts" in body
     assert "3.2×" in body and "Money, Washington and buzz" in body
