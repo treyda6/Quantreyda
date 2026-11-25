@@ -62,11 +62,14 @@ th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);verti
 th{color:var(--mut);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.5px;
 position:sticky;top:57px;background:var(--bg)}
 tbody tr:hover{background:var(--card)}
+.wrap th{top:0}
 .wrap{overflow-x:auto}a{color:var(--acc)}code{background:var(--chip);padding:1px 5px;border-radius:5px}
 .filters{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 16px}
 .filters input,.filters select{font:inherit;padding:9px 12px;border:1px solid var(--line);border-radius:12px;
 background:var(--card);color:var(--fg)}
 .filters input{flex:1;min-width:240px}.mut{color:var(--mut);font-size:13px}
+.fam{font-size:11px;font-weight:700;color:var(--warn);background:color-mix(in srgb,var(--warn) 15%,transparent);
+border-radius:6px;padding:1px 6px;margin-left:4px}
 .buy{color:var(--up);font-weight:700}.sell{color:var(--down);font-weight:700}
 footer{color:var(--mut);font-size:12px;padding:40px 20px;text-align:center}
 """
@@ -116,11 +119,14 @@ def trade_rows(con, today, days=DAYS):
             filed, txn, tkr, ch, fn, ln, owner, tx, lo, hi, asset = r
             side = "buy" if tx == "Purchase" else "sell" if "Sale" in (tx or "") else "other"
             who = f"{fn or ''} {(ln or '').strip(' ,.')}".strip()
-            if owner and str(owner).lower() not in ("self", "none"):
-                who += f" ({str(owner).lower()})"
+            o = str(owner or "").lower()
+            own = "family" if o and o not in ("self", "none", "nan", "joint") else "self"
+            if own == "family":
+                who += f" ({front.OWNER.get(o, o)})"
             rows.append({"filed": str(filed), "traded": str(txn or ""), "tkr": tkr,
                          "src": "Senate" if ch == "S" else "House", "who": who, "side": side,
-                         "amt": digest._bracket(lo, hi), "lo": lo or 0, "what": asset or ""})
+                         "amt": digest._bracket(lo, hi), "lo": lo or 0, "what": asset or "",
+                         "own": own})
     if signals.has_table(con, "insider_trades"):
         for r in con.execute("""
                 SELECT try_cast(filed_date AS DATE) fd, min(trans_date), upper(trim(ticker)),
@@ -135,7 +141,21 @@ def trade_rows(con, today, days=DAYS):
             rows.append({"filed": str(fd), "traded": str(td or ""), "tkr": tkr,
                          "src": "Insider", "who": f"{owner} ({(rel or 'insider').lower()})",
                          "side": "buy" if code == "P" else "sell",
-                         "amt": digest._money(val or 0), "lo": val or 0, "what": issuer or ""})
+                         "amt": digest._money(val or 0), "lo": val or 0, "what": issuer or "",
+                         "own": "self"})
+    if signals.has_table(con, "wh_trades"):
+        for r in con.execute("""
+                SELECT filed, tx_date, tkr, name, title, tx_type, amount_low, amount_high,
+                       description, kind
+                FROM wh_trades WHERE filed BETWEEN ? AND ? AND tkr IS NOT NULL
+                ORDER BY filed DESC""", [start, today]).fetchall():
+            filed, txn, tkr, name, title, tx, lo, hi, desc, kind = r
+            rows.append({"filed": str(filed), "traded": str(txn or ""), "tkr": tkr,
+                         "src": "White House", "who": f"{name} ({title})",
+                         "side": "buy" if tx == "Purchase" else "sell" if tx == "Sale" else "other",
+                         "amt": digest._bracket(lo, hi), "lo": lo or 0,
+                         "what": (kind + ": " if kind != "stock" else "") + (desc or ""),
+                         "own": "self"})
     rows.sort(key=lambda x: x["filed"], reverse=True)
     return rows
 
@@ -143,19 +163,20 @@ def trade_rows(con, today, days=DAYS):
 TRADES_JS = """
 const rows = DATA, tb = document.querySelector('tbody'), q = document.getElementById('q'),
       src = document.getElementById('src'), side = document.getElementById('side'),
-      size = document.getElementById('size'), count = document.getElementById('count');
+      size = document.getElementById('size'), own = document.getElementById('own'), count = document.getElementById('count');
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function draw() {
   const t = q.value.trim().toLowerCase(), min = +size.value;
   const hit = rows.filter(r => (!t || (r.tkr + ' ' + r.who + ' ' + r.what).toLowerCase().includes(t))
-    && (!src.value || r.src === src.value || (src.value === 'Congress' && r.src !== 'Insider'))
+    && (!src.value || r.src === src.value || (src.value === 'Congress' && (r.src === 'Senate' || r.src === 'House')))
+    && (!own.value || r.own === own.value)
     && (!side.value || r.side === side.value) && r.lo >= min);
   count.textContent = hit.length + ' of ' + rows.length;
   tb.innerHTML = hit.slice(0, 1000).map(r => `<tr><td>${r.filed}</td><td><b>${esc(r.tkr)}</b></td>
-    <td class="${r.side}">${r.side}</td><td>${esc(r.who)}</td><td>${r.src}</td><td>${esc(r.amt)}</td>
+    <td class="${r.side}">${r.side}</td><td>${esc(r.who)}${r.own === 'family' ? ' <span class="fam">family</span>' : ''}</td><td>${r.src}</td><td>${esc(r.amt)}</td>
     <td>${r.traded}</td><td class="mut">${esc(r.what).slice(0, 60)}</td></tr>`).join('');
 }
-[q, src, side, size].forEach(el => el.addEventListener('input', draw));
+[q, src, side, size, own].forEach(el => el.addEventListener('input', draw));
 const p = new URLSearchParams(location.search); if (p.get('q')) q.value = p.get('q');
 draw();
 """
@@ -165,12 +186,16 @@ def trades_page(rows, updated):
     # "</" is escaped so no data string can close the script tag early
     data = json.dumps(rows).replace("</", "<\\/")
     body = (f"<h1>All trades, last {DAYS} days</h1>"
-            "<p class='mut'>Every disclosed congressional trade and insider open-market buy or "
-            "sale with a ticker. Search a ticker, a name or a company. Dates are filing dates "
+            "<p class='mut'>Every disclosed congressional, White House and cabinet trade and "
+            "insider open-market buy or sale with a ticker. <span class='fam'>family</span> marks "
+            "a trade in a spouse's or child's account. Search a ticker, a name or a company. Dates are filing dates "
             "(when the public found out).</p>"
             "<div class='filters'><input id='q' placeholder='Search ticker, person or company…'>"
             "<select id='src'><option value=''>Everyone</option><option>Congress</option>"
-            "<option>Senate</option><option>House</option><option>Insider</option></select>"
+            "<option>Senate</option><option>House</option><option>White House</option>"
+            "<option>Insider</option></select>"
+            "<select id='own'><option value=''>Anyone's money</option><option value='self'>"
+            "Their own</option><option value='family'>Spouse or child</option></select>"
             "<select id='side'><option value=''>Buys and sells</option><option value='buy'>Buys</option>"
             "<option value='sell'>Sells</option></select>"
             "<select id='size'><option value='0'>Any size</option><option value='15001'>$15k+</option>"

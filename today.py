@@ -24,6 +24,8 @@ import digest
 import funds
 import health
 import leaders
+import activists
+import whitehouse
 import profiles
 import signals
 
@@ -140,6 +142,11 @@ def insider_html(con, name, cik=None):
     return who_html(name, profiles.insider_lines(profiles.insider(con, cik, name)))
 
 
+def official_html(con, slug, name):
+    o = whitehouse.official(con, slug)
+    return who_html(name, whitehouse.official_lines(o), name)
+
+
 def conviction(i):
     """0-100 score and the plain-English breakdown behind it.
 
@@ -147,8 +154,9 @@ def conviction(i):
                 insiders, top fund, contract)
       up to 20  how much money went in (log scale: ~$15k = 4, $1M = 16, $10M+ = 20)
       up to 20  company health (Solid 20, Mixed 10, unknown 8, Shaky 0)
-      up to 20  how informed the buyers look: a cluster of insiders 10, an
-                executive buying 5, a Congress member on an overseeing committee 5
+      up to 25  how informed the buyers look: a cluster of insiders 10, an
+                executive buying 5, a Congress member on an overseeing committee 5,
+                an activist investor taking a 5%+ stake 5
       up to 10  the best buyer's past record on the leaderboard (beat SPY by 5%+
                 on average and more than half the time 10, ahead at all 5)
     Capped at 100.
@@ -157,7 +165,8 @@ def conviction(i):
     breadth = min(len(i["kinds"]), 4) * 10
     size = 0 if i["dollars"] <= 0 else max(0, min(20, round(4 * math.log10(i["dollars"] / 1000))))
     hp = {"Solid": 20, "Mixed": 10, "Shaky": 0}.get(i.get("health"), 8)
-    informed = 10 * i["cluster"] + 5 * i["officer"] + 5 * bool(i["flag"])
+    informed = (10 * i["cluster"] + 5 * i["officer"] + 5 * bool(i["flag"])
+                + 5 * ("Activist" in i["kinds"]))
     track, track_why = i.get("track") or (0, None)
     why = [f"{len(i['kinds'])} kind(s) of buyer: +{breadth}",
            f"about {digest._money(i['dollars'])} put in: +{size}" if i["dollars"] else "no dollar amount: +0",
@@ -182,7 +191,7 @@ def collect(con, today, days=7, records=None):
                                     "cluster": False, "officer": False, "buyers": set()})
 
     data = {"congress": [], "clusters": [], "big": [], "contracts": [], "funds": [],
-            "stale": 0}
+            "whitehouse": [], "activists": [], "wh_summary": [], "stale": 0}
 
     if signals.has_table(con, "senate_trades"):
         cb = signals.congress_buys(con, start, today)
@@ -205,7 +214,10 @@ def collect(con, today, days=7, records=None):
             i["dollars"] += float(lo)
             late = f", {int(row['lag'])} days after the trade" if row["lag"] is not None else ""
             n = f" ({len(g)} purchases)" if len(g) > 1 else ""
-            i["why"].append(f"{who_h} bought {E(row['amount'])}{n}, disclosed"
+            o = str(r.owner or "").strip().lower()
+            fam = (" <span class='fam' title='Traded in a spouse or child account'>family</span>"
+                   if o and o not in ("self", "none", "nan", "joint") else "")
+            i["why"].append(f"{who_h}{fam} bought {E(row['amount'])}{n}, disclosed"
                             f" {_days_ago(row['filed'], today)}{late}.")
             if flag:
                 i["flag"] = flag
@@ -248,6 +260,34 @@ def collect(con, today, days=7, records=None):
                 role = (r.owner_relationship or "insider").lower().split(",")[0]
                 i["why"].append(f"{who_h} ({E(role)}) bought "
                                 f"{E(digest._money(r.total_value))} of stock.")
+
+    # officials report up to 45 days after a trade, so look back a little further
+    for slug, name, title, t, traded, filed, lo, hi, n in whitehouse.stock_buys(
+            con, today - datetime.timedelta(days=max(days, 30)), today):
+        who_h = official_html(con, slug, name)
+        amount = digest._bracket(lo, hi)
+        data["whitehouse"].append({"tkr": t, "who_h": who_h, "title": title, "amount": amount,
+                                   "n": n, "filed": filed})
+        i = idea(t)
+        i["kinds"].add("White House")
+        i["buyers"].add(leaders.key_official(slug))
+        i["score"] += min((lo or 0) / 50_000, 3)
+        i["dollars"] += float(lo or 0)
+        times = f" ({n} purchases)" if n > 1 else ""
+        i["why"].append(f"{who_h} ({E(title)}) bought {E(amount)}{times}, reported "
+                        f"{_days_ago(filed, today)}.")
+    data["wh_summary"] = whitehouse.summary(con, today - datetime.timedelta(days=60), today)
+
+    for t, company, investor, form, filed, url in activists.recent(con, start, today):
+        data["activists"].append({"tkr": t, "company": company, "investor": investor,
+                                  "filed": filed, "url": url})
+        i = idea(t)
+        i["company"] = i["company"] or company
+        if "Activist" not in i["kinds"]:
+            i["kinds"].add("Activist")
+            i["score"] += 2
+            i["why"].append(f"{E(investor)} took a 5%+ stake and filed as an activist, meaning "
+                            f"they may push for changes ({_days_ago(filed, today)}).")
 
     c = contracts.recent(con, start, today)
     if c is not None:
@@ -366,6 +406,25 @@ def _card(i):
             f"</article>")
 
 
+def _group_wh(rows):
+    out = {}
+    for name, title, kind, tx, n, lo, hi, last in rows:
+        out.setdefault((name, title), []).append((kind, tx, n, lo, hi))
+    return list(out.items())
+
+
+SHOW = {"bond": "other bond"}
+
+
+def wh_line(name, title, rows):
+    """'Donald J. Trump (President): 52 muni bond purchases ($5.2M–$13M), ...'"""
+    verb = {"Purchase": "purchase", "Sale": "sale", "Exchange": "exchange"}
+    bits = [f"{n} {SHOW.get(kind, kind)} {verb.get(tx, 'trade')}{'' if n == 1 else 's'} "
+            f"({digest._bracket(lo or 0, hi or 0)})"
+            for kind, tx, n, lo, hi in rows[:4]]
+    return f"<b>{E(name)}</b> ({E(title)}): " + E("; ".join(bits))
+
+
 def _section(title, items, empty="Nothing this week."):
     body = "".join(f"<li>{x}</li>" for x in items) if items else f"<div class='empty'>{empty}</div>"
     return (f"<details><summary>{E(title)} <span>({len(items)})</span></summary>"
@@ -413,6 +472,19 @@ def render(data, today, days=7):
         for r in data["clusters"]] + [
         f"<b>{E(r['tkr'])}</b>{' (' + E(r['company']) + ')' if r['company'] else ''}: "
         f"{r['who_h']} ({E(r['role'])}) bought {E(digest._money(r['value']))}" for r in data["big"]]))
+    out.append(_section("White House and cabinet stock buys", [
+        f"<b>{E(r['tkr'])}</b>: {r['who_h']} ({E(r['title'])}) bought {E(r['amount'])}"
+        f"{' in ' + str(r['n']) + ' purchases' if r['n'] > 1 else ''}, reported "
+        f"{E(_days_ago(r['filed'], today))}" for r in data["whitehouse"]],
+        "No stock buys reported by tracked officials lately."))
+    if data["wh_summary"]:
+        out.append(_section("White House and cabinet: everything they reported (60 days)",
+                            [wh_line(n, t, rows) for (n, t), rows in _group_wh(data["wh_summary"])]))
+    out.append(_section("Activist investors taking 5%+ stakes", [
+        f"<b>{E(r['tkr'])}</b>{' (' + E(r['company']) + ')' if r['company'] else ''}: "
+        f"{E(r['investor'])} filed a 13D {E(_days_ago(r['filed'], today))} "
+        f"(<a href='{E(r['url'])}'>filing</a>)" for r in data["activists"]],
+        "No new activist stakes this week."))
     out.append(_section("Big new government contracts", [
         f"<b>{E(r['tkr'])}</b>: {E(digest._money(r['amount']))} from the {E(r['agency'] or '')}"
         for r in data["contracts"]]))
@@ -433,10 +505,16 @@ def render(data, today, days=7):
                "<li><b>Top fund</b>: a proven long-term investor like Berkshire owns or just "
                "added it (from quarterly 13F reports, up to 45 days old).</li>"
                "<li><b>Contract</b>: the company just started a big government contract.</li>"
+               "<li><b>White House</b>: the President, Vice President or a cabinet-level "
+               "official reported buying the stock (OGE Form 278-T, in dollar ranges, up to 45 "
+               "days late). Most of what they report is bonds, which are listed separately.</li>"
+               "<li><b>Activist</b>: an investor bought 5%+ of the company and filed a 13D, "
+               "meaning they may push for changes such as a sale or new board members.</li>"
                "<li><b>⚑</b>: the member sits on a committee that oversees that industry.</li>"
                "<li><b>Conviction</b>: 0 to 100. Up to 40 for how many kinds of buyers, 20 for "
-               "how much money, 20 for company health, 20 for signs the buyers know something "
-               "(a cluster of insiders, an executive, a committee link). 70+ is High.</li>"
+               "how much money, 20 for company health, 25 for signs the buyers know something "
+               "(a cluster of insiders, an executive, a committee link, an activist), and 10 "
+               "for a buyer with a strong record on the leaderboard. 70+ is High.</li>"
                "<li><b>Dotted names</b>: hover or tap for who they are and their trading record.</li>"
                + "".join(f"<li>{_badge(k)} {E(v)}</li>" for k, v in HEALTH_HELP.items()) +
                "<li>Check the <a href='backtest.html'>Did it work?</a> tab to see whether "
@@ -513,6 +591,22 @@ def selftest():
     assert "<details><summary>Congress buys" in page
     assert "<script" not in page.lower()
     assert ">Ann<span class='bio'" not in page or "Officer at" in page
+    whitehouse.ensure_tables(con)
+    con.execute("""INSERT INTO wh_trades VALUES ('d1',1,'vance-jd','JD Vance','Vice President',
+        'Aaa Inc (AAA)','stock','AAA','Purchase','2025-05-01','2025-05-15',15001,50000,false,'l'),
+        ('d1',2,'vance-jd','JD Vance','Vice President','OHIO ST 5% DUE 2030','muni bond',NULL,
+        'Purchase','2025-05-01','2025-05-15',50001,100000,false,'l')""")
+    activists.ensure_tables(con)
+    con.execute("""INSERT INTO stakes VALUES ('a1','13D','2025-05-12','AAA','Aaa Inc',
+        'Pershing Road Capital','https://sec/x')""")
+    d2 = collect(con, today, days=90)
+    aaa = next(i for i in d2["ideas"] if i["tkr"] == "AAA")
+    assert {"White House", "Activist"} <= aaa["kinds"], aaa["kinds"]
+    assert leaders.key_official("vance-jd") in aaa["buyers"]
+    p2 = render(d2, today, 90)
+    assert "JD Vance<span class='bio'" in p2 and "Vice President" in p2
+    assert "1 muni bond purchase ($50k–$100k)" in p2, p2[p2.find("everything they"):][:600]
+    assert "Pershing Road Capital filed a 13D" in p2
     quiet = render(collect(duckdb.connect(), today), today)
     assert "quiet week" in quiet and "No ideas this week" in quiet
     win = {"signal": "X", "n_12m": 80, "avg_excess_12m": .05, "median_excess_12m": .02,

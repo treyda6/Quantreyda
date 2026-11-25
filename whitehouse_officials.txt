@@ -1,0 +1,33 @@
+# Officials whose stock trades (OGE Form 278-T) the tracker follows.
+# One per line:  archive slug | name | title
+# Leave the slug blank to look the person up by name. Add or remove anyone;
+# the daily run prints who it couldn't find.
+trump-donald-j | Donald J. Trump | President
+vance-jd | JD Vance | Vice President
+bessent-scott | Scott Bessent | Secretary of the Treasury
+| Marco Rubio | Secretary of State
+| Pete Hegseth | Secretary of Defense
+| Howard Lutnick | Secretary of Commerce
+| Pam Bondi | Attorney General
+| Doug Burgum | Secretary of the Interior
+| Brooke Rollins | Secretary of Agriculture
+| Lori Chavez-DeRemer | Secretary of Labor
+| Robert F. Kennedy Jr. | Secretary of Health and Human Services
+| Scott Turner | Secretary of Housing and Urban Development
+| Sean Duffy | Secretary of Transportation
+| Chris Wright | Secretary of Energy
+mcmahon-linda | Linda McMahon | Secretary of Education
+| Doug Collins | Secretary of Veterans Affairs
+| Kristi Noem | Secretary of Homeland Security
+| Lee Zeldin | EPA Administrator
+| Russell Vought | OMB Director
+| Jamieson Greer | U.S. Trade Representative
+| Kelly Loeffler | SBA Administrator
+| Tulsi Gabbard | Director of National Intelligence
+| John Ratcliffe | CIA Director
+| Susie Wiles | White House Chief of Staff
+| Kevin Hassett | National Economic Council Director
+feinberg-stephen-andrew | Stephen Feinberg | Deputy Secretary of Defense
+witkoff-steven-c | Steve Witkoff | Special Envoy
+atkins-paul | Paul Atkins | SEC Chairman
+| Jared Isaacman | NASA Administrator

@@ -200,6 +200,14 @@ months, over a decent number of examples.
   `COMMITTEE_SECTORS` in [`committees.py`](committees.py). Rosters are *current*
   members, so an old trade is judged by today's committee seats.
 
+- `python whitehouse.py`: stock and bond trades by the President, Vice
+  President and cabinet-level officials (OGE Form 278-T), read from
+  ProPublica's free public archive of the PDFs. Who's followed is in
+  `whitehouse_officials.txt`. Most of what they report is bonds; only stock
+  buys feed the ideas.
+- `python activists.py`: new 13D filings (an investor took 5%+ of a company
+  and may push for changes), from EDGAR's daily index.
+
 `backtest.py` also tests "Congress buys in their committee's industry" as its
 own signal, so you can see whether that ⚑ means anything.
 
@@ -251,7 +259,8 @@ data). GitHub runs it on every push.
 
 ## Credits
 
-The congress, Form 4 and ticker-matching scrapers come from
+The White House 278-T reader adapts Quantgress's `scrape_trump.py`. The
+congress, Form 4 and ticker-matching scrapers come from
 [Quantgress](https://github.com/DMulajkar/Quantgress) by Dhruv Mulajkar, MIT
 licensed (see [LICENSE](LICENSE)). This repo keeps those, drops the rest
 (public API, sign-ups, extra datasets), and adds the digest and backtest.

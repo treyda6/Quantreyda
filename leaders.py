@@ -48,6 +48,10 @@ def key_congress(chamber, last, first):
     return f"c|{chamber}|{(last or '').strip().lower()}|{(first or '').strip().lower()}"
 
 
+def key_official(slug):
+    return f"w|{slug}"
+
+
 def key_insider(name):
     return f"i|{' '.join((name or '').upper().split())}"
 
@@ -70,6 +74,18 @@ def _events(con, start, end):
     return cb, ib
 
 
+def _official_events(con, start, end):
+    if not signals.has_table(con, "wh_trades"):
+        return pd.DataFrame()
+    wb = con.execute("""SELECT tkr, filed AS event_date, slug, max(name) AS name, max(title) AS title
+                        FROM wh_trades WHERE kind = 'stock' AND tx_type = 'Purchase'
+                          AND tkr IS NOT NULL AND filed BETWEEN ? AND ?
+                        GROUP BY 1, 2, 3""", [start, end]).df()
+    if len(wb):
+        wb["key"] = [key_official(x) for x in wb.slug]
+    return wb
+
+
 def _board(res, min_n, name_of):
     col = f"xs_{H}"
     if not len(res) or col not in res:
@@ -90,22 +106,27 @@ def _board(res, min_n, name_of):
 
 def compute(con, start, end, fetch=True):
     cb, ib = _events(con, start, end)
-    tickers = set(cb.tkr if len(cb) else []) | set(ib.tkr if len(ib) else [])
+    wb = _official_events(con, start, end)
+    tickers = (set(cb.tkr if len(cb) else []) | set(ib.tkr if len(ib) else [])
+               | set(wb.tkr if len(wb) else []))
     if fetch and tickers:
         import prices
         prices.fetch(con, tickers | {prices.BENCHMARK}, start=start - datetime.timedelta(days=10))
     series = backtest._price_series(con, tickers | {"SPY"})
     bench = series.get("SPY")
     if bench is None:
-        return {"politicians": [], "insiders": [], "records": {}}
+        return {"politicians": [], "insiders": [], "officials": [], "records": {}}
     pol = _board(backtest.evaluate(cb, series, bench) if len(cb) else cb, MIN_CONGRESS,
                  lambda r: {"name": f"{r.first_name or ''} {r.last_name}".strip(),
                             "last": r.last_name, "first": r.first_name, "chamber": r.chamber})
     ins = _board(backtest.evaluate(ib, series, bench) if len(ib) else ib, MIN_INSIDER,
                  lambda r: {"name": r.owner_name, "cik": r.owner_cik})
-    records = {r["key"]: {"n": r["n"], "avg": r["avg"], "beat": r["beat"]} for r in pol + ins}
+    off = _board(backtest.evaluate(wb, series, bench) if len(wb) else wb, MIN_INSIDER,
+                 lambda r: {"name": r["name"], "slug": r["slug"], "title": r["title"]})
+    records = {r["key"]: {"n": r["n"], "avg": r["avg"], "beat": r["beat"]}
+               for r in pol + ins + off}
     return {"horizon": H, "start": str(start), "end": str(end),
-            "politicians": pol, "insiders": ins, "records": records}
+            "politicians": pol, "insiders": ins, "officials": off, "records": records}
 
 
 def load(con, path=OUT):
@@ -194,6 +215,12 @@ def render(con, board, pages=()):
     out += ("<h2>Members of Congress</h2><p class='hint'>At least "
             f"{MIN_CONGRESS} buys of $15k+ with six months of prices after them.</p>"
             + _table(p[:25], pol, best_link, "Member"))
+    o = [r for r in board.get("officials") or [] if r["n"] >= MIN_INSIDER]
+    if o:
+        out += ("<h2>White House and cabinet</h2><p class='hint'>Stock buys only (most of what they "
+                f"report is bonds), at least {MIN_INSIDER} of them.</p>"
+                + _table(o[:25], lambda r: front.official_html(con, r["slug"], r["name"]),
+                         best_link, "Official"))
     out += ("<h2>Company insiders</h2><p class='hint'>Executives, directors and big owners with at least "
             f"{MIN_INSIDER} open-market buys of $25k+ in their own company.</p>"
             + _table(i[:25], ins, best_link, "Insider"))
