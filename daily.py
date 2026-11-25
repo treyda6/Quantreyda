@@ -49,7 +49,7 @@ def main():
     print(f"=== Quantreyda daily run: {datetime.datetime.now()} ===")
 
     print("\n--- Senate ---")
-    scrape_senate.main()
+    scrape_senate.main(max_minutes=20)
 
     years = house_years()
     print(f"\n--- House {years} ---")

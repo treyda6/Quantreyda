@@ -132,8 +132,9 @@ def main(days=14):
 
 def recent(con, start, end):
     try:
-        return con.execute("""SELECT * FROM big_contracts WHERE start_date BETWEEN ? AND ?
-                              ORDER BY amount DESC""", [start, end]).df()
+        from signals import clean
+        return clean(con.execute("""SELECT * FROM big_contracts WHERE start_date BETWEEN ? AND ?
+                                    ORDER BY amount DESC""", [start, end]).df())
     except duckdb.CatalogException:
         return None
 

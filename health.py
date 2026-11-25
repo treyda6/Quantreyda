@@ -259,7 +259,8 @@ def lookup(con, tickers):
                          [list(tickers)]).df()
     except duckdb.CatalogException:
         return {}
-    return {r["tkr"]: r for r in df.to_dict("records")}
+    from signals import clean
+    return {r["tkr"]: r for r in clean(df).to_dict("records")}
 
 
 # ------------------------------------------------------------------ selftest
