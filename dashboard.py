@@ -27,6 +27,7 @@ import duckdb
 
 import committees
 import digest
+import markets
 import pictures
 import sections
 import leaders
@@ -112,7 +113,8 @@ ICONS = {  # simple 24px line icons for the phone tab bar
 }
 NAV = (("digest", "index.html", "Ideas"), ("congress", "congress.html", "Congress"),
        ("insiders", "insiders.html", "Insiders"), ("funds", "funds.html", "Funds"),
-       ("trades", "trades.html", "All trades"), ("leaders", "leaders.html", "Leaderboard"),
+       ("trades", "trades.html", "All trades"), ("odds", "markets.html", "Odds"),
+       ("leaders", "leaders.html", "Leaderboard"),
        ("backtest", "backtest.html", "Did it work?"))
 
 
@@ -126,7 +128,7 @@ def page(title, active, body, updated, root=""):
     return (f"<!DOCTYPE html><html lang='en' data-theme='dark'><head><meta charset='utf-8'>"
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
             f"<title>{html.escape(title)} · Quantreyda</title>{THEME_HEAD}"
-            f"<style>{CSS}{front.CSS}{stockpage.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}</style></head><body>"
+            f"<style>{CSS}{front.CSS}{stockpage.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}</style></head><body>"
             f"<header><div class='bar'><span class='logo'><i></i>Quantreyda</span>{nav}"
             f"<span class='sp'></span><span class='upd'>updated {updated}</span>"
             f"<button class='toggle' id='theme' type='button'>☀ Light</button></div></header>"
@@ -378,14 +380,15 @@ def build(con, today, out=OUT):
     bt = json.loads(bt_json) if bt_json else {}
     for name, title, make in (("congress", "Congress", lambda: sections.page_congress(con, rows, today, bt, set(built))),
                               ("insiders", "Insiders", lambda: sections.page_insiders(con, rows, today, bt, set(built))),
-                              ("funds", "Funds", lambda: sections.page_funds(con, today, set(built)))):
+                              ("funds", "Funds", lambda: sections.page_funds(con, today, set(built))),
+                              ("markets", "Odds", lambda: markets.page(con))):
         try:
             body = make()
         except Exception as e:  # one section failing shouldn't take the site down
             print(f"{name} page skipped ({type(e).__name__}: {e})")
             body = f"<h1>{title}</h1><p>This page couldn't be built this run.</p>"
         with open(f"{out}/{name}.html", "w", encoding="utf-8") as f:
-            f.write(page(title, name, body, updated))
+            f.write(page(title, "odds" if name == "markets" else name, body, updated))
     with open(f"{out}/leaders.html", "w", encoding="utf-8") as f:
         f.write(page("Leaderboard", "leaders", leaders.render(con, board, built), updated))
     open(f"{out}/.nojekyll", "w").close()
@@ -417,6 +420,7 @@ def selftest():
     assert "Congress trading" in cg and "class='tabs'" in cg and "href='congress.html' class='on'" in cg
     assert "Insider trading" in open(f"{out}/insiders.html", encoding="utf-8").read()
     assert "Funds" in open(f"{out}/funds.html", encoding="utf-8").read()
+    assert "What bettors expect" in open(f"{out}/markets.html", encoding="utf-8").read()
     print("dashboard selftest ok")
 
 

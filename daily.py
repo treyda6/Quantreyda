@@ -30,6 +30,7 @@ import committees
 import companyintel
 import contracts
 import fec
+import markets
 import pictures
 import secextras
 import digest
@@ -110,7 +111,8 @@ def main():
                         ("Committee rosters", lambda: committees.refresh_rosters(_con())),
                         ("White House and cabinet (OGE 278-T)", lambda: whitehouse.main()),
                         ("Activist 5%+ stakes (13D/13G)", lambda: activists.refresh(_con())),
-                        ("Bills moving in Congress", lambda: bills.refresh(_con()))):
+                        ("Bills moving in Congress", lambda: bills.refresh(_con())),
+                        ("Prediction markets (Polymarket, Kalshi)", lambda: markets.refresh(_con()))):
         print(f"\n--- {label} ---")
         try:
             step()
