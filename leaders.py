@@ -199,10 +199,10 @@ def render(con, board, pages=()):
     def pol(r):
         row = type("R", (), {"last_name": r["last"], "first_name": r["first"], "chamber": r["chamber"],
                              "owner": None})
-        return front.member_html(con, row, front.friendly_who(row))
+        return front.member_html(con, row, front.friendly_who(row), face=True)
 
     def ins(r):
-        return front.insider_html(con, r["name"], r.get("cik"))
+        return front.insider_html(con, r["name"], r.get("cik"), face=True)
 
     board = board or {"politicians": [], "insiders": []}
     p = [r for r in board.get("politicians") or [] if r["n"] >= MIN_CONGRESS]
@@ -219,7 +219,7 @@ def render(con, board, pages=()):
     if o:
         out += ("<h2>White House and cabinet</h2><p class='hint'>Stock buys only (most of what they "
                 f"report is bonds), at least {MIN_INSIDER} of them.</p>"
-                + _table(o[:25], lambda r: front.official_html(con, r["slug"], r["name"]),
+                + _table(o[:25], lambda r: front.official_html(con, r["slug"], r["name"], face=True),
                          best_link, "Official"))
     out += ("<h2>Company insiders</h2><p class='hint'>Executives, directors and big owners with at least "
             f"{MIN_INSIDER} open-market buys of $25k+ in their own company.</p>"

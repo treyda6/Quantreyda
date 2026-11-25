@@ -25,7 +25,9 @@ import sys
 
 import duckdb
 
+import committees
 import digest
+import pictures
 import leaders
 import signals
 import stockpage
@@ -71,6 +73,9 @@ background:var(--card);color:var(--fg)}
 .filters input{flex:1;min-width:240px}.mut{color:var(--mut);font-size:13px}
 .fam{font-size:11px;font-weight:700;color:var(--warn);background:color-mix(in srgb,var(--warn) 15%,transparent);
 border-radius:6px;padding:1px 6px;margin-left:4px}
+.tt td{vertical-align:middle}
+@media(max-width:640px){.tt th:nth-child(4),.tt td:nth-child(4){display:none}.tt td,.tt th{padding:8px 6px}
+.tt .pic{gap:7px}.tt .pic .t small{max-width:110px}.tt .lg,.tt .face{width:28px;height:28px}}.tt .num{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
 .buy{color:var(--up);font-weight:700}.sell{color:var(--down);font-weight:700}
 footer{color:var(--mut);font-size:12px;padding:40px 20px;text-align:center}
 """
@@ -94,12 +99,13 @@ def page(title, active, body, updated, root=""):
     return (f"<!DOCTYPE html><html lang='en' data-theme='dark'><head><meta charset='utf-8'>"
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
             f"<title>{html.escape(title)} · Quantreyda</title>{THEME_HEAD}"
-            f"<style>{CSS}{front.CSS}{stockpage.CSS}{leaders.LB_CSS}</style></head><body>"
+            f"<style>{CSS}{front.CSS}{stockpage.CSS}{leaders.LB_CSS}{pictures.CSS}</style></head><body>"
             f"<header><div class='bar'><span class='logo'><i></i>Quantreyda</span>{nav}"
             f"<span class='sp'></span><span class='upd'>updated {updated}</span>"
             f"<button class='toggle' id='theme' type='button'>☀ Light</button></div></header>"
             f"<main>{body}</main><footer>Public filings only (STOCK Act disclosures, SEC Form 4 and "
-            f"13F, USAspending). Research, not investment advice.</footer>{THEME_JS}</body></html>")
+            f"13F, USAspending). Research, not investment advice. Member portraits: public domain "
+            f"(@unitedstates); other photos: Wikimedia Commons.</footer>{THEME_JS}</body></html>")
 
 
 def md(text):
@@ -127,7 +133,7 @@ def trade_rows(con, today, days=DAYS):
             rows.append({"filed": str(filed), "traded": str(txn or ""), "tkr": tkr,
                          "src": "Senate" if ch == "S" else "House", "who": who, "side": side,
                          "amt": digest._bracket(lo, hi), "lo": lo or 0, "what": asset or "",
-                         "own": own})
+                         "own": own, "last": ln, "first": fn})
     if signals.has_table(con, "insider_trades"):
         for r in con.execute("""
                 SELECT try_cast(filed_date AS DATE) fd, min(trans_date), upper(trim(ticker)),
@@ -147,18 +153,85 @@ def trade_rows(con, today, days=DAYS):
     if signals.has_table(con, "wh_trades"):
         for r in con.execute("""
                 SELECT filed, tx_date, tkr, name, title, tx_type, amount_low, amount_high,
-                       description, kind
+                       description, kind, slug
                 FROM wh_trades WHERE filed BETWEEN ? AND ? AND tkr IS NOT NULL
                 ORDER BY filed DESC""", [start, today]).fetchall():
-            filed, txn, tkr, name, title, tx, lo, hi, desc, kind = r
+            filed, txn, tkr, name, title, tx, lo, hi, desc, kind, slug = r
             rows.append({"filed": str(filed), "traded": str(txn or ""), "tkr": tkr,
                          "src": whitehouse.group(title), "who": f"{name} ({title})",
                          "side": "buy" if tx == "Purchase" else "sell" if tx == "Sale" else "other",
                          "amt": digest._bracket(lo, hi), "lo": lo or 0,
                          "what": (kind + ": " if kind != "stock" else "") + (desc or ""),
-                         "own": "self"})
+                         "own": "self", "slug": slug})
     rows.sort(key=lambda x: x["filed"], reverse=True)
+    decorate(con, rows)
     return rows
+
+
+def _members(con):
+    """{chamber: roster rows} for matching filers to bioguide IDs and parties."""
+    try:
+        rows = con.execute("SELECT bioguide, first, nickname, last, party, chamber FROM members").fetchall()
+    except Exception:
+        return {}
+    out = {}
+    for r in rows:
+        out.setdefault(r[5], []).append(r)
+    return out
+
+
+def _closes(con, tickers):
+    """{tkr: ([dates], [closes])} oldest first, from the cached prices."""
+    import prices
+    try:
+        rows = con.execute("SELECT tkr, d, close FROM prices WHERE tkr IN (SELECT unnest(?)) "
+                           "ORDER BY tkr, d", [sorted(set(tickers) | {prices.BENCHMARK})]).fetchall()
+    except Exception:
+        return {}
+    out = {}
+    for t, d, c in rows:
+        ds, cs = out.setdefault(t, ([], []))
+        ds.append(str(d))
+        cs.append(c)
+    return out
+
+
+def excess_since(px, tkr, day, bench="SPY"):
+    """The stock's return since `day` minus the S&P 500's (SPY), or None."""
+    import bisect
+    if tkr not in px or bench not in px or not day:
+        return None
+
+    def ret(t):
+        ds, cs = px[t]
+        i = bisect.bisect_left(ds, day[:10])
+        if i >= len(ds) or (len(ds) - 1 - i) < 1:
+            return None
+        return cs[-1] / cs[i] - 1
+    a, b = ret(tkr), ret(bench)
+    return None if a is None or b is None else round(a - b, 4)
+
+
+def decorate(con, rows):
+    """Add pictures, party and the since-the-trade excess return to each row."""
+    roster, px, seen = _members(con), _closes(con, {r["tkr"] for r in rows}), {}
+    for r in rows:
+        r["xs"] = excess_since(px, r["tkr"], r["traded"] or r["filed"])
+        r["logo"] = pictures.logo_src(r["tkr"])
+        r["party"], r["face"] = "", ""
+        if r["src"] in ("Senate", "House"):
+            key = (r["src"], r.get("last"), r.get("first"))
+            if key not in seen:
+                hit = committees.match_people(roster.get(r["src"][0], []), r.get("last"), r.get("first"))
+                seen[key] = hit[0] if hit else None
+            m = seen[key]
+            if m:
+                r["party"] = (m[4] or "")[:1]
+                r["face"] = pictures.face_src(pictures.member_key(m[0]))
+        elif r.get("slug"):
+            r["face"] = pictures.face_src(pictures.official_key(r["slug"]))
+        r["ini"] = pictures.initials(r["who"].split(" (")[0])
+        r.pop("last", None), r.pop("first", None), r.pop("slug", None)
 
 
 TRADES_JS = """
@@ -173,9 +246,20 @@ function draw() {
     && (!own.value || r.own === own.value)
     && (!side.value || r.side === side.value) && r.lo >= min);
   count.textContent = hit.length + ' of ' + rows.length;
-  tb.innerHTML = hit.slice(0, 1000).map(r => `<tr><td>${r.filed}</td><td><b>${esc(r.tkr)}</b></td>
-    <td class="${r.side}">${r.side}</td><td>${esc(r.who)}${r.own === 'family' ? ' <span class="fam">family</span>' : ''}</td><td>${r.src}</td><td>${esc(r.amt)}</td>
-    <td>${r.traded}</td><td class="mut">${esc(r.what).slice(0, 60)}</td></tr>`).join('');
+  tb.innerHTML = hit.slice(0, 1000).map(r => {
+    const lg = r.logo ? `<span class="lg"><img src="${r.logo}" alt="" loading="lazy"></span>`
+                      : `<span class="lg mono">${esc(r.tkr[0] || '?')}</span>`;
+    const tint = r.party === 'R' ? ' r' : r.party === 'D' ? ' d' : '';
+    const face = r.face ? `<span class="face${tint}"><img src="${r.face}" alt="" loading="lazy"></span>`
+                        : `<span class="face mono${tint}">${esc(r.ini)}</span>`;
+    const tag = r.src + (r.party ? ' / ' + r.party : '');
+    const xs = r.xs === null || r.xs === undefined ? '<span class="mut">—</span>'
+             : `<span class="${r.xs >= 0 ? 'up' : 'down'}">${r.xs >= 0 ? '+' : ''}${(r.xs * 100).toFixed(1)}%</span>`;
+    const stock = PAGES.includes(r.tkr) ? `<a href="s/${encodeURIComponent(r.tkr)}.html"><b>${esc(r.tkr)}</b></a>` : `<b>${esc(r.tkr)}</b>`;
+    return `<tr><td><div class="pic">${lg}<div class="t">${stock}<small>${esc(r.what).slice(0, 40)}</small></div></div></td>
+    <td class="${r.side}">${r.side}<small class="mut" style="display:block">${esc(r.amt)}</small></td>
+    <td><div class="pic">${face}<div class="t">${esc(r.who)}${r.own === 'family' ? ' <span class="fam">family</span>' : ''}<small>${esc(tag)}</small></div></div></td>
+    <td>${r.filed}</td><td>${r.traded}</td><td class="num">${xs}</td></tr>`}).join('');
 }
 [q, src, side, size, own].forEach(el => el.addEventListener('input', draw));
 const p = new URLSearchParams(location.search); if (p.get('q')) q.value = p.get('q');
@@ -183,9 +267,10 @@ draw();
 """
 
 
-def trades_page(rows, updated):
+def trades_page(rows, updated, built=()):
     # "</" is escaped so no data string can close the script tag early
     data = json.dumps(rows).replace("</", "<\\/")
+    pages = json.dumps(sorted(built)).replace("</", "<\\/")
     body = (f"<h1>All trades, last {DAYS} days</h1>"
             "<p class='mut'>Every disclosed congressional, White House and cabinet trade and "
             "insider open-market buy or sale with a ticker. <span class='fam'>family</span> marks "
@@ -203,15 +288,20 @@ def trades_page(rows, updated):
             "<option value='50001'>$50k+</option><option value='100000'>$100k+</option>"
             "<option value='250001'>$250k+</option><option value='1000000'>$1M+</option></select>"
             "<span id='count' class='mut' style='align-self:center'></span></div>"
-            "<div class='wrap'><table><thead><tr><th>Filed</th><th>Ticker</th><th>Side</th>"
-            "<th>Who</th><th>Source</th><th>Amount</th><th>Traded</th><th>Asset</th></tr></thead>"
+            "<p class='mut' style='margin:-6px 0 10px'>“Since” is how the stock has done since the "
+            "trade date compared with the S&amp;P 500 (green = beat it). Blank when we don't have "
+            "its prices.</p>"
+            "<div class='wrap'><table class='tt'><thead><tr><th>Stock</th><th>Trade</th>"
+            "<th>Who</th><th>Filed</th><th>Traded</th><th title='Stock return since the trade minus "
+            "the S&amp;P 500'>Since</th></tr></thead>"
             "<tbody></tbody></table></div>"
-            f"<script>const DATA = {data};{TRADES_JS}</script>")
+            f"<script>const DATA = {data}, PAGES = {pages};{TRADES_JS}</script>")
     return page("All trades", "trades", body, updated)
 
 
 def build(con, today, out=OUT):
     os.makedirs(out, exist_ok=True)
+    pictures.write(con, out)
     updated = datetime.datetime.now().strftime("%b %d, %Y %H:%M UTC") \
         if os.environ.get("GITHUB_ACTIONS") else f"{today:%b %d, %Y}"
     board = leaders.load(con)
@@ -229,8 +319,6 @@ def build(con, today, out=OUT):
                 f"({html.escape(type(e).__name__)}). The other pages are current.</p>")
     with open(f"{out}/index.html", "w", encoding="utf-8") as f:
         f.write(page("Today", "digest", body, updated))
-    with open(f"{out}/trades.html", "w", encoding="utf-8") as f:
-        f.write(trades_page(trade_rows(con, today), updated))
     bt_json = load_report(con, "reports/backtest.json")
     bt_md = load_report(con, "reports/backtest.md")
     if bt_json:
@@ -255,6 +343,8 @@ def build(con, today, out=OUT):
         with open(f"{out}/{stockpage.href(t)}", "w", encoding="utf-8") as f:
             f.write(page(t, "", body, updated, root="../"))
         built.append(t)
+    with open(f"{out}/trades.html", "w", encoding="utf-8") as f:
+        f.write(trades_page(trade_rows(con, today), updated, built))
     with open(f"{out}/leaders.html", "w", encoding="utf-8") as f:
         f.write(page("Leaderboard", "leaders", leaders.render(con, board, built), updated))
     open(f"{out}/.nojekyll", "w").close()

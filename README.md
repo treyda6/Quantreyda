@@ -225,6 +225,12 @@ months, over a decent number of examples.
   cycle (and the Republican / Democrat split); hover cards show how much each
   trading member of Congress has raised. Reuses `CONGRESS_API_KEY` (an
   api.data.gov key works for the FEC too), or set `FEC_API_KEY`.
+- `python pictures.py TKR`: company logos and official portraits for the site
+  (logos from free public logo sets, member portraits from the public-domain
+  @unitedstates collection, officials from Wikipedia). Downloaded once into
+  the database and served from the site itself. No picture means a lettered
+  circle instead. The all-trades page also shows each stock's return since the
+  trade, compared with the S&P 500.
 - Federal Reserve governors are followed through `whitehouse_officials.txt`
   too (same Form 278-T). Regional Fed bank presidents only publish annual
   reports, not trades, so they aren't included.

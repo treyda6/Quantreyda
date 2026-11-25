@@ -30,6 +30,7 @@ import committees
 import companyintel
 import contracts
 import fec
+import pictures
 import digest
 import funds
 import health
@@ -59,6 +60,21 @@ def company_names(con, tickers):
         if r and r[0]:
             names[t] = r[0]
     return names
+
+
+def recent_tickers(con, today, days=180):
+    """Tickers on the all-trades page, most traded first (they get logos first)."""
+    out = []
+    for sql in ("SELECT tkr, count(*) n FROM trades WHERE filed_date >= ? AND tkr IS NOT NULL "
+                "GROUP BY 1 ORDER BY n DESC",
+                "SELECT upper(trim(ticker)), count(*) n FROM insider_trades WHERE trans_code IN "
+                "('P','S') AND try_cast(filed_date AS DATE) >= ? AND ticker IS NOT NULL "
+                "GROUP BY 1 ORDER BY n DESC"):
+        try:
+            out += [t for t, _ in con.execute(sql, [today - datetime.timedelta(days=days)]).fetchall()]
+        except Exception:  # table not there yet
+            pass
+    return list(dict.fromkeys(out))
 
 
 def house_years(today=None):
@@ -123,7 +139,9 @@ def main():
                         ("lobbying, contracts, buzz",
                          lambda: companyintel.refresh(con, company_names(con, pages))),
                         ("election money (FEC)",
-                         lambda: fec.refresh(con, company_names(con, pages)))):
+                         lambda: fec.refresh(con, company_names(con, pages))),
+                        ("logos and portraits",
+                         lambda: pictures.refresh(con, list(pages) + recent_tickers(con, today)))):
         try:
             step()
         except SystemExit as e:
