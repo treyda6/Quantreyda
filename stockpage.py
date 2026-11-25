@@ -1,0 +1,391 @@
+"""One page per stock: price chart with the buys marked, health, news, and a
+plain-English "About this stock" explainer.
+
+The explainer is written from the data the tracker already has (filings,
+financials, prices, the leaderboard), so it costs nothing to run and never
+makes up facts it doesn't have.
+
+  href(tkr)                       site-relative link to a stock page
+  pick(con, today, idea_tickers)  which tickers get a page
+  render(con, tkr, today, records=None) -> HTML body
+"""
+
+import bisect
+import datetime
+import html
+import re
+
+import committees
+import health
+import leaders
+import news
+import profiles
+import today as front
+
+E = html.escape
+MAX_PAGES = 300
+
+CSS = """
+.sh{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.sh h1{font-size:38px;letter-spacing:-1px;margin:0}.sh .co{color:var(--mut)}
+.sh .big{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;text-align:right}
+.sh .big span{display:block;font-size:14px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:18px;margin:14px 0;box-shadow:var(--shadow)}
+.panel h2{margin:0 0 10px;font-size:18px}
+.chart{width:100%;height:auto;display:block}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart text{fill:var(--mut);font-size:11px;font-family:inherit}
+.chart .mk{cursor:help}.chart .mk:hover circle,.chart .mk:hover rect{stroke-width:3}
+.legend{display:flex;gap:16px;flex-wrap:wrap;color:var(--mut);font-size:13px;margin-top:8px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.legend i.ins{border-radius:2px;transform:rotate(45deg)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.qa h3{font-size:15px;margin:14px 0 4px}.qa p{margin:0;color:var(--fg)}
+.qa ul{margin:4px 0 0;padding-left:18px}
+.list{list-style:none;padding:0;margin:0}.list li{padding:9px 0;border-top:1px solid var(--line);font-size:14px}
+.list li:first-child{border-top:0}.list .d{color:var(--mut);font-variant-numeric:tabular-nums;margin-right:8px}
+.kv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.kv div{background:var(--card2);border-radius:12px;padding:8px 10px}
+.kv span{display:block;color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.kv b{font-size:15px}
+.back{color:var(--mut);text-decoration:none;font-size:14px}
+@media (max-width:640px){.two{grid-template-columns:1fr}.sh h1{font-size:30px}.sh .big{font-size:24px}
+.kv{grid-template-columns:repeat(2,1fr)}.chart text{font-size:22px}}
+"""
+
+
+def slug(tkr):
+    return re.sub(r"[^A-Za-z0-9]+", "-", tkr).strip("-").upper()
+
+
+def href(tkr, root=""):
+    return f"{root}s/{slug(tkr)}.html"
+
+
+def pick(con, today, idea_tickers):
+    """Ideas first, then the most-bought stocks of the last 6 months."""
+    start = today - datetime.timedelta(days=180)
+    out = list(dict.fromkeys(t for t in idea_tickers if t))
+    for sql in ("""SELECT tkr, count(*) FROM trades WHERE tx_type = 'Purchase' AND tkr IS NOT NULL
+                   AND filed_date BETWEEN ? AND ? GROUP BY 1 ORDER BY 2 DESC LIMIT 200""",
+                """SELECT upper(trim(ticker)), sum(shares * price_per_share) FROM insider_trades
+                   WHERE trans_code = 'P' AND price_per_share > 0 AND ticker IS NOT NULL
+                   AND try_cast(filed_date AS DATE) BETWEEN ? AND ?
+                   GROUP BY 1 HAVING sum(shares * price_per_share) >= 100000
+                   ORDER BY 2 DESC LIMIT 150"""):
+        for t, _ in profiles._all(con, sql, [start, today]):
+            if t and t not in out and re.fullmatch(r"[A-Z][A-Z0-9.\-/]{0,7}", t):
+                out.append(t)
+    return out[:MAX_PAGES]
+
+
+# ---------------------------------------------------------------- data
+
+def _marks(con, tkr, since):
+    """Congress and insider buys of this stock since `since`, oldest first."""
+    out = []
+    for d, filed, last, first, chamber, owner, lo, hi in profiles._all(con, """
+            SELECT txn_date, filed_date, last_name, first_name, chamber, owner, amount_low, amount_high
+            FROM trades WHERE tkr = ? AND tx_type = 'Purchase' AND txn_date >= ?
+            ORDER BY txn_date""", [tkr, since]):
+        who = f"{'Sen.' if chamber == 'S' else 'Rep.'} {first or ''} {last}".replace("  ", " ")
+        if owner and str(owner).lower() not in ("self", "none", "nan"):
+            who += f" ({front.OWNER.get(str(owner).lower(), str(owner).lower())})"
+        out.append({"d": d, "kind": "congress", "who": who, "filed": filed,
+                    "ck": (chamber, last, first), "amt": front.digest._bracket(lo or 0, hi or 0)})
+    for d, filed, name, role, value in profiles._all(con, """
+            SELECT try_cast(trans_date AS DATE), max(try_cast(filed_date AS DATE)), owner_name,
+                   max(owner_relationship), sum(shares * price_per_share)
+            FROM insider_trades WHERE upper(trim(ticker)) = ? AND trans_code = 'P'
+              AND price_per_share > 0 AND try_cast(trans_date AS DATE) >= ?
+            GROUP BY 1, 3 ORDER BY 1""", [tkr, since]):
+        if d:
+            out.append({"d": d, "kind": "insider", "who": name, "filed": filed,
+                        "role": profiles.nice_role(role), "amt": profiles.money(value)})
+    return sorted(out, key=lambda m: m["d"])
+
+
+def _sells(con, tkr, since):
+    r = profiles._one(con, """SELECT count(*) FROM trades WHERE tkr = ? AND tx_type LIKE 'Sale%'
+                              AND txn_date >= ?""", [tkr, since])
+    s = profiles._one(con, """SELECT count(DISTINCT accession_number), sum(shares * price_per_share)
+                              FROM insider_trades WHERE upper(trim(ticker)) = ? AND trans_code = 'S'
+                              AND try_cast(trans_date AS DATE) >= ?""", [tkr, since])
+    return (r[0] if r else 0), (s[0] if s else 0), (s[1] if s and s[1] else 0)
+
+
+# ---------------------------------------------------------------- chart
+
+def chart(px, marks, w=900, h=300):
+    """SVG line chart of (date, close) with a marker on each buy (hover for who)."""
+    if len(px) < 2:
+        return "<p class='hint'>No price history saved for this stock yet.</p>"
+    L, R, T, B = 52, 12, 12, 26
+    d0, d1 = px[0][0], px[-1][0]
+    span = max(1, (d1 - d0).days)
+    lo, hi = min(p[1] for p in px), max(p[1] for p in px)
+    pad = (hi - lo) * 0.08 or 1
+    lo, hi = lo - pad, hi + pad
+
+    def X(d):
+        return L + (d - d0).days / span * (w - L - R)
+
+    def Y(v):
+        return T + (hi - v) / (hi - lo) * (h - T - B)
+
+    pts = " ".join(f"{X(d):.1f},{Y(v):.1f}" for d, v in px)
+    up = px[-1][1] >= px[0][1]
+    col = "var(--up)" if up else "var(--down)"
+    area = f"M{X(d0):.1f},{h - B} L" + pts.replace(" ", " L") + f" L{X(d1):.1f},{h - B} Z"
+    g = []
+    for k in range(5):
+        v = lo + (hi - lo) * k / 4
+        g.append(f"<line class='grid' x1='{L}' x2='{w - R}' y1='{Y(v):.1f}' y2='{Y(v):.1f}'/>"
+                 f"<text x='{L - 6}' y='{Y(v) + 4:.1f}' text-anchor='end'>${v:,.0f}</text>")
+    months = sorted({(d.year, d.month) for d, _ in px})
+    step = max(1, len(months) // 6)
+    for y, m in months[1::step]:
+        d = datetime.date(y, m, 1)
+        g.append(f"<text x='{X(d):.1f}' y='{h - 8}' text-anchor='middle'>{d:%b '%y}</text>")
+    dates = [d for d, _ in px]
+    mk = []
+    for m in marks:
+        k = bisect.bisect_left(dates, m["d"])
+        if k >= len(px) or m["d"] < d0:
+            continue
+        x, y = X(px[k][0]), Y(px[k][1])
+        tip = E(f"{m['d']:%b %d, %Y}: {m['who']} bought {m['amt']}"
+                + (f" (made public {m['filed']:%b %d})" if m.get("filed") else ""))
+        if m["kind"] == "congress":
+            shape = (f"<circle cx='{x:.1f}' cy='{y:.1f}' r='6' fill='var(--acc)' "
+                     f"stroke='var(--card)' stroke-width='2'/>")
+        else:
+            shape = (f"<rect x='{x - 5:.1f}' y='{y - 5:.1f}' width='10' height='10' fill='var(--ins)' "
+                     f"stroke='var(--card)' stroke-width='2' transform='rotate(45 {x:.1f} {y:.1f})'/>")
+        mk.append(f"<g class='mk'><title>{tip}</title>{shape}</g>")
+    return (f"<svg class='chart' viewBox='0 0 {w} {h}' role='img' aria-label='Price chart with buys marked'>"
+            f"<defs><linearGradient id='fill' x1='0' y1='0' x2='0' y2='1'>"
+            f"<stop offset='0' stop-color='{col}' stop-opacity='.22'/>"
+            f"<stop offset='1' stop-color='{col}' stop-opacity='0'/></linearGradient></defs>"
+            f"{''.join(g)}<path d='{area}' fill='url(#fill)'/>"
+            f"<polyline points='{pts}' fill='none' stroke='{col}' stroke-width='2' "
+            f"stroke-linejoin='round'/>{''.join(mk)}</svg>")
+
+
+# ---------------------------------------------------------------- explainer
+
+def _size(rev):
+    if rev is None:
+        return None
+    if rev < 500e6:
+        return "a small company", " Smaller companies can move a lot more, in both directions."
+    if rev < 10e9:
+        return "a mid-sized company", ""
+    return "a large company", " Big, established companies tend to move less than small ones."
+
+
+def _people(n, one, many):
+    return f"{n} {one if n == 1 else many}"
+
+
+def explain(tkr, pr, h, marks, sells, records, flags, news_rows):
+    """[(question, answer html)] written from the data, in plain English."""
+    qa = []
+    name = pr.get("name") or (h or {}).get("company") or tkr
+    sector = (pr.get("sector") or "").lower()
+    s = f"<b>{E(name)}</b> ({E(tkr)})"
+    s += f" is in the <b>{E(sector)}</b> business." if sector else " is a publicly traded company."
+    size = _size(pr.get("revenue"))
+    if size:
+        s += (f" It brought in {E(profiles.money(pr['revenue']))} in sales last year, "
+              f"which makes it {size[0]}.{size[1]}")
+    qa.append(("What is this company?", f"<p>{s}</p>"))
+
+    bits = []
+    verdict = (h or {}).get("verdict")
+    if verdict and verdict != "Unknown":
+        bits.append(f"The tracker's quick check rates it <b>{E(verdict)}</b>: {E(h.get('reasons') or '')}.")
+    g = pr.get("growth")
+    if g is not None:
+        bits.append("Sales are " + (f"<b>growing</b> ({front._pct(g)} last year)." if g > 0.02 else
+                                     f"<b>shrinking</b> ({front._pct(g)} last year)." if g < -0.02 else
+                                     "<b>flat</b> compared with the year before."))
+    ni = pr.get("net_income")
+    if ni is not None:
+        bits.append(f"It <b>made a profit</b> of {E(profiles.money(ni))}." if ni > 0 else
+                    f"It <b>lost money</b> ({E(profiles.money(ni))}). Check how much cash it has left "
+                    "and whether it keeps selling new shares to fund itself.")
+    dr = pr.get("debt_ratio")
+    if dr is not None:
+        bits.append("Debt is <b>high</b> compared with what shareholders own." if dr > 2 else
+                    "Debt looks <b>manageable</b>." if dr < 1 else "Debt is <b>moderate</b>.")
+    qa.append(("Is the business healthy?", "<p>" + (" ".join(bits) or
+               "Not enough SEC financial data yet (common for funds, foreign companies and very new "
+               "listings). Read the latest annual report before deciding anything.") + "</p>"))
+
+    pe, chg = pr.get("pe"), pr.get("chg_1y")
+    if pe:
+        p = (f"It trades at a P/E of <b>{pe:.0f}</b>, meaning you pay about ${pe:.0f} for each $1 of "
+             "yearly profit. ")
+        p += ("That's on the cheap side; the S&P 500 has usually been in the high teens to low 20s. "
+              "Cheap can mean a bargain, or that investors expect trouble." if pe < 15 else
+              "That's in the normal range for a US stock." if pe <= 30 else
+              "That's expensive: the price assumes strong growth, and these can fall hard if growth slows.")
+    elif ni is not None and ni <= 0:
+        p = "There's no P/E because it isn't profitable right now, so the price rests on hopes for future profits."
+    else:
+        p = "No P/E yet (it needs both a price and a year of profit)."
+    if chg is not None:
+        p += f" The stock is <b>{front._pct(chg)}</b> over the past year."
+    qa.append(("Is the stock expensive?", f"<p>{p}</p>"))
+
+    cong = [m for m in marks if m["kind"] == "congress"]
+    ins = [m for m in marks if m["kind"] == "insider"]
+    b = []
+    if cong:
+        b.append(f"<b>{len(cong)}</b> Congress purchase{'s' if len(cong) != 1 else ''} by "
+                 f"{_people(len({m['who'] for m in cong}), 'person', 'people')}")
+    if ins:
+        b.append(f"<b>{len(ins)}</b> open-market insider purchase{'s' if len(ins) != 1 else ''} by "
+                 f"{_people(len({m['who'] for m in ins}), 'insider', 'insiders')}")
+    p = ("In the last two years: " + " and ".join(b) + "." if b else
+         "No Congress or insider buys on record in the last two years.")
+    cs, ins_n, ins_v = sells
+    if cs or ins_n:
+        p += (f" On the other side there were {cs} Congress sale{'s' if cs != 1 else ''} and "
+              f"{ins_n} insider sale filing{'s' if ins_n != 1 else ''}"
+              + (f" ({E(profiles.money(ins_v))})" if ins_v else "") + ".")
+    if ins:
+        p += (" Insider buys matter most: executives know the business, and they're spending their own "
+              "money. Insider sales matter less (taxes, houses, diversifying).")
+    if flags:
+        p += (f" ⚑ {E(flags[0])} sits on a committee that oversees this industry, which is worth "
+              "knowing but isn't proof of anything.")
+    best = None
+    for m in marks:
+        key = (leaders.key_congress(*m["ck"]) if m.get("ck") else leaders.key_insider(m["who"]))
+        rec = (records or {}).get(key)
+        if rec and (best is None or rec["avg"] > best[1]["avg"]):
+            best = (m["who"], rec)
+    if best:
+        p += (f" Of these buyers, {E(best[0])} has the best record on the leaderboard: "
+              f"{best[1]['avg'] * 100:+.0f}% vs the S&P 500 six months after their buys "
+              f"({best[1]['n']} buys).")
+    qa.append(("Who's been buying, and should I care?", f"<p>{p}</p>"))
+
+    todo = []
+    tenk = next((r for r in news_rows if r[1] in ("10-K", "20-F")), None)
+    q = next((r for r in news_rows if "quarterly results" in r[2]), None)
+    todo.append(f"Skim the <a href='{E(tenk[3])}'>latest annual report</a>: the business section "
+                "and the risk factors." if tenk else
+                "Skim the latest annual report (10-K): the business section and the risk factors.")
+    if q:
+        todo.append(f"Read the <a href='{E(q[3])}'>latest earnings release</a> ({q[0]:%b %d}).")
+    if ni is not None and ni <= 0:
+        todo.append("Since it's losing money: how many months of cash does it have?")
+    if pe and pe > 30:
+        todo.append("Ask what happens to the price if growth slows to average.")
+    todo.append("Keep any one stock to a small slice of your Roth (many people stay at 5% or less) "
+                "and the core in a broad index fund.")
+    qa.append(("What should I check before buying?",
+               "<ul>" + "".join(f"<li>{t}</li>" for t in todo) + "</ul>"))
+    return qa
+
+
+# ---------------------------------------------------------------- page
+
+def render(con, tkr, today, records=None):
+    since = today - datetime.timedelta(days=730)
+    pr = profiles.company(con, tkr)
+    h = health.lookup(con, [tkr]).get(tkr)
+    px = profiles._all(con, "SELECT d, close FROM prices WHERE tkr = ? AND d BETWEEN ? AND ? "
+                       "ORDER BY d", [tkr, since, today])
+    px = [(d if isinstance(d, datetime.date) else d.date(), v) for d, v in px if v]
+    marks = _marks(con, tkr, since)
+    flags = []
+    for m in marks:
+        if m.get("ck"):
+            f = committees.committee_flag(con, tkr, m["ck"][1], m["ck"][2], m["ck"][0])
+            if f and m["who"] not in flags:
+                flags.append(m["who"])
+    news_rows = news.recent(con, tkr, 8)
+    name = pr.get("name") or (h or {}).get("company") or ""
+
+    price = ""
+    if pr.get("price"):
+        up = (pr.get("chg_1y") or 0) >= 0
+        price = (f"<div class='big'>${pr['price']:,.2f}<span class='{'up' if up else 'down'}'>"
+                 f"{front._pct(pr.get('chg_1y'))} past year</span></div>")
+    head = (f"<a class='back' href='../index.html'>← Ideas</a><div class='sh'><div><h1>{E(tkr)}</h1>"
+            f"<div class='co'>{E(name)}{' · ' + E(pr['sector']) if pr.get('sector') else ''}</div></div>"
+            f"{price}</div>")
+    legend = ("<div class='legend'><span><i style='background:var(--acc)'></i>Congress buy</span>"
+              "<span><i class='ins' style='background:var(--ins)'></i>Insider buy</span>"
+              "<span>Hover a marker for who and how much.</span></div>")
+    chart_panel = f"<section class='panel'><h2>Two years of price, with the buys</h2>{chart(px, marks)}{legend}</section>"
+
+    qa = explain(tkr, pr, h, marks, _sells(con, tkr, since), records, flags, news_rows)
+    about = ("<section class='panel qa'><h2>About this stock, in plain English</h2>"
+             + "".join(f"<h3>{E(q)}</h3>{a}" for q, a in qa)
+             + "<p class='hint' style='margin-top:12px'>Written automatically from public filings and "
+               "prices. A starting point for research, not advice.</p></section>")
+
+    stats = [("Sales", profiles.money(pr.get("revenue")) or "—"), ("Growth", front._pct(pr.get("growth"))),
+             ("Profit", profiles.money(pr.get("net_income")) or "—"),
+             ("P/E", f"{pr['pe']:.0f}" if pr.get("pe") else "—"),
+             ("Debt / equity", f"{pr['debt_ratio']:.1f}" if pr.get("debt_ratio") is not None else "—"),
+             ("Checked", str((h or {}).get("checked_on") or "—")[:10])]
+    health_panel = (f"<section class='panel'><h2>Health check</h2><div class='foot'>"
+                    f"{front._badge((h or {}).get('verdict'))}<span class='hint'>"
+                    f"{E((h or {}).get('reasons') or 'Not checked yet.')}</span></div><div class='kv'>"
+                    + "".join(f"<div><span>{k}</span><b>{E(v)}</b></div>" for k, v in stats)
+                    + "</div></section>")
+    if news_rows:
+        items = "".join(f"<li><span class='d'>{d:%b %d}</span><a href='{E(u)}'>{E(w)}</a> "
+                        f"<span class='hint'>({E(f)})</span></li>" for d, f, w, u in news_rows)
+    else:
+        items = "<li class='hint'>No recent filings saved yet. They're fetched on the daily run.</li>"
+    news_panel = (f"<section class='panel'><h2>Recent news from its SEC filings</h2>"
+                  f"<ul class='list'>{items}</ul></section>")
+
+    rows = []
+    for m in sorted(marks, key=lambda m: m["d"], reverse=True)[:12]:
+        if m["kind"] == "congress":
+            r = type("R", (), {"last_name": m["ck"][1], "first_name": m["ck"][2], "chamber": m["ck"][0]})
+            who = front.member_html(con, r, m["who"])
+        else:
+            who = front.insider_html(con, m["who"]) + f" <span class='hint'>({E(m['role'])})</span>"
+        rows.append(f"<li><span class='d'>{m['d']:%b %d, %Y}</span>{who} bought {E(m['amt'] or '')}</li>")
+    buys_panel = (f"<section class='panel'><h2>Who bought</h2><ul class='list'>"
+                  + ("".join(rows) or "<li class='hint'>No buys in the last two years.</li>")
+                  + "</ul></section>")
+    return (head + chart_panel + about + f"<div class='two'>{health_panel}{news_panel}</div>"
+            + buys_panel)
+
+
+def selftest():
+    import duckdb
+    import signals
+    con = duckdb.connect()
+    signals.make_fixture(con)
+    con.execute("CREATE TABLE IF NOT EXISTS prices (tkr VARCHAR, d DATE, close DOUBLE)")
+    d0 = datetime.date(2024, 6, 1)
+    con.executemany("INSERT INTO prices VALUES (?,?,?)",
+                    [("AAA", d0 + datetime.timedelta(days=k), 50 + k * 0.1) for k in range(400)])
+    news.ensure_table(con)
+    con.execute("INSERT INTO news VALUES ('AAA','2025-05-01','8-K','Reported quarterly results','https://x/q')")
+    today = datetime.date(2025, 6, 1)
+    assert slug("BRK.B") == "BRK-B" and href("BRK.B", "../") == "../s/BRK-B.html"
+    body = render(con, "AAA", today)
+    assert "<svg class='chart'" in body and "<circle" in body, body[:500]
+    assert "About this stock" in body and "Who&#x27;s been buying" in body
+    assert "Congress purchase" in body and "latest earnings release" in body
+    assert "<script" not in body.lower()
+    assert "AAA" in pick(con, today, ["ZZZ"]) and pick(con, today, ["ZZZ"])[0] == "ZZZ"
+    empty = render(duckdb.connect(), "QQQQ", today)
+    assert "No price history" in empty and "No buys" in empty
+    print("stockpage selftest ok")
+
+
+if __name__ == "__main__":
+    selftest()

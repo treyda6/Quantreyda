@@ -93,3 +93,28 @@ def parse_amount(text):
     if not nums:
         return None, None
     return nums[0], (nums[1] if len(nums) > 1 else None)
+
+
+# Reports (backtest, leaderboard) are rebuilt weekly, but each GitHub Actions
+# run starts from a fresh checkout and only the database is kept between runs.
+# Saving a copy in the database keeps the site's weekly pages alive all week.
+
+def save_report(con, path):
+    """Store the file at `path` in the database under its path."""
+    with open(path, encoding="utf-8") as f:
+        body = f.read()
+    con.execute("CREATE TABLE IF NOT EXISTS saved_reports (path VARCHAR PRIMARY KEY, body VARCHAR, "
+                "saved_at TIMESTAMP)")
+    con.execute("INSERT OR REPLACE INTO saved_reports VALUES (?, ?, current_timestamp)", [path, body])
+
+
+def load_report(con, path):
+    """The file at `path` if this run wrote it, else the saved copy, else None."""
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            return f.read()
+    try:
+        r = con.execute("SELECT body FROM saved_reports WHERE path = ?", [path]).fetchone()
+        return r[0] if r else None
+    except Exception:  # table not created yet
+        return None

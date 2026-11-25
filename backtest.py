@@ -218,6 +218,9 @@ if __name__ == "__main__":
     ensure_schema(c)
     summ, det = run(c, start, end, fetch="--no-fetch" not in sys.argv)
     print(write_report(summ, start, end))
+    from schema import save_report
+    for p in ("reports/backtest.md", "reports/backtest.json"):
+        save_report(c, p)
     os.makedirs("reports", exist_ok=True)
     det.to_csv("reports/backtest_events.csv", index=False)
     print("per-event detail: reports/backtest_events.csv")

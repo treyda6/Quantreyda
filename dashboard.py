@@ -9,6 +9,9 @@ Pages:
                  180 days, with a search box and filters -- runs in the
                  browser, no server
   backtest.html  the latest "did it beat SPY?" report, if backtest.py has run
+  leaders.html   politicians and insiders ranked by how their buys did
+  s/<TKR>.html   one page per stock: chart with the buys, health, news,
+                 and a plain-English explainer
 
 Your watchlist is never written to the site: the page is public, your
 holdings aren't.
@@ -23,19 +26,21 @@ import sys
 import duckdb
 
 import digest
+import leaders
 import signals
+import stockpage
 import today as front
-from schema import DB_PATH, ensure_schema
+from schema import DB_PATH, ensure_schema, load_report
 
 OUT = "site"
 DAYS = 180
 
 CSS = """
 :root,[data-theme=dark]{--bg:#0a0c10;--card:#12151b;--card2:#191d25;--fg:#f3f5f8;--mut:#8a93a3;
---line:#232934;--acc:#2fe0a0;--acc-ink:#04140d;--up:#2fe0a0;--down:#ff5c63;--warn:#ffb648;--chip:#1d222b;
+--line:#232934;--acc:#2fe0a0;--ins:#8b9cff;--acc-ink:#04140d;--up:#2fe0a0;--down:#ff5c63;--warn:#ffb648;--chip:#1d222b;
 --shadow:0 1px 0 rgba(255,255,255,.03),0 10px 30px rgba(0,0,0,.35)}
 [data-theme=light]{--bg:#f4f6f9;--card:#ffffff;--card2:#f1f3f7;--fg:#0c1117;--mut:#5f6b7a;
---line:#e3e7ee;--acc:#00a86b;--acc-ink:#ffffff;--up:#00995f;--down:#e0353c;--warn:#b26b00;--chip:#eef1f5;
+--line:#e3e7ee;--acc:#00a86b;--ins:#4f5fe0;--acc-ink:#ffffff;--up:#00995f;--down:#e0353c;--warn:#b26b00;--chip:#eef1f5;
 --shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px rgba(16,24,40,.06)}
 *{box-sizing:border-box}html{background:var(--bg)}body{margin:0;background:var(--bg);color:var(--fg);
 font:15px/1.5 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
@@ -76,15 +81,16 @@ label();b.onclick=function(){var t=document.documentElement.getAttribute('data-t
 document.documentElement.setAttribute('data-theme',t);localStorage.setItem('qt-theme',t);label()}})()</script>"""
 
 
-def page(title, active, body, updated):
-    nav = "".join(f'<a href="{href}" class="nav{" on" if key == active else ""}">{label}</a>'
+def page(title, active, body, updated, root=""):
+    nav = "".join(f'<a href="{root}{href}" class="nav{" on" if key == active else ""}">{label}</a>'
                   for key, href, label in (("digest", "index.html", "Ideas"),
+                                           ("leaders", "leaders.html", "Leaderboard"),
                                            ("trades", "trades.html", "All trades"),
                                            ("backtest", "backtest.html", "Did it work?")))
     return (f"<!DOCTYPE html><html lang='en' data-theme='dark'><head><meta charset='utf-8'>"
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
             f"<title>{html.escape(title)} · Quantreyda</title>{THEME_HEAD}"
-            f"<style>{CSS}{front.CSS}</style></head><body>"
+            f"<style>{CSS}{front.CSS}{stockpage.CSS}{leaders.LB_CSS}</style></head><body>"
             f"<header><div class='bar'><span class='logo'><i></i>Quantreyda</span>{nav}"
             f"<span class='sp'></span><span class='upd'>updated {updated}</span>"
             f"<button class='toggle' id='theme' type='button'>☀ Light</button></div></header>"
@@ -182,9 +188,14 @@ def build(con, today, out=OUT):
     os.makedirs(out, exist_ok=True)
     updated = datetime.datetime.now().strftime("%b %d, %Y %H:%M UTC") \
         if os.environ.get("GITHUB_ACTIONS") else f"{today:%b %d, %Y}"
+    board = leaders.load(con)
+    records = (board or {}).get("records") or {}
+    idea_tickers = []
     try:
         # two weeks: enough to fill the page, still fresh (Congress files up to 45 days late anyway)
-        body = front.render(front.collect(con, today, 14), today, 14)
+        data = front.collect(con, today, 14, records=records)
+        idea_tickers = [i["tkr"] for i in data["ideas"]]
+        body = front.render(data, today, 14)
     except Exception as e:  # one bad row shouldn't take the whole site down
         import traceback
         traceback.print_exc()
@@ -194,18 +205,32 @@ def build(con, today, out=OUT):
         f.write(page("Today", "digest", body, updated))
     with open(f"{out}/trades.html", "w", encoding="utf-8") as f:
         f.write(trades_page(trade_rows(con, today), updated))
-    bt_json, bt_md = "reports/backtest.json", "reports/backtest.md"
-    if os.path.exists(bt_json):
-        body = front.render_backtest(json.load(open(bt_json, encoding="utf-8")))
-        if os.path.exists(bt_md):
-            body += ("<details><summary>Full numbers</summary>"
-                     + md(open(bt_md, encoding="utf-8").read()) + "</details>")
+    bt_json = load_report(con, "reports/backtest.json")
+    bt_md = load_report(con, "reports/backtest.md")
+    if bt_json:
+        body = front.render_backtest(json.loads(bt_json))
+        if bt_md:
+            body += ("<details><summary>Full numbers</summary>" + md(bt_md) + "</details>")
     else:
         body = ("<div class='hero'><h1>Did it work?</h1><p>The first check runs on Sunday. "
                 "It will show, in plain English, whether each kind of signal has beaten "
                 "an S&P 500 index fund.</p></div>")
     with open(f"{out}/backtest.html", "w", encoding="utf-8") as f:
         f.write(page("Did it work?", "backtest", body, updated))
+    pages = stockpage.pick(con, today, idea_tickers)
+    os.makedirs(f"{out}/s", exist_ok=True)
+    built = []
+    for t in pages:
+        try:
+            body = stockpage.render(con, t, today, records)
+        except Exception as e:  # one odd ticker shouldn't stop the rest
+            print(f"stock page {t} skipped ({type(e).__name__}: {e})")
+            continue
+        with open(f"{out}/{stockpage.href(t)}", "w", encoding="utf-8") as f:
+            f.write(page(t, "", body, updated, root="../"))
+        built.append(t)
+    with open(f"{out}/leaders.html", "w", encoding="utf-8") as f:
+        f.write(page("Leaderboard", "leaders", leaders.render(con, board, built), updated))
     open(f"{out}/.nojekyll", "w").close()
     return out
 
@@ -217,6 +242,10 @@ def selftest():
     out = build(con, datetime.date(2025, 3, 15), tempfile.mkdtemp())
     idx = open(f"{out}/index.html", encoding="utf-8").read()
     assert "30-second version" in idx and "AAA" in idx
+    assert "href='s/AAA.html'" in idx, "idea cards link to their stock page"
+    st = open(f"{out}/s/AAA.html", encoding="utf-8").read()
+    assert "About this stock" in st and "href=\"../leaders.html\"" in st
+    assert "Whose buys beat the market?" in open(f"{out}/leaders.html", encoding="utf-8").read()
     tr = open(f"{out}/trades.html", encoding="utf-8").read()
     rows = trade_rows(con, datetime.date(2025, 3, 31))
     assert {r["tkr"] for r in rows} >= {"AAA", "BBB", "XYZ", "SEL"}, rows

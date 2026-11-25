@@ -80,6 +80,7 @@ jobs:
         if: steps.day.outputs.sunday == 'true' || inputs.weekly
         run: |
           timeout 60m python backtest.py || echo "backtest failed; keeping last week's"
+          timeout 30m python leaders.py || echo "leaderboard failed; keeping last week's"
           python weekly.py
 
       - name: Build dashboard
