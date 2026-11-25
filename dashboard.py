@@ -29,6 +29,7 @@ import digest
 import leaders
 import signals
 import stockpage
+import whitehouse
 import today as front
 from schema import DB_PATH, ensure_schema, load_report
 
@@ -151,7 +152,7 @@ def trade_rows(con, today, days=DAYS):
                 ORDER BY filed DESC""", [start, today]).fetchall():
             filed, txn, tkr, name, title, tx, lo, hi, desc, kind = r
             rows.append({"filed": str(filed), "traded": str(txn or ""), "tkr": tkr,
-                         "src": "White House", "who": f"{name} ({title})",
+                         "src": whitehouse.group(title), "who": f"{name} ({title})",
                          "side": "buy" if tx == "Purchase" else "sell" if tx == "Sale" else "other",
                          "amt": digest._bracket(lo, hi), "lo": lo or 0,
                          "what": (kind + ": " if kind != "stock" else "") + (desc or ""),
@@ -192,7 +193,7 @@ def trades_page(rows, updated):
             "(when the public found out).</p>"
             "<div class='filters'><input id='q' placeholder='Search ticker, person or company…'>"
             "<select id='src'><option value=''>Everyone</option><option>Congress</option>"
-            "<option>Senate</option><option>House</option><option>White House</option>"
+            "<option>Senate</option><option>House</option><option>White House</option><option>Fed</option>"
             "<option>Insider</option></select>"
             "<select id='own'><option value=''>Anyone's money</option><option value='self'>"
             "Their own</option><option value='family'>Spouse or child</option></select>"
