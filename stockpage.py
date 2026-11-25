@@ -16,6 +16,7 @@ import html
 import re
 
 import activists
+import bills
 import committees
 import companyintel
 import health
@@ -367,7 +368,7 @@ def render(con, tkr, today, records=None):
             f"{price}</div>")
     legend = ("<div class='legend'><span><i style='background:var(--acc)'></i>Congress buy</span>"
               "<span><i class='ins' style='background:var(--ins)'></i>Insider buy</span>"
-              "<span><i style='background:var(--warn);border-radius:2px'></i>White House buy</span>"
+              "<span><i style='background:var(--warn);border-radius:2px'></i>White House or Fed buy</span>"
               "<span>Hover a marker for who and how much.</span></div>")
     chart_panel = f"<section class='panel'><h2>Two years of price, with the buys</h2>{chart(px, marks)}{legend}</section>"
 
@@ -402,6 +403,16 @@ def render(con, tkr, today, records=None):
                       if ci.get("lobbying_issues") else "")
                    + "<p class='hint'>Sources: SEC cash-flow statements, Senate lobbying "
                      "disclosures, USAspending.gov, Wikipedia page views.</p></section>")
+    bl = bills.for_ticker(con, tkr)
+    if bl:
+        bills_panel = ("<section class='panel'><h2>Bills moving in its industry</h2><ul class='list'>"
+                       + "".join(f"<li><span class='d'>{d:%b %d}</span><a href='{E(u)}'>{E(t or '')}</a>"
+                                 f" <span class='hint'>· {E(a or '')} · {E(sp or '')}</span></li>"
+                                 for t, pol, sc, d, a, u, sp in bl)
+                       + "</ul><p class='hint'>From Congress.gov: bills in this industry's policy area "
+                         "that a committee or chamber acted on recently.</p></section>")
+    else:
+        bills_panel = ""
     if news_rows:
         items = "".join(f"<li><span class='d'>{d:%b %d}</span><a href='{E(u)}'>{E(w)}</a> "
                         f"<span class='hint'>({E(f)})</span></li>" for d, f, w, u in news_rows)
@@ -424,7 +435,7 @@ def render(con, tkr, today, records=None):
                   + ("".join(rows) or "<li class='hint'>No buys in the last two years.</li>")
                   + "</ul></section>")
     return (head + chart_panel + about + f"<div class='two'>{health_panel}{news_panel}</div>"
-            + intel_panel + buys_panel)
+            + intel_panel + bills_panel + buys_panel)
 
 
 def selftest():
@@ -459,6 +470,14 @@ def selftest():
     body = render(con, "AAA", today)
     assert "How tied is it to Washington?" in body and "$4.2B</b> in federal contracts" in body
     assert "3.2×" in body and "Money, Washington and buzz" in body
+    bills.ensure_table(con)
+    import committees as cm
+    cm.ensure_tables(con)
+    con.execute("INSERT OR REPLACE INTO companies VALUES ('AAA', 1, 'Aaa', 3760, 'missiles', NULL)")
+    con.execute("""INSERT INTO bills VALUES (119,'S','77','Better Missiles Act',
+        'Armed Forces and National Security','defense','A1','Sen. Alpha',current_date,
+        'Passed Senate','https://congress.gov/x',NULL)""")
+    assert "Bills moving in its industry" in render(con, "AAA", today)
     assert "<script" not in body.lower()
     assert "AAA" in pick(con, today, ["ZZZ"]) and pick(con, today, ["ZZZ"])[0] == "ZZZ"
     empty = render(duckdb.connect(), "QQQQ", today)

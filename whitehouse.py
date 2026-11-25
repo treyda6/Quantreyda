@@ -249,6 +249,11 @@ def ensure_tables(con):
         filed DATE, amount_low BIGINT, amount_high BIGINT, notified_late BOOLEAN, link VARCHAR)""")
 
 
+def group(title):
+    """'Fed' for Federal Reserve officials, else 'White House'."""
+    return "Fed" if "federal reserve" in (title or "").lower() else "White House"
+
+
 def officials(path=OFFICIALS_FILE):
     out = []
     try:
@@ -465,6 +470,7 @@ def selftest():
     assert official_lines(o)[0] == "Vice President" and "1 stock trades" in official_lines(o)[2]
     assert stock_buys(duckdb.connect(), b[0][4], b[0][5]) == []
     assert officials("no-such-file") == []
+    assert group("Governor, Federal Reserve") == "Fed" and group("President") == "White House"
     print("whitehouse selftest ok")
 
 

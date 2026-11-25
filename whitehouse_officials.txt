@@ -31,3 +31,14 @@ feinberg-stephen-andrew | Stephen Feinberg | Deputy Secretary of Defense
 witkoff-steven-c | Steve Witkoff | Special Envoy
 atkins-paul | Paul Atkins | SEC Chairman
 | Jared Isaacman | NASA Administrator
+
+# Federal Reserve Board (Senate-confirmed, file the same Form 278-T). Fed rules
+# have banned individual stocks for officials since 2022, so expect funds and
+# Treasuries here; any stock trade would stand out.
+| Kevin Warsh | Chair, Federal Reserve
+| Michelle Bowman | Vice Chair for Supervision, Federal Reserve
+| Philip Jefferson | Vice Chair, Federal Reserve
+| Christopher Waller | Governor, Federal Reserve
+| Lisa Cook | Governor, Federal Reserve
+| Michael Barr | Governor, Federal Reserve
+| Stephen Miran | Governor, Federal Reserve

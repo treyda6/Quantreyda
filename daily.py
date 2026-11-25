@@ -25,6 +25,7 @@ import sys
 
 import activists
 import alerts
+import bills
 import committees
 import companyintel
 import contracts
@@ -90,7 +91,8 @@ def main():
                         ("Top fund 13Fs", lambda: funds.fetch(_con())),
                         ("Committee rosters", lambda: committees.refresh_rosters(_con())),
                         ("White House and cabinet (OGE 278-T)", lambda: whitehouse.main()),
-                        ("Activist 5%+ stakes (13D/13G)", lambda: activists.refresh(_con()))):
+                        ("Activist 5%+ stakes (13D/13G)", lambda: activists.refresh(_con())),
+                        ("Bills moving in Congress", lambda: bills.refresh(_con()))):
         print(f"\n--- {label} ---")
         try:
             step()

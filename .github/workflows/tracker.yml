@@ -48,6 +48,7 @@ jobs:
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
       EMAIL_TO: ${{ secrets.EMAIL_TO }}
       WATCHLIST: ${{ secrets.WATCHLIST }}
+      CONGRESS_API_KEY: ${{ secrets.CONGRESS_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

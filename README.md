@@ -213,6 +213,14 @@ months, over a decent number of examples.
   company. The daily run refreshes a few dozen companies of each per day.
   Buybacks and dividends come with the SEC health check.
 
+- `python bills.py`: bills that moved in Congress in the last 30 days (from
+  Congress.gov; needs the free `CONGRESS_API_KEY` secret), matched to
+  industries. A Congress buy gets ⚖ when the buyer sponsored a moving bill in
+  that stock's industry.
+- Federal Reserve governors are followed through `whitehouse_officials.txt`
+  too (same Form 278-T). Regional Fed bank presidents only publish annual
+  reports, not trades, so they aren't included.
+
 `backtest.py` also tests "Congress buys in their committee's industry" as its
 own signal, so you can see whether that ⚑ means anything.
 

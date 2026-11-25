@@ -26,6 +26,7 @@ import funds
 import health
 import leaders
 import activists
+import bills
 import whitehouse
 import profiles
 import signals
@@ -157,7 +158,8 @@ def conviction(i):
       up to 20  company health (Solid 20, Mixed 10, unknown 8, Shaky 0)
       up to 25  how informed the buyers look: a cluster of insiders 10, an
                 executive buying 5, a Congress member on an overseeing committee 5,
-                an activist investor taking a 5%+ stake 5
+                an activist investor taking a 5%+ stake 5, the buyer sponsoring a
+                moving bill in that industry 5
       up to 10  the best buyer's past record on the leaderboard (beat SPY by 5%+
                 on average and more than half the time 10, ahead at all 5)
     Capped at 100.
@@ -167,7 +169,7 @@ def conviction(i):
     size = 0 if i["dollars"] <= 0 else max(0, min(20, round(4 * math.log10(i["dollars"] / 1000))))
     hp = {"Solid": 20, "Mixed": 10, "Shaky": 0}.get(i.get("health"), 8)
     informed = (10 * i["cluster"] + 5 * i["officer"] + 5 * bool(i["flag"])
-                + 5 * ("Activist" in i["kinds"]))
+                + 5 * ("Activist" in i["kinds"]) + 5 * bool(i.get("bill")))
     track, track_why = i.get("track") or (0, None)
     why = [f"{len(i['kinds'])} kind(s) of buyer: +{breadth}",
            f"about {digest._money(i['dollars'])} put in: +{size}" if i["dollars"] else "no dollar amount: +0",
@@ -203,10 +205,11 @@ def collect(con, today, days=7, records=None):
             who = friendly_who(r)
             who_h = member_html(con, r, who)
             flag = committees.committee_flag(con, t, r.last_name, r.first_name, r.chamber)
+            bill, bill_url = bills.bill_flag(con, t, r.last_name, r.first_name, r.chamber)
             lo, hi = g.amount_low.sum(), g.amount_high.sum()
             row = {"tkr": t, "who": who, "who_h": who_h, "amount": digest._bracket(lo, hi), "lo": float(lo),
                    "n": len(g), "lag": _clean(g.lag_days.min()), "filed": g.event_date.max(),
-                   "flag": flag}
+                   "flag": flag, "bill": bill, "bill_url": bill_url}
             data["congress"].append(row)
             i = idea(t)
             i["kinds"].add("Congress")
@@ -223,6 +226,11 @@ def collect(con, today, days=7, records=None):
             if flag:
                 i["flag"] = flag
                 i["score"] += 1
+            if bill:
+                i["bill"] = bill
+                i["score"] += 1
+                i["why"].append(f"⚖ {who_h} sponsored a related bill that's moving in Congress: "
+                                f"<a href='{E(bill_url)}'>{E(bill[:90])}</a>.")
         data["congress"].sort(key=lambda r: -r["lo"])
 
     if signals.has_table(con, "insider_trades"):
@@ -270,7 +278,7 @@ def collect(con, today, days=7, records=None):
         data["whitehouse"].append({"tkr": t, "who_h": who_h, "title": title, "amount": amount,
                                    "n": n, "filed": filed})
         i = idea(t)
-        i["kinds"].add("White House")
+        i["kinds"].add(whitehouse.group(title))
         i["buyers"].add(leaders.key_official(slug))
         i["score"] += min((lo or 0) / 50_000, 3)
         i["dollars"] += float(lo or 0)
@@ -378,6 +386,9 @@ def _stock_href(tkr):
 def _card(i):
     pr = i.get("profile") or {}
     chips = "".join(f"<span class='chip'>{E(k)}</span>" for k in sorted(i["kinds"]))
+    if i.get("bill"):
+        chips += (f"<span class='chip flag' title='The buyer sponsored a related bill: "
+                  f"{E(i['bill'][:120])}'>⚖ Bill</span>")
     if i["flag"]:
         chips += (f"<span class='chip flag' title='Their committee oversees this industry'>"
                   f"⚑ {E(i['flag'].split(' (')[0])}</span>")
@@ -484,13 +495,13 @@ def render(data, today, days=7):
         for r in data["clusters"]] + [
         f"<b>{E(r['tkr'])}</b>{' (' + E(r['company']) + ')' if r['company'] else ''}: "
         f"{r['who_h']} ({E(r['role'])}) bought {E(digest._money(r['value']))}" for r in data["big"]]))
-    out.append(_section("White House and cabinet stock buys", [
+    out.append(_section("White House, cabinet and Fed stock buys", [
         f"<b>{E(r['tkr'])}</b>: {r['who_h']} ({E(r['title'])}) bought {E(r['amount'])}"
         f"{' in ' + str(r['n']) + ' purchases' if r['n'] > 1 else ''}, reported "
         f"{E(_days_ago(r['filed'], today))}" for r in data["whitehouse"]],
         "No stock buys reported by tracked officials lately."))
     if data["wh_summary"]:
-        out.append(_section("White House and cabinet: everything they reported (60 days)",
+        out.append(_section("White House, cabinet and Fed: everything they reported (60 days)",
                             [wh_line(n, t, rows) for (n, t), rows in _group_wh(data["wh_summary"])]))
     out.append(_section("Activist investors taking 5%+ stakes", [
         f"<b>{E(r['tkr'])}</b>{' (' + E(r['company']) + ')' if r['company'] else ''}: "
@@ -520,6 +531,10 @@ def render(data, today, days=7):
                "<li><b>White House</b>: the President, Vice President or a cabinet-level "
                "official reported buying the stock (OGE Form 278-T, in dollar ranges, up to 45 "
                "days late). Most of what they report is bonds, which are listed separately.</li>"
+               "<li><b>⚖ Bill</b>: the member who bought it sponsored a bill in that industry "
+               "that's moving through Congress (from Congress.gov).</li>"
+               "<li><b>Fed</b>: a Federal Reserve governor reported buying it, on the same form. "
+               "Fed rules have banned individual stocks since 2022, so this should be rare.</li>"
                "<li><b>Activist</b>: an investor bought 5%+ of the company and filed a 13D, "
                "meaning they may push for changes such as a sale or new board members.</li>"
                "<li><b>⚑</b>: the member sits on a committee that oversees that industry.</li>"
@@ -624,6 +639,13 @@ def selftest():
     companyintel._save(con, "AAA", "contracts", 4.2e9, None)
     p3 = render(collect(con, today, days=90), today, 90)
     assert "Buzz 3.2×" in p3 and "Gov't customer" in p3, p3[:300]
+    bills.ensure_table(con)
+    con.execute("""INSERT INTO bills VALUES (119,'S','77','Better Missiles Act',
+        'Armed Forces and National Security','defense','A1','Sen. Alpha',current_date,
+        'Passed Senate','https://congress.gov/x',NULL)""")
+    con.execute("INSERT OR REPLACE INTO members VALUES ('A1','S','A',NULL,'Alpha','Republican','TX',2019,'Armed Services')")
+    p4 = render(collect(con, today, days=90), today, 90)
+    assert "⚖ Bill" in p4 and "Better Missiles Act" in p4
     quiet = render(collect(duckdb.connect(), today), today)
     assert "quiet week" in quiet and "No ideas this week" in quiet
     win = {"signal": "X", "n_12m": 80, "avg_excess_12m": .05, "median_excess_12m": .02,
