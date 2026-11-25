@@ -29,7 +29,10 @@ import urllib.parse
 
 import requests
 
-UA = "Quantreyda personal research tool (github.com/treyda6/Quantreyda)"
+# Wikimedia asks bots for "Name/version (contact URL) library/version"; vaguer
+# user agents get 403s or tight rate limits.
+UA = ("QuantreydaBot/1.0 (https://github.com/treyda6/Quantreyda; personal research tool) "
+      f"python-requests/{requests.__version__}")
 LDA_HOSTS = ["https://lda.senate.gov", "https://lda.gov"]
 USA_URL = "https://api.usaspending.gov/api/v2/search/spending_by_category/recipient/"
 WIKI_SEARCH = "https://en.wikipedia.org/w/api.php"
@@ -141,10 +144,21 @@ def buzz_ratio(views):
     return avg_r, (avg_r / avg_b if avg_b >= 20 else None)  # tiny pages swing wildly
 
 
+def _wiki_get(s, url, **kw):
+    """GET with a polite pause, retrying when Wikimedia says slow down (429/503)."""
+    for attempt in range(3):
+        time.sleep(0.3)
+        r = s.get(url, timeout=30, **kw)
+        if r.status_code not in (429, 503):
+            return r
+        wait = r.headers.get("Retry-After", "")
+        time.sleep(min(30, int(wait)) if wait.isdigit() else 5 * (attempt + 1))
+    return r
+
+
 def wiki_title(s, name):
-    r = s.get(WIKI_SEARCH, params={"action": "query", "list": "search", "format": "json",
-                                   "srsearch": f"{base_name(name)} company", "srlimit": 3},
-              timeout=30)
+    r = _wiki_get(s, WIKI_SEARCH, params={"action": "query", "list": "search", "format": "json",
+                                   "srsearch": f"{base_name(name)} company", "srlimit": 3})
     r.raise_for_status()
     key = base_name(name).split(" ")[0].lower()
     for hit in r.json().get("query", {}).get("search", []):
@@ -160,7 +174,7 @@ def fetch_buzz(s, name, today, title=None):
     start = today - datetime.timedelta(days=75)
     url = WIKI_VIEWS.format(title=urllib.parse.quote(title.replace(" ", "_"), safe=""),
                             start=start, end=today - datetime.timedelta(days=1))
-    r = s.get(url, timeout=30)
+    r = _wiki_get(s, url)
     if r.status_code == 404:
         return None
     r.raise_for_status()
@@ -183,8 +197,11 @@ def refresh(con, names):
         due = [t for t in names if t not in have
                or (today - have[t]).days >= EVERY[source]]
         due.sort(key=lambda t: have.get(t, datetime.date.min))
-        done = 0
+        done = fails = 0
         for t in due[:PER_DAY[source]]:
+            if fails >= 8:  # the source is down or blocking us; try again next run
+                print(f"  {source}: stopping after {fails} errors in a row")
+                break
             name = names[t]
             if not base_name(name):
                 continue
@@ -206,8 +223,11 @@ def refresh(con, names):
                     else:
                         _save(con, t, source, None, None)
                 done += 1
+                fails = 0
             except requests.RequestException as e:
-                print(f"  {source} {t}: {type(e).__name__}")
+                fails += 1
+                code = getattr(getattr(e, "response", None), "status_code", None)
+                print(f"  {source} {t}: {type(e).__name__}{f' {code}' if code else ''}")
         print(f"company intel: {source} refreshed for {done} companies")
 
 

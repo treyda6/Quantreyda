@@ -86,7 +86,7 @@ def from_detail(b):
 
 
 def refresh(con, days=30, max_pages=8):
-    key = os.environ.get("CONGRESS_API_KEY")
+    key = (os.environ.get("CONGRESS_API_KEY") or "").strip()  # pasted keys often end in a newline
     if not key:
         raise SystemExit("CONGRESS_API_KEY not set (free key: https://api.data.gov/signup/)")
     ensure_table(con)
