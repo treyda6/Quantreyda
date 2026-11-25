@@ -111,7 +111,8 @@ def compute(con, start, end, fetch=True):
                | set(wb.tkr if len(wb) else []))
     if fetch and tickers:
         import prices
-        prices.fetch(con, tickers | {prices.BENCHMARK}, start=start - datetime.timedelta(days=10))
+        prices.fetch(con, tickers | {prices.BENCHMARK}, start=start - datetime.timedelta(days=10),
+                     minutes=15)
     series = backtest._price_series(con, tickers | {"SPY"})
     bench = series.get("SPY")
     if bench is None:

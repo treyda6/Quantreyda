@@ -313,7 +313,7 @@ def run(con, start, end, fetch=True):
     tickers = set().union(*(set(g.tkr) for g in groups.values())) if groups else set()
     if fetch:
         prices.fetch(con, tickers | {prices.BENCHMARK},
-                     start=start - datetime.timedelta(days=10))
+                     start=start - datetime.timedelta(days=10), minutes=35)
     prices.ensure_tables(con)
     series = _price_series(con, tickers | {prices.BENCHMARK})
     bench = series.get(prices.BENCHMARK)

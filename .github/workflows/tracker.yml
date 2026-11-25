@@ -79,6 +79,7 @@ jobs:
         run: echo "sunday=$([ "$(date -u +%u)" = 7 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - name: Weekly backtest and email
         if: steps.day.outputs.sunday == 'true' || inputs.weekly
+        continue-on-error: true  # a failed email mustn't stop the site from rebuilding
         run: |
           timeout 60m python backtest.py || echo "backtest failed; keeping last week's"
           timeout 30m python leaders.py || echo "leaderboard failed; keeping last week's"

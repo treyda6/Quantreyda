@@ -74,11 +74,19 @@ def ensure_table(con):
         PRIMARY KEY (congress, btype, number))""")
 
 
+def _one(x):
+    """congress.gov sometimes wraps a single record in a list; take the first."""
+    while isinstance(x, list):
+        x = x[0] if x else {}
+    return x if isinstance(x, dict) else {}
+
+
 def from_detail(b):
     """Row values from a congress.gov bill detail record."""
-    policy = (b.get("policyArea") or {}).get("name")
-    sp = (b.get("sponsors") or [{}])[0]
-    la = b.get("latestAction") or {}
+    b = _one(b)
+    policy = _one(b.get("policyArea")).get("name")
+    sp = _one(b.get("sponsors"))
+    la = _one(b.get("latestAction"))
     return (int(b["congress"]), b["type"].upper(), str(b["number"]), b.get("title"), policy,
             ",".join(POLICY_SECTORS.get(policy, [])), sp.get("bioguideId"),
             sp.get("fullName"), la.get("actionDate"), la.get("text"),
@@ -100,10 +108,12 @@ def refresh(con, days=30, max_pages=8):
             "api_key": key, "format": "json", "limit": 250, "offset": page * 250,
             "sort": "updateDate+desc", "fromDateTime": since})
         r.raise_for_status()
-        items = r.json().get("bills", [])
+        items = [_one(b) for b in (_one(r.json()).get("bills") or [])]
         for b in items:
+            if not {"congress", "type", "number"} <= b.keys():
+                continue
             k = (int(b["congress"]), b["type"].upper(), str(b["number"]))
-            if moved((b.get("latestAction") or {}).get("text")) and have.get(k) != b.get("updateDate"):
+            if moved(_one(b.get("latestAction")).get("text")) and have.get(k) != b.get("updateDate"):
                 todo.append(b)
         if len(items) < 250:
             break
@@ -113,8 +123,12 @@ def refresh(con, days=30, max_pages=8):
                   params={"api_key": key, "format": "json"})
         if r.status_code != 200:
             continue
-        con.execute("INSERT OR REPLACE INTO bills VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                    list(from_detail(r.json()["bill"])))
+        try:
+            row = from_detail(_one(r.json()).get("bill"))
+        except (KeyError, ValueError, TypeError, IndexError) as e:
+            print(f"bills: skipped {b.get('type')} {b.get('number')} ({type(e).__name__}: {e})")
+            continue
+        con.execute("INSERT OR REPLACE INTO bills VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", list(row))
     print(f"bills: {len(todo)} moving bills updated")
 
 
@@ -185,6 +199,8 @@ def selftest():
               "latestAction": {"actionDate": str(today), "text": "Passed Senate without amendment."},
               "updateDate": "x"}
     row = from_detail(detail)
+    assert from_detail([detail]) == row and _one([[{"a": 1}]]) == {"a": 1} and _one("x") == {}
+    assert from_detail(dict(detail, sponsors={"bioguideId": "Z1"}))[6] == "Z1"
     assert row[5] == "defense" and row[6] == "A1"
     con = duckdb.connect()
     ensure_table(con)

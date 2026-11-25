@@ -48,7 +48,9 @@ def build_message(subject, markdown_text, sender, to):
 
 
 def send(subject, markdown_text):
-    """True if sent, False if email isn't set up. Raises on a real failure."""
+    """True if sent, False if email isn't set up or the mail server refused.
+    A refusal is printed, not raised, so a bad password can't stop the site
+    from being rebuilt; the caller saves the text to reports/ instead."""
     if not configured():
         return False
     user = os.environ["SMTP_USER"]
@@ -56,10 +58,17 @@ def send(subject, markdown_text):
     msg = build_message(subject, markdown_text, user, to)
     host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
     port = int(os.environ.get("SMTP_PORT", "587"))
-    with smtplib.SMTP(host, port, timeout=30) as s:
-        s.starttls(context=ssl.create_default_context())
-        s.login(user, os.environ["SMTP_PASSWORD"])
-        s.send_message(msg)
+    try:
+        with smtplib.SMTP(host, port, timeout=30) as s:
+            s.starttls(context=ssl.create_default_context())
+            s.login(user, os.environ["SMTP_PASSWORD"].strip())
+            s.send_message(msg)
+    except (smtplib.SMTPException, OSError) as e:
+        print(f"email not sent ({type(e).__name__}: {e}). The mail server at {host} "
+              "turned down SMTP_USER / SMTP_PASSWORD. For Gmail, SMTP_PASSWORD must be "
+              "a 16-letter App password, not your normal password; for another provider, "
+              "set SMTP_HOST to its mail server.")
+        return False
     return True
 
 

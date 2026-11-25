@@ -21,6 +21,8 @@ script with three print-heavy steps already.
 """
 
 import datetime
+import os
+import traceback
 import sys
 
 import activists
@@ -44,6 +46,12 @@ import entities
 import scrape_house
 import scrape_insiders
 import scrape_senate
+
+
+def _where(e):
+    """' at bills.py:84' -- where an optional step broke, for the run log."""
+    tb = traceback.extract_tb(e.__traceback__)
+    return f" at {os.path.basename(tb[-1].filename)}:{tb[-1].lineno}" if tb else ""
 
 
 def _con():
@@ -119,7 +127,7 @@ def main():
         except SystemExit as e:
             print(f"skipped: {e}")
         except Exception as e:
-            print(f"skipped ({type(e).__name__}: {e})")
+            print(f"skipped ({type(e).__name__}: {e}{_where(e)})")
 
     print("\n--- Digest ---")
     digest.main(days=7)
@@ -152,7 +160,7 @@ def main():
         except SystemExit as e:
             print(f"{label} skipped: {e}")
         except Exception as e:
-            print(f"{label} skipped ({type(e).__name__}: {e})")
+            print(f"{label} skipped ({type(e).__name__}: {e}{_where(e)})")
     con.close()
 
 def selftest():
