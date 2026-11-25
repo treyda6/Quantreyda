@@ -29,6 +29,7 @@ import bills
 import committees
 import companyintel
 import contracts
+import fec
 import digest
 import funds
 import health
@@ -120,7 +121,9 @@ def main():
                         ("health", lambda: health.refresh(con, pages)),
                         ("news", lambda: news.refresh(con, pages)),
                         ("lobbying, contracts, buzz",
-                         lambda: companyintel.refresh(con, company_names(con, pages)))):
+                         lambda: companyintel.refresh(con, company_names(con, pages))),
+                        ("election money (FEC)",
+                         lambda: fec.refresh(con, company_names(con, pages)))):
         try:
             step()
         except SystemExit as e:

@@ -68,6 +68,8 @@ def member(con, last, first, chamber):
         b, fn, nick, ln, party, state, since, comms = hit[0]
         out.update(name=f"{nick or fn} {ln}", party=party, state=state, since=since,
                    committees=[c for c in (comms or "").split("; ") if c])
+        import fec
+        out["fec"] = fec.member(con, b)
     rec = _one(con, """SELECT count(*), count(*) FILTER (WHERE tx_type = 'Purchase'),
                               count(*) FILTER (WHERE tx_type LIKE 'Sale%'),
                               min(txn_date), count(DISTINCT tkr)
@@ -127,6 +129,11 @@ def member_lines(m):
                      + (f", in office since {m['since']}" if m.get("since") else ""))
         if m.get("committees"):
             lines.append("Committees: " + ", ".join(m["committees"][:5]))
+        if m.get("fec"):
+            f = m["fec"]
+            lines.append(f"Campaign money ({f['cycle'] - 1}-{f['cycle'] % 100:02d}): raised "
+                         f"{money(f['raised']) or '$0'}"
+                         + (f", {money(f['cash'])} in the bank" if f.get("cash") else "") + " (FEC)")
     else:
         lines.append("No longer in Congress, or not matched to the current roster.")
     if m.get("trades"):
@@ -176,6 +183,11 @@ def selftest():
     assert lines[0] == "Senator (R-TX), in office since 2019", lines
     assert "Armed Services" in lines[1] and "Trading record here: 1 trades (1 buys" in lines[2], lines
     assert member_lines(member(con, "Nobody", "X", "H"))[0].startswith("No longer in Congress")
+    import fec
+    fec.ensure_tables(con)
+    con.execute("INSERT INTO fec_member VALUES ('A1', current_date, 'S1', 'ALPHA, ANN', 2026, 3.4e6, 1.2e6)")
+    assert ("Campaign money (2025-26): raised $3.4M, $1.2M in the bank (FEC)"
+            in member_lines(member(con, "Alpha", "A", "S"))), member_lines(member(con, "Alpha", "A", "S"))
 
     ins = insider(con, "1", "Ann")
     assert ins["companies"][0]["tkr"] == "XYZ" and ins["companies"][0]["role"] == "Officer"

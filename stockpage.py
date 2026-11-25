@@ -309,6 +309,13 @@ def explain(tkr, pr, h, marks, sells, records, flags, news_rows, stakes=(), ci=N
         issues = ", ".join(ci.get("lobbying_issues") or [])
         dc.append(f"spent <b>{E(profiles.money(ci['lobbying']))}</b> on lobbying"
                   + (f" (mostly on {E(issues)})" if issues else ""))
+    if ci.get("pac"):
+        lean = ci.get("pac_rep")
+        side = ("" if lean is None else
+                f", {lean * 100:.0f}% of it to Republicans" if lean >= .5 else
+                f", {(1 - lean) * 100:.0f}% of it to Democrats")
+        dc.append(f"gave <b>{E(profiles.money(ci['pac']))}</b> to federal candidates through its "
+                  f"PAC this election cycle{side}")
     if dc:
         txt = "; it ".join(dc) if dc[0].startswith("It") else "It " + "; it ".join(dc)
         qa.append(("How tied is it to Washington?",
@@ -395,14 +402,20 @@ def render(con, tkr, today, records=None):
                   ("Lobbying (12 months)", profiles.money(ci.get("lobbying")) if "lobbying" in ci else "—"),
                   ("Federal contracts (12 mo)", profiles.money(ci.get("contracts")) if "contracts" in ci else "—"),
                   ("Wikipedia views / day", f"{ci['views']:,.0f}" if ci.get("views") else "—"),
-                  ("Buzz vs usual", f"{ci['buzz']:.1f}×" if ci.get("buzz") else "—")]
+                  ("Buzz vs usual", f"{ci['buzz']:.1f}×" if ci.get("buzz") else "—"),
+                  ("PAC gifts to candidates", profiles.money(ci.get("pac")) if "pac" in ci else "—"),
+                  ("…to Republicans / Democrats", f"{ci['pac_rep'] * 100:.0f}% / {100 - ci['pac_rep'] * 100:.0f}%"
+                   if ci.get("pac_rep") is not None else "—")]
     intel_panel = ("<section class='panel'><h2>Money, Washington and buzz</h2><div class='kv'>"
                    + "".join(f"<div><span>{k}</span><b>{E(v or '—')}</b></div>" for k, v in intel_rows)
                    + "</div>"
                    + (f"<p class='hint'>Lobbying on: {E(', '.join(ci['lobbying_issues']))}.</p>"
                       if ci.get("lobbying_issues") else "")
+                   + (f"<p class='hint'>Its PAC gave most to: {E(', '.join(ci['pac_top']))}.</p>"
+                      if ci.get("pac_top") else "")
                    + "<p class='hint'>Sources: SEC cash-flow statements, Senate lobbying "
-                     "disclosures, USAspending.gov, Wikipedia page views.</p></section>")
+                     "disclosures, USAspending.gov, Wikipedia page views, FEC filings "
+                     "(this election cycle).</p></section>")
     bl = bills.for_ticker(con, tkr)
     if bl:
         bills_panel = ("<section class='panel'><h2>Bills moving in its industry</h2><ul class='list'>"
@@ -467,7 +480,10 @@ def selftest():
     companyintel._save(con, "AAA", "lobbying", 3.3e6, "Defense")
     companyintel._save(con, "AAA", "contracts", 4.2e9, None)
     companyintel._save(con, "AAA", "buzz", 900, "Aaa Inc|3.2")
+    companyintel._save(con, "AAA", "pac", 412000, "AAA INC PAC|0.62|Smith For Senate; Jones For Congress")
     body = render(con, "AAA", today)
+    assert "gave <b>$412k</b> to federal candidates through its PAC" in body and "62% of it to Republicans" in body, body
+    assert "Smith For Senate" in body
     assert "How tied is it to Washington?" in body and "$4.2B</b> in federal contracts" in body
     assert "3.2×" in body and "Money, Washington and buzz" in body
     bills.ensure_table(con)
