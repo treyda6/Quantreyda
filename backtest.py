@@ -103,6 +103,113 @@ def _fmt_table(summary):
     return "\n".join(lines)
 
 
+# ------------------------------------------------------------------ copycat
+# "If you had copied them": buy every stock a group bought (the first close
+# after the filing), hold one year, and compare to the S&P 500 over the same
+# days, grouped by the year of the buy. Buys from the last year that haven't
+# had a full year yet are counted up to the latest price and marked open.
+
+COPY_DAYS = 252
+RECORD_MIN, RECORD_WAIT = 5, 380  # finished trades needed; days before a result is known
+
+
+def hold_return(series, bench, event_date, days=COPY_DAYS):
+    """(return, S&P return, still_open) or None when there is no entry price."""
+    if series is None or bench is None:
+        return None
+    ts = pd.Timestamp(event_date)
+    after = series.index[series.index > ts]
+    if not len(after):
+        return None
+    i0 = series.index.get_loc(after[0])
+    b_after = bench.index[bench.index >= after[0]]
+    if not len(b_after):
+        return None
+    j0 = bench.index.get_loc(b_after[0])
+    left = min(len(series) - 1 - i0, len(bench) - 1 - j0)
+    if left < 1:
+        return None
+    h = min(days, left)
+    return (series.iloc[i0 + h] / series.iloc[i0] - 1,
+            bench.iloc[j0 + h] / bench.iloc[j0] - 1, h < days)
+
+
+def proven_picks(cb, series, bench):
+    """Congress buys by members who, at the time of the buy, already had a
+    winning record: RECORD_MIN+ earlier buys whose one-year result was known,
+    averaging better than the S&P 500. Judged only on what was knowable then,
+    so the result isn't flattered by hindsight."""
+    if not len(cb):
+        return cb
+    cb = cb.copy()
+    cb["d"] = pd.to_datetime(cb.event_date)
+    xs = []
+    for _, r in cb.iterrows():
+        got = hold_return(series.get(r.tkr), bench, r.event_date)
+        xs.append(got[0] - got[1] if got and not got[2] else None)
+    cb["edge"] = xs
+    keep = []
+    for (_, last, first), g in cb.groupby(["chamber", "last_name", "first_name"], dropna=False):
+        g = g.sort_values("d")
+        for i, r in g.iterrows():
+            done = g[(g.d <= r.d - pd.Timedelta(days=RECORD_WAIT)) & g.edge.notna()]
+            if len(done) >= RECORD_MIN and done.edge.mean() > 0 and (done.edge > 0).mean() >= 0.5:
+                keep.append(i)
+    return cb.loc[sorted(keep)].drop(columns=["d", "edge"])
+
+
+def wh_events(con, start, end):
+    if not signals.has_table(con, "wh_trades"):
+        return pd.DataFrame(columns=["tkr", "event_date"])
+    return con.execute("""SELECT DISTINCT tkr, filed AS event_date, slug FROM wh_trades
+                          WHERE kind = 'stock' AND tx_type = 'Purchase' AND tkr IS NOT NULL
+                            AND filed BETWEEN ? AND ?""", [start, end]).df()
+
+
+def copycat_groups(con, start, end, groups, series, bench):
+    """[(label, about, events)] for the 'If you had copied them' section."""
+    out = []
+    cb = groups.get("Congress buys ≥ $15k")
+    if cb is not None:
+        out.append(("Every stock Congress bought", "Every stock purchase of $15,000 or more "
+                    "that a member of Congress or their family disclosed.", cb))
+        out.append(("Politicians with a winning record", "Only buys by members whose "
+                    f"earlier picks (at least {RECORD_MIN} that had finished a full year by "
+                    "then) had beaten the S&P 500 on average. Picked using only what you "
+                    "could have known at the time.", proven_picks(cb, series, bench)))
+    cl = groups.get("Insider cluster buys (3+ in 30d)")
+    if cl is not None:
+        out.append(("Insiders buying together", "Stocks where 3 or more executives or "
+                    "directors bought their own company's shares within 30 days.", cl))
+    wh = wh_events(con, start, end)
+    if len(wh):
+        out.append(("White House and cabinet", "Stocks the President, Vice President, "
+                    "cabinet and other senior officials reported buying.", wh))
+    return out
+
+
+def copycat(label, about, events, series, bench):
+    rows = []
+    for _, e in events.iterrows():
+        got = hold_return(series.get(e.tkr), bench, e.event_date)
+        if got:
+            rows.append((pd.Timestamp(e.event_date).year,) + got)
+    years = []
+    for y in sorted({r[0] for r in rows}):
+        rs = [r for r in rows if r[0] == y]
+        years.append({"year": y, "n": len(rs),
+                      "ret": sum(r[1] for r in rs) / len(rs),
+                      "spy": sum(r[2] for r in rs) / len(rs),
+                      "open": sum(r[3] for r in rs)})
+    total = None
+    if rows:
+        done = [r for r in rows if not r[3]]
+        total = {"n": len(done), "ret": sum(r[1] for r in done) / len(done) if done else None,
+                 "spy": sum(r[2] for r in done) / len(done) if done else None,
+                 "beat": sum(r[1] > r[2] for r in done) / len(done) if done else None}
+    return {"label": label, "about": about, "years": years, "total": total}
+
+
 def build_events(con, start, end):
     groups = {}
     if signals.has_table(con, "senate_trades"):
@@ -140,10 +247,27 @@ def run(con, start, end, fetch=True):
         res = evaluate(ev, series, bench)
         summary.append(summarize(res, label))
         detail.append(res.assign(signal=label))
+    run.copycat = [copycat(label, about, ev, series, bench)
+                   for label, about, ev in copycat_groups(con, start, end, groups, series, bench)]
     return summary, (pd.concat(detail) if detail else pd.DataFrame())
 
 
-def write_report(summary, start, end, path="reports/backtest.md"):
+def copycat_md(cc):
+    pct = lambda x: "—" if x is None else f"{x * 100:+.1f}%"
+    out = ["## If you had copied them (bought every one, held a year)\n"]
+    for g in cc:
+        out += [f"### {g['label']}\n", g["about"] + "\n",
+                "| Year bought | Buys | Their picks | S&P 500 | Result |", "|---|---|---|---|---|"]
+        for y in g["years"]:
+            gap = y["ret"] - y["spy"]
+            note = f" ({y['open']} still open)" if y["open"] else ""
+            out.append(f"| {y['year']} | {y['n']} | {pct(y['ret'])} | {pct(y['spy'])} | "
+                       f"{'Beat' if gap >= 0 else 'Lagged'} by {abs(gap) * 100:.1f}%{note} |")
+        out.append("")
+    return "\n".join(out)
+
+
+def write_report(summary, start, end, path="reports/backtest.md", cc=None):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     text = (f"# Backtest: signals vs SPY\n\nFilings from {start} to {end}. Entry at the close "
             "of the first trading day after the filing date. \"vs SPY\" is the signal's "
@@ -159,14 +283,15 @@ def write_report(summary, start, end, path="reports/backtest.md"):
               "A signal worth using shows a positive average **and** typical result **and** "
               "beats SPY clearly more than half the time, at 6 and 12 months. If none do, "
               "the honest answer is to keep most of the Roth in an index fund and treat "
-              "these lists as ideas to research, not to copy.\n")
+              "these lists as ideas to research, not to copy.\n"
+            + ("\n" + copycat_md(cc) if cc else ""))
     with open(path, "w", encoding="utf-8") as f:
         f.write(text)
     import json  # the dashboard reads this to write plain-English verdicts
     with open(path.replace(".md", ".json"), "w", encoding="utf-8") as f:
         json.dump({"start": str(start), "end": str(end), "summary": [
             {k: (None if isinstance(v, float) and v != v else v) for k, v in s.items()}
-            for s in summary]}, f, default=float)
+            for s in summary], "copycat": cc or []}, f, default=float)
     return text
 
 
@@ -200,6 +325,23 @@ def selftest():
     assert "CCC" in set(detail.tkr)
     assert by["Congress buys in their committee's industry"]["events"] == 1, \
         "Alpha (Armed Services) buying AAA (missiles) is the one committee-linked buy"
+    cc = {g["label"]: g for g in run.copycat}
+    every = cc["Every stock Congress bought"]
+    assert [y["year"] for y in every["years"]] == [2025] and every["years"][0]["open"] == 2, every
+    assert every["years"][0]["ret"] > 0 and every["years"][0]["spy"] == 0, every
+    assert hold_return(series_fixture := pd.Series([1.0, 2.0, 3.0], index=pd.to_datetime(
+        ["2025-01-01", "2025-01-02", "2025-01-03"])), series_fixture, D(2025, 1, 1)) == (0.5, 0.5, True)
+    # winning record: 6 finished winners by one member, then a later buy counts
+    days2 = pd.bdate_range("2020-01-01", "2024-12-31")
+    up = pd.Series([1.01 ** i for i in range(len(days2))], index=days2)
+    flat = pd.Series(1.0, index=days2)
+    cb = pd.DataFrame({"tkr": ["AAA"] * 7 + ["AAA"], "chamber": ["S"] * 8,
+                       "last_name": ["Alpha"] * 7 + ["Beta"], "first_name": ["A"] * 8,
+                       "event_date": [D(2020, 1, 10 + i) for i in range(6)] + [D(2023, 1, 10),
+                                                                               D(2023, 1, 10)]})
+    picked = proven_picks(cb, {"AAA": up}, flat)
+    assert list(picked.event_date) == [D(2023, 1, 10)] and picked.last_name.iloc[0] == "Alpha", picked
+    assert "If you had copied them" in copycat_md(run.copycat)
     print(_fmt_table(summary))
     print("backtest selftest ok")
 
@@ -217,7 +359,7 @@ if __name__ == "__main__":
     c = duckdb.connect(DB_PATH)
     ensure_schema(c)
     summ, det = run(c, start, end, fetch="--no-fetch" not in sys.argv)
-    print(write_report(summ, start, end))
+    print(write_report(summ, start, end, cc=getattr(run, "copycat", None)))
     from schema import save_report
     for p in ("reports/backtest.md", "reports/backtest.json"):
         save_report(c, p)
