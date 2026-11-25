@@ -275,13 +275,14 @@ def find_slug(session, name):
     if len(parts) < 2:
         return None
     first, last = parts[0], parts[-1]
-    r = session.get(SEARCH_PAGE, params={"q": name}, timeout=30)
-    if r.status_code != 200:
-        return None
-    for slug in dict.fromkeys(SLUG_RE.findall(r.text)):
-        bits = slug.split("-")
-        if last in bits[:2] and any(b.startswith(first[:2]) for b in bits if b != last):
-            return slug
+    for q in (name, last):  # nicknames ("Chris") can miss; the last name alone rarely does
+        r = session.get(SEARCH_PAGE, params={"q": q}, timeout=30)
+        if r.status_code != 200:
+            continue
+        for slug in dict.fromkeys(SLUG_RE.findall(r.text)):
+            bits = slug.split("-")
+            if last in bits[:2] and any(b.startswith(first[:2]) for b in bits if b != last):
+                return slug
     return None
 
 
