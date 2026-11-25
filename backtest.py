@@ -162,6 +162,11 @@ def write_report(summary, start, end, path="reports/backtest.md"):
               "these lists as ideas to research, not to copy.\n")
     with open(path, "w", encoding="utf-8") as f:
         f.write(text)
+    import json  # the dashboard reads this to write plain-English verdicts
+    with open(path.replace(".md", ".json"), "w", encoding="utf-8") as f:
+        json.dump({"start": str(start), "end": str(end), "summary": [
+            {k: (None if isinstance(v, float) and v != v else v) for k, v in s.items()}
+            for s in summary]}, f, default=float)
     return text
 
 

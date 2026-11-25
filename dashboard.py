@@ -24,6 +24,7 @@ import duckdb
 
 import digest
 import signals
+import today as front
 from schema import DB_PATH, ensure_schema
 
 OUT = "site"
@@ -51,12 +52,12 @@ footer{color:var(--mut);font-size:12px;padding:30px 20px;text-align:center}
 
 def page(title, active, body, updated):
     nav = "".join(f'<a href="{href}" class="{"on" if key == active else ""}">{label}</a>'
-                  for key, href, label in (("digest", "index.html", "Today"),
+                  for key, href, label in (("digest", "index.html", "Ideas"),
                                            ("trades", "trades.html", "All trades"),
                                            ("backtest", "backtest.html", "Did it work?")))
     return (f"<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>"
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
-            f"<title>{html.escape(title)} · Quantreyda</title><style>{CSS}</style></head><body>"
+            f"<title>{html.escape(title)} · Quantreyda</title><style>{CSS}{front.CSS}</style></head><body>"
             f"<header><b>Quantreyda</b>{nav}<span class='mut'>updated {updated}</span></header>"
             f"<main>{body}</main><footer>Public filings only (STOCK Act disclosures, SEC Form 4 and "
             f"13F, USAspending). Research, not investment advice.</footer></body></html>")
@@ -153,19 +154,27 @@ def build(con, today, out=OUT):
     updated = datetime.datetime.now().strftime("%b %d, %Y %H:%M UTC") \
         if os.environ.get("GITHUB_ACTIONS") else f"{today:%b %d, %Y}"
     try:
-        body = md(digest.build(con, today, days=7))
+        # two weeks: enough to fill the page, still fresh (Congress files up to 45 days late anyway)
+        body = front.render(front.collect(con, today, 14), today, 14)
     except Exception as e:  # one bad row shouldn't take the whole site down
         import traceback
         traceback.print_exc()
-        body = (f"<h1>Today</h1><p>The digest couldn't be built this run "
+        body = (f"<h1>Today</h1><p>This week's summary couldn't be built this run "
                 f"({html.escape(type(e).__name__)}). The other pages are current.</p>")
     with open(f"{out}/index.html", "w", encoding="utf-8") as f:
         f.write(page("Today", "digest", body, updated))
     with open(f"{out}/trades.html", "w", encoding="utf-8") as f:
         f.write(trades_page(trade_rows(con, today), updated))
-    bt = "reports/backtest.md"
-    body = md(open(bt, encoding="utf-8").read()) if os.path.exists(bt) else \
-        "<h1>Did it work?</h1><p>The backtest hasn't run yet. It runs every Sunday.</p>"
+    bt_json, bt_md = "reports/backtest.json", "reports/backtest.md"
+    if os.path.exists(bt_json):
+        body = front.render_backtest(json.load(open(bt_json, encoding="utf-8")))
+        if os.path.exists(bt_md):
+            body += ("<details><summary>Full numbers</summary>"
+                     + md(open(bt_md, encoding="utf-8").read()) + "</details>")
+    else:
+        body = ("<div class='hero'><h1>Did it work?</h1><p>The first check runs on Sunday. "
+                "It will show, in plain English, whether each kind of signal has beaten "
+                "an S&P 500 index fund.</p></div>")
     with open(f"{out}/backtest.html", "w", encoding="utf-8") as f:
         f.write(page("Did it work?", "backtest", body, updated))
     open(f"{out}/.nojekyll", "w").close()
@@ -178,7 +187,7 @@ def selftest():
     signals.make_fixture(con)
     out = build(con, datetime.date(2025, 3, 15), tempfile.mkdtemp())
     idx = open(f"{out}/index.html", encoding="utf-8").read()
-    assert "<table>" in idx and "AAA" in idx and "Where signals agree" in idx
+    assert "in 30 seconds" in idx and "AAA" in idx
     tr = open(f"{out}/trades.html", encoding="utf-8").read()
     rows = trade_rows(con, datetime.date(2025, 3, 31))
     assert {r["tkr"] for r in rows} >= {"AAA", "BBB", "XYZ", "SEL"}, rows
@@ -188,7 +197,7 @@ def selftest():
     tr = trades_page(trade_rows(con, datetime.date(2025, 3, 31)), "now")
     assert "</script><b>x" not in tr, "data can't break out of the script tag"
     assert "watchlist" not in idx.lower() or "Your watchlist" not in idx
-    assert "did it work" in open(f"{out}/backtest.html", encoding="utf-8").read().lower()
+    assert "first check runs on sunday" in open(f"{out}/backtest.html", encoding="utf-8").read().lower()
     print("dashboard selftest ok")
 
 
