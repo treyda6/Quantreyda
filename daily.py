@@ -11,7 +11,7 @@ January, so the prior year stays live for a few weeks after New Year's.
 Older years never gain filings after publication.
 
 Usage:
-    py daily.py            # senate + house + tickers + insiders (7 days) + contracts + 13Fs + committees + digest + alerts
+    py daily.py            # senate + house + tickers + insiders (7 days) + contracts + 13Fs + committees + digest + alerts + news
     py daily.py --selftest # offline check of the year window, no network
 
 Meant to run under Windows Task Scheduler once a day; stdout/stderr redirect
@@ -28,6 +28,10 @@ import committees
 import contracts
 import digest
 import funds
+import health
+import news
+import prices
+import stockpage
 import entities
 import scrape_house
 import scrape_insiders
@@ -83,6 +87,26 @@ def main():
 
     print("\n--- Watchlist alerts ---")
     alerts.main()
+
+    # Stock pages: two years of prices, a health check and the latest SEC
+    # filings ("news") for every stock that gets a page. All free; each step
+    # caches, so after the first day this only fetches what's new.
+    print("\n--- Stock pages: prices, health, news ---")
+    con = _con()
+    today = datetime.date.today()
+    pages = stockpage.pick(con, today, digest.digest_tickers(con, today, 14))
+    for label, step in (("prices", lambda: prices.fetch(con, set(pages) | {prices.BENCHMARK},
+                                                         start=today - datetime.timedelta(days=740))),
+                        ("industry codes", lambda: committees.refresh_companies(con, pages)),
+                        ("health", lambda: health.refresh(con, pages)),
+                        ("news", lambda: news.refresh(con, pages))):
+        try:
+            step()
+        except SystemExit as e:
+            print(f"{label} skipped: {e}")
+        except Exception as e:
+            print(f"{label} skipped ({type(e).__name__}: {e})")
+    con.close()
 
 def selftest():
     assert house_years(datetime.date(2026, 1, 15)) == [2025, 2026]

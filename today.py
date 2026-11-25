@@ -23,6 +23,7 @@ import contracts
 import digest
 import funds
 import health
+import leaders
 import profiles
 import signals
 
@@ -148,21 +149,29 @@ def conviction(i):
       up to 20  company health (Solid 20, Mixed 10, unknown 8, Shaky 0)
       up to 20  how informed the buyers look: a cluster of insiders 10, an
                 executive buying 5, a Congress member on an overseeing committee 5
+      up to 10  the best buyer's past record on the leaderboard (beat SPY by 5%+
+                on average and more than half the time 10, ahead at all 5)
+    Capped at 100.
     """
     import math
     breadth = min(len(i["kinds"]), 4) * 10
     size = 0 if i["dollars"] <= 0 else max(0, min(20, round(4 * math.log10(i["dollars"] / 1000))))
     hp = {"Solid": 20, "Mixed": 10, "Shaky": 0}.get(i.get("health"), 8)
     informed = 10 * i["cluster"] + 5 * i["officer"] + 5 * bool(i["flag"])
+    track, track_why = i.get("track") or (0, None)
     why = [f"{len(i['kinds'])} kind(s) of buyer: +{breadth}",
            f"about {digest._money(i['dollars'])} put in: +{size}" if i["dollars"] else "no dollar amount: +0",
            f"health {i.get('health') or 'not checked'}: +{hp}",
            f"informed-buyer signs: +{informed}"]
-    return breadth + size + hp + informed, why
+    if track_why:
+        why.append(f"buyer's {track_why}: +{track}")
+    return min(100, breadth + size + hp + informed + track), why
 
 
-def collect(con, today, days=7):
-    """Everything the page shows, as plain Python data (testable)."""
+def collect(con, today, days=7, records=None):
+    """Everything the page shows, as plain Python data (testable).
+    records: {buyer key: {n, avg, beat}} from leaders.json, for the track-record points."""
+    records = records or {}
     start = today - datetime.timedelta(days=days)
     month = today - datetime.timedelta(days=30)
     ideas = {}
@@ -170,7 +179,7 @@ def collect(con, today, days=7):
     def idea(t):
         return ideas.setdefault(t, {"tkr": t, "kinds": set(), "why": [], "score": 0.0,
                                     "flag": "", "company": None, "dollars": 0.0,
-                                    "cluster": False, "officer": False})
+                                    "cluster": False, "officer": False, "buyers": set()})
 
     data = {"congress": [], "clusters": [], "big": [], "contracts": [], "funds": [],
             "stale": 0}
@@ -191,6 +200,7 @@ def collect(con, today, days=7):
             data["congress"].append(row)
             i = idea(t)
             i["kinds"].add("Congress")
+            i["buyers"].add(leaders.key_congress(r.chamber, r.last_name, r.first_name))
             i["score"] += min(lo / 50_000, 3)
             i["dollars"] += float(lo)
             late = f", {int(row['lag'])} days after the trade" if row["lag"] is not None else ""
@@ -215,6 +225,7 @@ def collect(con, today, days=7):
             i["score"] += 2
             i["dollars"] += float(r.total_value)
             i["cluster"] = True
+            i["buyers"].update(leaders.key_insider(b) for b in (r.buyers or "").split(";") if b.strip())
             i["officer"] = i["officer"] or bool(r.any_officer)
             exe = ", including an executive" if r.any_officer else ""
             i["why"].append(f"{int(r.insiders)} company insiders bought "
@@ -229,6 +240,7 @@ def collect(con, today, days=7):
             i = idea(r.tkr)
             if "Insiders" not in i["kinds"]:
                 i["kinds"].add("Insiders")
+                i["buyers"].add(leaders.key_insider(r.owner_name))
                 i["company"] = i["company"] or r.issuer_name
                 i["score"] += 1
                 i["dollars"] += float(r.total_value)
@@ -280,6 +292,8 @@ def collect(con, today, days=7):
         i["score"] += 3 * len(i["kinds"]) + {"Solid": 2, "Shaky": -3}.get(i["health"], 0)
         i["profile"] = profiles.company(con, t)
         i["company"] = i["company"] or i["profile"].get("name")
+        i["track"] = max((leaders.record_points(records.get(k)) for k in i["buyers"]),
+                         key=lambda p: p[0], default=(0, None))
         i["conviction"], i["conviction_why"] = conviction(i)
     data["ideas"] = sorted(ideas.values(), key=lambda i: (-i["conviction"], -i["score"]))
     return data
@@ -314,6 +328,11 @@ def conviction_label(score):
     return "High" if score >= 70 else "Medium" if score >= 45 else "Low"
 
 
+def _stock_href(tkr):
+    import stockpage  # stockpage imports this module
+    return stockpage.href(tkr)
+
+
 def _card(i):
     pr = i.get("profile") or {}
     chips = "".join(f"<span class='chip'>{E(k)}</span>" for k in sorted(i["kinds"]))
@@ -334,7 +353,7 @@ def _card(i):
     lvl = conviction_label(sc)
     tip = "".join(f"<span class='bl'>{E(x)}</span>" for x in i["conviction_why"])
     return (f"<article class='card'>"
-            f"<div class='top'><div><a class='tkr' href='trades.html?q={E(i['tkr'])}'>{E(i['tkr'])}</a>"
+            f"<div class='top'><div><a class='tkr' href='{E(_stock_href(i['tkr']))}'>{E(i['tkr'])}</a>"
             f"<div class='co'>{E(i['company'] or '')}"
             f"{' · ' + E(pr['sector']) if pr.get('sector') else ''}</div></div>{price}</div>"
             f"{_spark(pr.get('spark'), (pr.get('chg_1y') or 0) >= 0)}"
@@ -487,6 +506,10 @@ def selftest():
     assert "Sen. A Alpha<span class='bio'" in page, page
     assert "Conviction <b>" in page and top["conviction"] >= 60, top["conviction"]
     assert "b-Solid" in page and "⚑ Armed Services" in page
+    rec = {leaders.key_congress("S", "Alpha", "A"): {"n": 8, "avg": 0.09, "beat": 0.7}}
+    boosted = collect(con, today, days=90, records=rec)["ideas"][0]
+    assert boosted["conviction"] == min(100, top["conviction"] + 10), boosted["conviction_why"]
+    assert any("strong past record" in w for w in boosted["conviction_why"])
     assert "<details><summary>Congress buys" in page
     assert "<script" not in page.lower()
     assert ">Ann<span class='bio'" not in page or "Officer at" in page
