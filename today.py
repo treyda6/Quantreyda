@@ -28,6 +28,7 @@ import leaders
 import activists
 import bills
 import whitehouse
+import pictures
 import profiles
 import signals
 
@@ -144,18 +145,29 @@ def who_html(label, lines, title=None):
             f"<b>{E(title or label)}</b>{body}</span></span>")
 
 
-def member_html(con, r, label):
+def _with_face(face, card):
+    return f"<span class='pic'>{face}<span class='t'>{card}</span></span>"
+
+
+def member_html(con, r, label, face=False, root=""):
     m = profiles.member(con, r.last_name, r.first_name, r.chamber)
-    return who_html(label, profiles.member_lines(m), m.get("name"))
+    card = who_html(label, profiles.member_lines(m), m.get("name"))
+    if not face:
+        return card
+    pic = pictures.face_html(m.get("bioguide") and pictures.member_key(m["bioguide"]),
+                             m.get("name") or label, root, m.get("party"))
+    return _with_face(pic, card)
 
 
-def insider_html(con, name, cik=None):
-    return who_html(name, profiles.insider_lines(profiles.insider(con, cik, name)))
+def insider_html(con, name, cik=None, face=False):
+    card = who_html(name, profiles.insider_lines(profiles.insider(con, cik, name)))
+    return _with_face(pictures.face_html(None, name), card) if face else card
 
 
-def official_html(con, slug, name):
+def official_html(con, slug, name, face=False, root=""):
     o = whitehouse.official(con, slug)
-    return who_html(name, whitehouse.official_lines(o), name)
+    card = who_html(name, whitehouse.official_lines(o), name)
+    return _with_face(pictures.face_html(pictures.official_key(slug), name, root), card) if face else card
 
 
 def conviction(i):
@@ -425,9 +437,10 @@ def _card(i):
     lvl = conviction_label(sc)
     tip = "".join(f"<span class='bl'>{E(x)}</span>" for x in i["conviction_why"])
     return (f"<article class='card'>"
-            f"<div class='top'><div><a class='tkr' href='{E(_stock_href(i['tkr']))}'>{E(i['tkr'])}</a>"
+            f"<div class='top'><div class='pic'>{pictures.logo_html(i['tkr'])}<div class='t'>"
+            f"<a class='tkr' href='{E(_stock_href(i['tkr']))}'>{E(i['tkr'])}</a>"
             f"<div class='co'>{E(i['company'] or '')}"
-            f"{' · ' + E(pr['sector']) if pr.get('sector') else ''}</div></div>{price}</div>"
+            f"{' · ' + E(pr['sector']) if pr.get('sector') else ''}</div></div></div>{price}</div>"
             f"{_spark(pr.get('spark'), (pr.get('chg_1y') or 0) >= 0)}"
             f"<div class='conv c-{lvl}'><span class='who' tabindex='0'>Conviction "
             f"<b>{sc}</b>/100 · {lvl}<span class='bio' role='tooltip'><b>How this score adds up</b>"

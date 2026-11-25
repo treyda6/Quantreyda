@@ -22,6 +22,7 @@ import companyintel
 import health
 import leaders
 import news
+import pictures
 import profiles
 import today as front
 
@@ -370,8 +371,9 @@ def render(con, tkr, today, records=None):
         up = (pr.get("chg_1y") or 0) >= 0
         price = (f"<div class='big'>${pr['price']:,.2f}<span class='{'up' if up else 'down'}'>"
                  f"{front._pct(pr.get('chg_1y'))} past year</span></div>")
-    head = (f"<a class='back' href='../index.html'>← Ideas</a><div class='sh'><div><h1>{E(tkr)}</h1>"
-            f"<div class='co'>{E(name)}{' · ' + E(pr['sector']) if pr.get('sector') else ''}</div></div>"
+    head = (f"<a class='back' href='../index.html'>← Ideas</a><div class='sh'><div class='pic'>"
+            f"{pictures.logo_html(tkr, '../', 'big')}<div class='t'><h1>{E(tkr)}</h1>"
+            f"<div class='co'>{E(name)}{' · ' + E(pr['sector']) if pr.get('sector') else ''}</div></div></div>"
             f"{price}</div>")
     legend = ("<div class='legend'><span><i style='background:var(--acc)'></i>Congress buy</span>"
               "<span><i class='ins' style='background:var(--ins)'></i>Insider buy</span>"
@@ -438,11 +440,11 @@ def render(con, tkr, today, records=None):
     for m in sorted(marks, key=lambda m: m["d"], reverse=True)[:12]:
         if m["kind"] == "congress":
             r = type("R", (), {"last_name": m["ck"][1], "first_name": m["ck"][2], "chamber": m["ck"][0]})
-            who = front.member_html(con, r, m["who"])
+            who = front.member_html(con, r, m["who"], face=True, root="../")
         elif m["kind"] == "whitehouse":
-            who = front.official_html(con, m["slug"], m["who"]) + f" <span class='hint'>({E(m['role'])})</span>"
+            who = front.official_html(con, m["slug"], m["who"], face=True, root="../") + f" <span class='hint'>({E(m['role'])})</span>"
         else:
-            who = front.insider_html(con, m["who"]) + f" <span class='hint'>({E(m['role'])})</span>"
+            who = front.insider_html(con, m["who"], face=True) + f" <span class='hint'>({E(m['role'])})</span>"
         rows.append(f"<li><span class='d'>{m['d']:%b %d, %Y}</span>{who} bought {E(m['amt'] or '')}</li>")
     buys_panel = (f"<section class='panel'><h2>Who bought</h2><ul class='list'>"
                   + ("".join(rows) or "<li class='hint'>No buys in the last two years.</li>")

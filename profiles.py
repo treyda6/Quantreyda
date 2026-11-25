@@ -70,6 +70,7 @@ def member(con, last, first, chamber):
                    committees=[c for c in (comms or "").split("; ") if c])
         import fec
         out["fec"] = fec.member(con, b)
+        out["bioguide"] = b
     rec = _one(con, """SELECT count(*), count(*) FILTER (WHERE tx_type = 'Purchase'),
                               count(*) FILTER (WHERE tx_type LIKE 'Sale%'),
                               min(txn_date), count(DISTINCT tkr)
