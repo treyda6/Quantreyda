@@ -24,6 +24,7 @@ import leaders
 import news
 import pictures
 import profiles
+import secextras
 import today as front
 
 E = html.escape
@@ -315,14 +316,23 @@ def explain(tkr, pr, h, marks, sells, records, flags, news_rows, stakes=(), ci=N
         side = ("" if lean is None else
                 f", {lean * 100:.0f}% of it to Republicans" if lean >= .5 else
                 f", {(1 - lean) * 100:.0f}% of it to Democrats")
-        dc.append(f"its PAC gave <b>{E(profiles.money(ci['pac']))}</b> to federal candidates this "
-                  f"election cycle{side}")
+        dc.append(f"gave <b>{E(profiles.money(ci['pac']))}</b> to federal candidates through its "
+                  f"PAC this election cycle{side}")
     if dc:
         txt = "; it ".join(dc) if dc[0].startswith("It") else "It " + "; it ".join(dc)
         qa.append(("How tied is it to Washington?",
                    f"<p>{txt}. Companies that depend on government money or rules have more to gain "
                    "or lose from what Congress and agencies do, which is one reason a "
                    "politician's trade in it can be worth a closer look.</p>"))
+    sh = ci.get("short") or {}
+    if sh.get("days") is not None and (sh["days"] >= 5 or (sh.get("chg") or 0) >= 25):
+        qa.append(("Are people betting against it?",
+                   f"<p>Short sellers (who profit if the price falls) hold about "
+                   f"<b>{sh['short'] / 1e6:,.1f} million shares</b>, "
+                   + (f"{'up' if sh['chg'] >= 0 else 'down'} {abs(sh['chg']):.0f}% in two weeks, " if sh.get("chg") is not None else "")
+                   + f"and it would take them <b>{sh['days']:.1f} days</b> of normal trading to buy "
+                   "them back. That's a lot of doubt: find out what they think is wrong before "
+                   "buying. It can also make the price jumpy if good news forces them to buy.</p>"))
     if ci.get("buzz") and ci["buzz"] >= 2:
         qa.append(("Why is everyone looking it up?",
                    f"<p>Its Wikipedia page got <b>{ci['buzz']:.1f}×</b> its usual traffic this week "
@@ -382,6 +392,7 @@ def render(con, tkr, today, records=None):
     chart_panel = f"<section class='panel'><h2>Two years of price, with the buys</h2>{chart(px, marks)}{legend}</section>"
 
     ci = companyintel.intel(con, tkr)
+    ci.update(secextras.intel(con, tkr))
     qa = explain(tkr, pr, h, marks, _sells(con, tkr, since), records, flags, news_rows,
                  activists.for_ticker(con, tkr), ci)
     about = ("<section class='panel qa'><h2>About this stock, in plain English</h2>"
@@ -399,6 +410,13 @@ def render(con, tkr, today, records=None):
                     f"{E((h or {}).get('reasons') or 'Not checked yet.')}</span></div><div class='kv'>"
                     + "".join(f"<div><span>{k}</span><b>{E(v)}</b></div>" for k, v in stats)
                     + "</div></section>")
+    sx = ci
+    sh = sx.get("short") or {}
+    hh = h or {}
+    split = ""
+    r = hh.get("split_ratio")
+    if r and r == r and hh.get("split_date"):  # NaN != NaN: no split on file
+        split = (f"{r:g}-for-1" if r >= 1 else f"1-for-{1 / r:g} (reverse)") + f", {str(hh.get('split_date'))[:4]}"
     intel_rows = [("Buybacks (last year)", profiles.money(ci.get("buybacks")) or "—"),
                   ("Dividends (last year)", profiles.money(ci.get("dividends")) or "—"),
                   ("Lobbying (12 months)", profiles.money(ci.get("lobbying")) if "lobbying" in ci else "—"),
@@ -407,7 +425,12 @@ def render(con, tkr, today, records=None):
                   ("Buzz vs usual", f"{ci['buzz']:.1f}×" if ci.get("buzz") else "—"),
                   ("PAC gifts to candidates", profiles.money(ci.get("pac")) if "pac" in ci else "—"),
                   ("…to Republicans / Democrats", f"{ci['pac_rep'] * 100:.0f}% / {100 - ci['pac_rep'] * 100:.0f}%"
-                   if ci.get("pac_rep") is not None else "—")]
+                   if ci.get("pac_rep") is not None else "—"),
+                  (f"CEO pay ({hh.get('ceo_pay_year')})" if isinstance(hh.get("ceo_pay_year"), str) else "CEO pay",
+                   profiles.money(hh.get("ceo_pay")) or "—"),
+                  ("Last stock split", split or "—"),
+                  ("Shares sold short", f"{sh['short'] / 1e6:,.1f}M" if sh.get("short") else "—"),
+                  ("Days to cover", f"{sh['days']:.1f}" if sh.get("days") is not None else "—")]
     intel_panel = ("<section class='panel'><h2>Money, Washington and buzz</h2><div class='kv'>"
                    + "".join(f"<div><span>{k}</span><b>{E(v or '—')}</b></div>" for k, v in intel_rows)
                    + "</div>"
@@ -415,9 +438,25 @@ def render(con, tkr, today, records=None):
                       if ci.get("lobbying_issues") else "")
                    + (f"<p class='hint'>Its PAC gave most to: {E(', '.join(ci['pac_top']))}.</p>"
                       if ci.get("pac_top") else "")
-                   + "<p class='hint'>Sources: SEC cash-flow statements, Senate lobbying "
-                     "disclosures, USAspending.gov, Wikipedia page views, FEC filings "
-                     "(this election cycle).</p></section>")
+                   + "<p class='hint'>Sources: SEC cash-flow statements and proxy pay tables, "
+                     "Senate lobbying disclosures, USAspending.gov, Wikipedia page views, FEC "
+                     "filings (this election cycle), FINRA short interest"
+                   + (f" (as of {E(sh['date'])})" if sh.get("date") else "") + ".</p></section>")
+    rk = sx.get("risks") or {}
+    risks_panel = ""
+    if rk:
+        grew = rk["words"] / rk["prev_words"] - 1 if rk.get("prev_words") else None
+        risks_panel = (
+            "<section class='panel'><h2>New warnings in its annual report</h2>"
+            f"<p>The risk section of its <a href='{E(rk['url'])}'>latest annual report</a> "
+            f"({E(rk['filed'])}) lists {rk['n']} risks"
+            + (f" and is {abs(grew) * 100:.0f}% {'longer' if grew >= 0 else 'shorter'} than last year's"
+               if grew is not None and abs(grew) >= .05 else "") + ". "
+            + (f"{len(rk['new'])} of them are new this year:</p><ul class='list'>"
+               + "".join(f"<li>{E(x)}</li>" for x in rk["new"]) + "</ul>"
+               if rk["new"] else "None of them are new this year.</p>")
+            + "<p class='hint'>Companies add a warning when they see a new problem coming. Each "
+              "one is worth a minute: is it about the whole industry, or just this company?</p></section>")
     bl = bills.for_ticker(con, tkr)
     if bl:
         bills_panel = ("<section class='panel'><h2>Bills moving in its industry</h2><ul class='list'>"
@@ -450,7 +489,7 @@ def render(con, tkr, today, records=None):
                   + ("".join(rows) or "<li class='hint'>No buys in the last two years.</li>")
                   + "</ul></section>")
     return (head + chart_panel + about + f"<div class='two'>{health_panel}{news_panel}</div>"
-            + intel_panel + bills_panel + buys_panel)
+            + intel_panel + risks_panel + bills_panel + buys_panel)
 
 
 def selftest():
@@ -484,7 +523,13 @@ def selftest():
     companyintel._save(con, "AAA", "buzz", 900, "Aaa Inc|3.2")
     companyintel._save(con, "AAA", "pac", 412000, "AAA INC PAC|0.62|Smith For Senate; Jones For Congress")
     body = render(con, "AAA", today)
-    assert "its PAC gave <b>$412k</b>" in body and "62% of it to Republicans" in body, body
+    companyintel._save(con, "AAA", "short", 6e6, '{"date": "2026-11-14", "short": 6e6, "days": 7.5, "chg": 20.0}')
+    companyintel._save(con, "AAA", "risks", 1, '{"filed": "2026-02-01", "url": "https://sec/x", "n": 30, '
+                       '"prev_n": 28, "words": 12000, "prev_words": 10000, "new": ["Tariffs could raise our costs."]}')
+    body = render(con, "AAA", today)
+    assert "Are people betting against it?" in body and "7.5 days" in body, body
+    assert "New warnings in its annual report" in body and "20% longer" in body and "Tariffs could" in body
+    assert "gave <b>$412k</b> to federal candidates through its PAC" in body and "62% of it to Republicans" in body, body
     assert "Smith For Senate" in body
     assert "How tied is it to Washington?" in body and "$4.2B</b> in federal contracts" in body
     assert "3.2×" in body and "Money, Washington and buzz" in body

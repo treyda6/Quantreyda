@@ -51,6 +51,9 @@ CASH = ["CashAndCashEquivalentsAtCarryingValue"]
 SHARES = ["EntityCommonStockSharesOutstanding"]  # dei, cover page
 BUYBACKS = ["PaymentsForRepurchaseOfCommonStock", "PaymentsForRepurchaseOfEquity"]
 DIVIDENDS = ["PaymentsOfDividendsCommonStock", "PaymentsOfDividends"]
+CEO_PAY = ["PeoTotalCompAmt"]            # ecd: proxy "pay versus performance" table
+CEO_PAID = ["PeoActuallyPaidCompAmt"]    # what the pay was really worth, by SEC rules
+SPLIT = ["StockholdersEquityNoteStockSplitConversionRatio1"]
 
 
 def ensure_table(con):
@@ -60,14 +63,16 @@ def ensure_table(con):
         net_income DOUBLE, debt DOUBLE, equity DOUBLE, cash DOUBLE,
         share_growth DOUBLE, pe DOUBLE, verdict VARCHAR, reasons VARCHAR)""")
     # added later; older databases get the columns on first use
-    for col in ("buybacks", "dividends"):
+    for col in ("buybacks", "dividends", "ceo_pay", "ceo_paid", "split_ratio"):
         con.execute(f"ALTER TABLE health ADD COLUMN IF NOT EXISTS {col} DOUBLE")
+    for col in ("ceo_pay_year", "split_date"):
+        con.execute(f"ALTER TABLE health ADD COLUMN IF NOT EXISTS {col} VARCHAR")
 
 
 # ----------------------------------------------------------------- parsing
 
 def _units(facts, concept, unit="USD"):
-    for ns in ("us-gaap", "dei"):
+    for ns in ("us-gaap", "dei", "ecd"):
         node = facts.get("facts", {}).get(ns, {}).get(concept)
         if node and unit in node.get("units", {}):
             return node["units"][unit]
@@ -125,6 +130,31 @@ def instant_year_ago(facts, concepts, end, unit="USD"):
     return best[1] if best else None
 
 
+def latest_period(facts, concepts, unit="USD"):
+    """(end, value) of the most recent full-year figure from any form (the
+    proxy statement's pay table isn't in a 10-K)."""
+    best = None
+    for c in concepts:
+        for r in _units(facts, c, unit):
+            if not r.get("start") or not 300 <= _days(r["start"], r["end"]) <= 400:
+                continue
+            key = (r["end"], r.get("filed", ""))
+            if best is None or key > best[0]:
+                best = (key, r["val"])
+    return (best[0][0], best[1]) if best else (None, None)
+
+
+def last_split(facts):
+    """(date, ratio) of the latest stock split: 4.0 = 4-for-1, 0.1 = 1-for-10 reverse."""
+    best = None
+    for r in _units(facts, SPLIT[0], "pure"):
+        if r.get("val") and r["val"] != 1:
+            key = r.get("end") or ""
+            if best is None or key > best[0]:
+                best = (key, r["val"])
+    return best or (None, None)
+
+
 def debt_total(facts):
     for parts in DEBT_PARTS:
         vals = [latest_instant(facts, [p])[1] for p in parts]
@@ -154,6 +184,10 @@ def analyze(facts, price=None):
     bb, dv = annual_series(facts, BUYBACKS), annual_series(facts, DIVIDENDS)
     m["buybacks"] = bb[sorted(bb)[-1]] if bb and sorted(bb)[-1] >= (m["fiscal_year_end"] or "") else None
     m["dividends"] = dv[sorted(dv)[-1]] if dv and sorted(dv)[-1] >= (m["fiscal_year_end"] or "") else None
+    y, m["ceo_pay"] = latest_period(facts, CEO_PAY)
+    m["ceo_pay_year"] = y[:4] if y else None
+    m["ceo_paid"] = latest_period(facts, CEO_PAID)[1] if y else None
+    m["split_date"], m["split_ratio"] = last_split(facts)
     m["pe"] = None
     if price and shares and m["net_income"] and m["net_income"] > 0:
         m["pe"] = price * shares / m["net_income"]
@@ -254,7 +288,8 @@ def refresh(con, tickers, force=False):
                     m["company"] = m.get("company") or hit[1]
             cols = ["company", "fiscal_year_end", "revenue", "revenue_growth", "net_income",
                     "debt", "equity", "cash", "share_growth", "pe", "verdict", "reasons",
-                    "buybacks", "dividends"]
+                    "buybacks", "dividends", "ceo_pay", "ceo_paid", "ceo_pay_year",
+                    "split_ratio", "split_date"]
             con.execute(f"INSERT OR REPLACE INTO health (tkr, checked_on, {', '.join(cols)}) "
                         f"VALUES (?, ?, {', '.join('?' * len(cols))})",
                         [t, today] + [m.get(c) for c in cols])
@@ -298,6 +333,11 @@ def sample_facts(rev=(100e6, 120e6), ni=10e6, equity=50e6, debt=40e6,
         },
         "dei": {"EntityCommonStockSharesOutstanding": {"units": {"shares": [
             _fact("2025-02-01", shares[0]), _fact("2026-02-01", shares[1])]}}},
+        "ecd": {"PeoTotalCompAmt": {"units": {"USD": [
+                    _fact("2024-12-31", 9e6, "2024-01-01", form="DEF 14A"),
+                    _fact("2025-12-31", 12.5e6, "2025-01-01", form="DEF 14A")]}},
+                "PeoActuallyPaidCompAmt": {"units": {"USD": [
+                    _fact("2025-12-31", 20e6, "2025-01-01", form="DEF 14A")]}}},
     }}
 
 
@@ -305,6 +345,12 @@ def selftest():
     m = analyze(sample_facts(), price=20.0)
     assert abs(m["revenue_growth"] - 0.2) < 1e-9, m
     assert m["buybacks"] == 5e6 and m["dividends"] is None, m
+    assert m["ceo_pay"] == 12.5e6 and m["ceo_pay_year"] == "2025" and m["ceo_paid"] == 20e6, m
+    assert m["split_ratio"] is None
+    f = sample_facts()
+    f["facts"]["us-gaap"]["StockholdersEquityNoteStockSplitConversionRatio1"] = {"units": {"pure": [
+        _fact("2020-08-31", 4, "2020-08-01"), _fact("2024-06-10", 10, "2024-06-01")]}}
+    assert last_split(f) == ("2024-06-10", 10), last_split(f)
     assert m["verdict"] == "Solid", m
     assert abs(m["pe"] - 20 * 10.2e6 / 10e6) < 1e-9, m
     assert "sales up 20%" in m["reasons"] and "profitable" in m["reasons"], m
