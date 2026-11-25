@@ -24,7 +24,10 @@ It does six things:
    support at once.
 6. **Checks whether any of it has ever worked** (`reports/backtest.md`): if you'd
    bought every signal and held it for 3, 6 or 12 months, would you have beaten
-   just owning SPY (an S&P 500 index fund)?
+   just owning SPY (an S&P 500 index fund)? The "If you had copied them" section
+   on the site answers it year by year for every Congress buy, politicians who
+   already had a winning record (judged only on what was knowable then),
+   insiders buying together, and the White House and cabinet.
 
 Everything comes free from government websites. No paid data.
 

@@ -78,6 +78,15 @@ display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow);transition:
 .chip{font-size:12px;font-weight:600;background:var(--chip);border-radius:8px;padding:3px 9px}
 .chip.flag{color:var(--warn)}.chip.buzz{color:var(--ins)}
 .hint{color:var(--mut);font-size:13px}
+.cc{margin:14px 0;display:flex;flex-direction:column;gap:8px}.cc:hover{transform:none}
+.cc .tablewrap{overflow-x:auto}.cc-t th{position:static;background:none}.cc-t .num{font-variant-numeric:tabular-nums}
+.cc-t td{vertical-align:middle}.cc-bars{width:34%;min-width:140px}
+.cc-bar{position:relative;height:9px;margin:3px 0;background:linear-gradient(var(--line),var(--line)) 50% 0/1px 100% no-repeat}
+.cc-bar i{position:absolute;top:0;height:100%;border-radius:4px}
+.cc-them{background:var(--ins)}.cc-spy{background:var(--mut)}
+@media(max-width:640px){.cc-bars,.cc-legend{display:none}.cc-t th,.cc-t td{padding:8px 5px}.cc-t{font-size:13px}.cc-t th{font-size:10.5px}}
+.cc-legend{display:flex;gap:16px;font-size:13px;color:var(--mut);margin:6px 0}
+.cc-legend i{display:inline-block;width:12px;height:9px;border-radius:3px;margin-right:6px;vertical-align:middle}
 .who{position:relative;border-bottom:1px dotted var(--mut);cursor:help;outline:none}
 .bio{display:none;position:absolute;left:0;top:calc(100% + 8px);z-index:30;width:300px;
 background:var(--card2);color:var(--fg);border:1px solid var(--line);border-radius:14px;padding:12px 14px;
@@ -568,6 +577,72 @@ def verdict(s):
             f"Only {s.get('n_6m') or 0} examples have six months of price history so far.")
 
 
+def _pct(x):
+    return "—" if x is None else f"{x * 100:+.1f}%"
+
+
+def copycat_headline(g):
+    """(badge label, css class, sentence) for one copycat group."""
+    yrs = [y for y in g["years"] if not y["open"] or y["open"] < y["n"] / 2]
+    t = g["total"] or {}
+    if not t.get("n") or t["n"] < 20:
+        return ("Not enough data yet", "none",
+                f"Only {t.get('n') or 0} buys have had a full year to play out so far.")
+    won = sum(y["ret"] >= y["spy"] for y in yrs)
+    gap = t["ret"] - t["spy"]
+    sentence = (f"Across {t['n']:,} buys held a full year, the average pick returned "
+                f"{_pct(t['ret'])} while the S&P 500 returned {_pct(t['spy'])} over the "
+                f"same days. Their picks came out ahead in {won} of {len(yrs)} years, and "
+                f"{t['beat'] * 100:.0f}% of single buys beat the index.")
+    if gap > 0.01 and won > len(yrs) / 2:
+        return f"Beat the market by {gap * 100:.1f}% a year", "Solid", sentence
+    if gap < -0.01:
+        return f"Lagged the market by {-gap * 100:.1f}% a year", "Shaky", sentence
+    return "About the same as the market", "Mixed", sentence
+
+
+def _bar(x, scale, cls, tip):
+    w = min(50, abs(x) / scale * 50) if scale else 0
+    side = "left:50%" if x >= 0 else "right:50%"
+    return (f"<div class='cc-bar' title='{E(tip)}'><i class='{cls}' "
+            f"style='{side};width:{w:.1f}%'></i></div>")
+
+
+def render_copycat(groups):
+    out = ["<h2 style='margin-top:28px'>If you had copied them</h2><p class='hint'>Buy every "
+           "stock the group bought (the day after it was disclosed), sell one year later, and "
+           "compare with putting the same money in an S&P 500 index fund over the exact same "
+           "days. Grouped by the year of the buy. Each buy counts equally, no costs or taxes.</p>",
+           "<div class='cc-legend'><span><i class='cc-them'></i>Their picks</span>"
+           "<span><i class='cc-spy'></i>S&amp;P 500, same days</span></div>"]
+    for g in groups:
+        label, cls, sentence = copycat_headline(g)
+        scale = max([abs(v) for y in g["years"] for v in (y["ret"], y["spy"])] or [0])
+        rows = []
+        for y in g["years"]:
+            gap = y["ret"] - y["spy"]
+            res = (f"<span class='badge b-{'Solid' if gap >= 0 else 'Shaky'}'>"
+                   f"{'Beat' if gap >= 0 else 'Lagged'} by {abs(gap) * 100:.1f}%</span>")
+            if y["open"]:
+                res += f" <span class='hint'>{y['open']} still open</span>"
+            tip_them = f"{y['year']} buys: {_pct(y['ret'])} on average"
+            tip_spy = f"S&P 500 over the same days: {_pct(y['spy'])}"
+            rows.append(
+                f"<tr><td><b>{y['year']}</b></td><td>{y['n']}</td>"
+                f"<td class='num'>{_pct(y['ret'])}</td><td class='num'>{_pct(y['spy'])}</td>"
+                f"<td class='cc-bars'>{_bar(y['ret'], scale, 'cc-them', tip_them)}"
+                f"{_bar(y['spy'], scale, 'cc-spy', tip_spy)}</td>"
+                f"<td>{res}</td></tr>")
+        out.append(
+            f"<div class='card cc'><div class='top'><b>{E(g['label'])}</b> "
+            f"<span class='badge b-{cls}'>{E(label)}</span></div><div class='hint'>"
+            f"{E(g['about'])}</div><div>{E(sentence)}</div>"
+            + ("<div class='tablewrap'><table class='cc-t'><tr><th>Year bought</th><th>Buys</th>"
+               "<th>Their picks</th><th>S&amp;P 500</th><th class='cc-bars'></th><th>Result</th></tr>"
+               + "".join(rows) + "</table></div>" if rows else "") + "</div>")
+    return "".join(out)
+
+
 def render_backtest(bt):
     out = ["<div class='hero'><h1>Did it work?</h1><p>For each kind of signal: if you had "
            "bought every one the day after it was disclosed and held it, would you have done "
@@ -579,7 +654,10 @@ def render_backtest(bt):
         out.append(f"<div class='card'><div class='top'><b>{E(s['signal'])}</b></div>"
                    f"<div><span class='badge b-{cls}'>{E(label)}</span></div>"
                    f"<div>{E(sentence)}</div></div>")
-    out.append("</div><p class='hint' style='margin-top:18px'>If nothing has clearly beaten "
+    out.append("</div>")
+    if bt.get("copycat"):
+        out.append(render_copycat(bt["copycat"]))
+    out.append("<p class='hint' style='margin-top:18px'>If nothing has clearly beaten "
                "the market, the honest takeaway is to keep most of a Roth in index funds and "
                "use these lists as ideas to research. Results update every Sunday.</p>")
     return "".join(out)
@@ -657,6 +735,16 @@ def selftest():
     assert "2.0% better" in verdict(win)[2]
     bt = render_backtest({"start": "2020-01-01", "end": "2025-01-01", "summary": [win]})
     assert "Has beaten the market" in bt
+    yrs = [{"year": 2022, "n": 40, "ret": .12, "spy": .05, "open": 0},
+           {"year": 2023, "n": 30, "ret": -.02, "spy": .10, "open": 0},
+           {"year": 2024, "n": 25, "ret": .20, "spy": .08, "open": 10}]
+    g = {"label": "Every stock Congress bought", "about": "a", "years": yrs,
+         "total": {"n": 85, "ret": .09, "spy": .07, "beat": .55}}
+    assert copycat_headline(g)[0] == "Beat the market by 2.0% a year", copycat_headline(g)
+    assert copycat_headline(dict(g, total={"n": 5}))[0] == "Not enough data yet"
+    bt = render_backtest({"start": "2020-01-01", "end": "2025-01-01", "summary": [win],
+                          "copycat": [g]})
+    assert "If you had copied them" in bt and "Lagged by 12.0%" in bt and "10 still open" in bt
     print("today selftest ok")
 
 
