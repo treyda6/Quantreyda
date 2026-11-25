@@ -79,7 +79,9 @@ def ensure_tables(con):
 def parse_info_table(xml_text):
     """13F information table XML -> [{issuer, cusip, value, shares}], stock
     positions only (puts/calls dropped), same CUSIP rows summed."""
-    xml_text = re.sub(r'\sxmlns(:\w+)?="[^"]+"', "", xml_text, count=0)
+    xml_text = re.sub(r"""\sxmlns(:\w+)?=("[^"]*"|'[^']*')""", "", xml_text)
+    # prefixed attributes (xsi:schemaLocation=...) would leave an unbound prefix
+    xml_text = re.sub(r"""\s\w+:\w+=("[^"]*"|'[^']*')""", "", xml_text)
     xml_text = re.sub(r"<(/?)\w+:", r"<\1", xml_text)  # drop ns prefixes
     root = ET.fromstring(xml_text)
     out = {}
@@ -220,6 +222,15 @@ def load_fixture(con):
 
 
 def selftest():
+    # single-quoted namespaces + a prefixed xsi:schemaLocation (seen live on
+    # Pershing Square's 13F) used to fail with "unbound prefix"
+    odd = ("<?xml version='1.0'?>\n<ns1:informationTable xmlns:xsi='http://w3.org/x' "
+           "xsi:schemaLocation='a b' xmlns:ns1='http://sec.gov/it'><ns1:infoTable>"
+           "<ns1:nameOfIssuer>ALPHABET INC</ns1:nameOfIssuer><ns1:cusip>02079K107</ns1:cusip>"
+           "<ns1:value>100</ns1:value><ns1:shrsOrPrnAmt><ns1:sshPrnamt>5</ns1:sshPrnamt>"
+           "<ns1:sshPrnamtType>SH</ns1:sshPrnamtType></ns1:shrsOrPrnAmt></ns1:infoTable>"
+           "</ns1:informationTable>")
+    assert parse_info_table(odd)[0]["cusip"] == "02079K107"
     rows = parse_info_table(SAMPLE_XML)
     assert rows == [{"issuer": "APPLE INC", "cusip": "037833100", "value": 1500.0, "shares": 15.0}], rows
     sub = {"filings": {"recent": {
