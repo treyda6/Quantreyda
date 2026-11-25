@@ -220,6 +220,11 @@ months, over a decent number of examples.
   Congress.gov; needs the free `CONGRESS_API_KEY` secret), matched to
   industries. A Congress buy gets ⚖ when the buyer sponsored a moving bill in
   that stock's industry.
+- `python fec.py company "Lockheed Martin Corp"`: election money from the FEC.
+  Stock pages show what the company's PAC gave to federal candidates this
+  cycle (and the Republican / Democrat split); hover cards show how much each
+  trading member of Congress has raised. Reuses `CONGRESS_API_KEY` (an
+  api.data.gov key works for the FEC too), or set `FEC_API_KEY`.
 - Federal Reserve governors are followed through `whitehouse_officials.txt`
   too (same Form 278-T). Regional Fed bank presidents only publish annual
   reports, not trades, so they aren't included.

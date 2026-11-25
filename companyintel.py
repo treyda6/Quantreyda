@@ -7,6 +7,7 @@
                12 months (USAspending.gov API, no key).
   buzz         English Wikipedia page views: is the public suddenly reading
                about this company? (Wikimedia pageviews API, no key)
+  pac          What the company's PAC gave to federal candidates (fec.py).
   buybacks     Stock buybacks and dividends come with the SEC health check
                (health.py), not from here.
 
@@ -249,6 +250,10 @@ def intel(con, tkr):
             out["views"] = amount
             out["wiki"] = title
             out["buzz"] = float(ratio) if ratio else None
+        elif source == "pac" and amount is not None:
+            import fec  # here, not at the top: fec imports this module
+            out["pac"] = amount
+            out.update(fec.pac_info(detail))
     try:
         r = con.execute("SELECT buybacks, dividends FROM health WHERE tkr = ?", [tkr]).fetchone()
         if r:
