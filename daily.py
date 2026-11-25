@@ -11,7 +11,7 @@ January, so the prior year stays live for a few weeks after New Year's.
 Older years never gain filings after publication.
 
 Usage:
-    py daily.py            # senate + house + tickers + insiders (7 days) + contracts + 13Fs + committees + digest + alerts + news
+    py daily.py            # senate + house + tickers + insiders (7 days) + contracts + 13Fs + committees + White House + activists + digest + alerts + news
     py daily.py --selftest # offline check of the year window, no network
 
 Meant to run under Windows Task Scheduler once a day; stdout/stderr redirect
@@ -23,6 +23,7 @@ script with three print-heavy steps already.
 import datetime
 import sys
 
+import activists
 import alerts
 import committees
 import contracts
@@ -32,6 +33,7 @@ import health
 import news
 import prices
 import stockpage
+import whitehouse
 import entities
 import scrape_house
 import scrape_insiders
@@ -73,7 +75,9 @@ def main():
     # Each extra source is optional: a failure there shouldn't cost you the digest.
     for label, step in (("Big government contracts", lambda: contracts.main(days=14)),
                         ("Top fund 13Fs", lambda: funds.fetch(_con())),
-                        ("Committee rosters", lambda: committees.refresh_rosters(_con()))):
+                        ("Committee rosters", lambda: committees.refresh_rosters(_con())),
+                        ("White House and cabinet (OGE 278-T)", lambda: whitehouse.main()),
+                        ("Activist 5%+ stakes (13D/13G)", lambda: activists.refresh(_con()))):
         print(f"\n--- {label} ---")
         try:
             step()

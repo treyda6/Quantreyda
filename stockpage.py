@@ -15,6 +15,7 @@ import datetime
 import html
 import re
 
+import activists
 import committees
 import health
 import leaders
@@ -102,6 +103,12 @@ def _marks(con, tkr, since):
         if d:
             out.append({"d": d, "kind": "insider", "who": name, "filed": filed,
                         "role": profiles.nice_role(role), "amt": profiles.money(value)})
+    for d, filed, slug, name, title, lo, hi in profiles._all(con, """
+            SELECT tx_date, filed, slug, name, title, amount_low, amount_high FROM wh_trades
+            WHERE tkr = ? AND kind = 'stock' AND tx_type = 'Purchase' AND tx_date >= ?
+            ORDER BY tx_date""", [tkr, since]):
+        out.append({"d": d, "kind": "whitehouse", "who": name, "slug": slug, "role": title,
+                     "filed": filed, "amt": front.digest._bracket(lo or 0, hi)})
     return sorted(out, key=lambda m: m["d"])
 
 
@@ -159,6 +166,9 @@ def chart(px, marks, w=900, h=300):
         if m["kind"] == "congress":
             shape = (f"<circle cx='{x:.1f}' cy='{y:.1f}' r='6' fill='var(--acc)' "
                      f"stroke='var(--card)' stroke-width='2'/>")
+        elif m["kind"] == "whitehouse":
+            shape = (f"<rect x='{x - 5.5:.1f}' y='{y - 5.5:.1f}' width='11' height='11' rx='2' "
+                     f"fill='var(--warn)' stroke='var(--card)' stroke-width='2'/>")
         else:
             shape = (f"<rect x='{x - 5:.1f}' y='{y - 5:.1f}' width='10' height='10' fill='var(--ins)' "
                      f"stroke='var(--card)' stroke-width='2' transform='rotate(45 {x:.1f} {y:.1f})'/>")
@@ -188,7 +198,7 @@ def _people(n, one, many):
     return f"{n} {one if n == 1 else many}"
 
 
-def explain(tkr, pr, h, marks, sells, records, flags, news_rows):
+def explain(tkr, pr, h, marks, sells, records, flags, news_rows, stakes=()):
     """[(question, answer html)] written from the data, in plain English."""
     qa = []
     name = pr.get("name") or (h or {}).get("company") or tkr
@@ -239,6 +249,7 @@ def explain(tkr, pr, h, marks, sells, records, flags, news_rows):
         p += f" The stock is <b>{front._pct(chg)}</b> over the past year."
     qa.append(("Is the stock expensive?", f"<p>{p}</p>"))
 
+    wh = [m for m in marks if m["kind"] == "whitehouse"]
     cong = [m for m in marks if m["kind"] == "congress"]
     ins = [m for m in marks if m["kind"] == "insider"]
     b = []
@@ -248,8 +259,11 @@ def explain(tkr, pr, h, marks, sells, records, flags, news_rows):
     if ins:
         b.append(f"<b>{len(ins)}</b> open-market insider purchase{'s' if len(ins) != 1 else ''} by "
                  f"{_people(len({m['who'] for m in ins}), 'insider', 'insiders')}")
-    p = ("In the last two years: " + " and ".join(b) + "." if b else
-         "No Congress or insider buys on record in the last two years.")
+    if wh:
+        b.append(f"<b>{len(wh)}</b> purchase{'s' if len(wh) != 1 else ''} by "
+                 + ", ".join(sorted({f"{m['who']} ({m['role']})" for m in wh})))
+    p = ("In the last two years: " + "; ".join(b) + "." if b else
+         "No Congress, insider or White House buys on record in the last two years.")
     cs, ins_n, ins_v = sells
     if cs or ins_n:
         p += (f" On the other side there were {cs} Congress sale{'s' if cs != 1 else ''} and "
@@ -258,12 +272,17 @@ def explain(tkr, pr, h, marks, sells, records, flags, news_rows):
     if ins:
         p += (" Insider buys matter most: executives know the business, and they're spending their own "
               "money. Insider sales matter less (taxes, houses, diversifying).")
+    if stakes:
+        f0 = stakes[0]
+        p += (f" <b>{E(f0[2])}</b> {E(activists.FORM_WORDS.get(f0[1], 'filed a 5% stake'))} "
+              f"on {f0[0]:%b %d, %Y}.")
     if flags:
         p += (f" ⚑ {E(flags[0])} sits on a committee that oversees this industry, which is worth "
               "knowing but isn't proof of anything.")
     best = None
     for m in marks:
-        key = (leaders.key_congress(*m["ck"]) if m.get("ck") else leaders.key_insider(m["who"]))
+        key = (leaders.key_congress(*m["ck"]) if m.get("ck") else
+               leaders.key_official(m["slug"]) if m.get("slug") else leaders.key_insider(m["who"]))
         rec = (records or {}).get(key)
         if rec and (best is None or rec["avg"] > best[1]["avg"]):
             best = (m["who"], rec)
@@ -321,10 +340,12 @@ def render(con, tkr, today, records=None):
             f"{price}</div>")
     legend = ("<div class='legend'><span><i style='background:var(--acc)'></i>Congress buy</span>"
               "<span><i class='ins' style='background:var(--ins)'></i>Insider buy</span>"
+              "<span><i style='background:var(--warn);border-radius:2px'></i>White House buy</span>"
               "<span>Hover a marker for who and how much.</span></div>")
     chart_panel = f"<section class='panel'><h2>Two years of price, with the buys</h2>{chart(px, marks)}{legend}</section>"
 
-    qa = explain(tkr, pr, h, marks, _sells(con, tkr, since), records, flags, news_rows)
+    qa = explain(tkr, pr, h, marks, _sells(con, tkr, since), records, flags, news_rows,
+                 activists.for_ticker(con, tkr))
     about = ("<section class='panel qa'><h2>About this stock, in plain English</h2>"
              + "".join(f"<h3>{E(q)}</h3>{a}" for q, a in qa)
              + "<p class='hint' style='margin-top:12px'>Written automatically from public filings and "
@@ -353,6 +374,8 @@ def render(con, tkr, today, records=None):
         if m["kind"] == "congress":
             r = type("R", (), {"last_name": m["ck"][1], "first_name": m["ck"][2], "chamber": m["ck"][0]})
             who = front.member_html(con, r, m["who"])
+        elif m["kind"] == "whitehouse":
+            who = front.official_html(con, m["slug"], m["who"]) + f" <span class='hint'>({E(m['role'])})</span>"
         else:
             who = front.insider_html(con, m["who"]) + f" <span class='hint'>({E(m['role'])})</span>"
         rows.append(f"<li><span class='d'>{m['d']:%b %d, %Y}</span>{who} bought {E(m['amt'] or '')}</li>")
@@ -374,12 +397,20 @@ def selftest():
                     [("AAA", d0 + datetime.timedelta(days=k), 50 + k * 0.1) for k in range(400)])
     news.ensure_table(con)
     con.execute("INSERT INTO news VALUES ('AAA','2025-05-01','8-K','Reported quarterly results','https://x/q')")
+    import whitehouse
+    whitehouse.ensure_tables(con)
+    con.execute("""INSERT INTO wh_trades VALUES ('d1',1,'vance-jd','JD Vance','Vice President',
+        'Aaa Inc (AAA)','stock','AAA','Purchase','2025-04-01','2025-04-20',15001,50000,false,'l')""")
+    activists.ensure_tables(con)
+    con.execute("INSERT INTO stakes VALUES ('a1','13D','2025-05-12','AAA','Aaa','Pershing Road','u')")
     today = datetime.date(2025, 6, 1)
     assert slug("BRK.B") == "BRK-B" and href("BRK.B", "../") == "../s/BRK-B.html"
     body = render(con, "AAA", today)
     assert "<svg class='chart'" in body and "<circle" in body, body[:500]
     assert "About this stock" in body and "Who&#x27;s been buying" in body
     assert "Congress purchase" in body and "latest earnings release" in body
+    assert "fill='var(--warn)'" in body and "JD Vance (Vice President)" in body
+    assert "Pershing Road</b> took a 5%+ stake as an activist" in body
     assert "<script" not in body.lower()
     assert "AAA" in pick(con, today, ["ZZZ"]) and pick(con, today, ["ZZZ"])[0] == "ZZZ"
     empty = render(duckdb.connect(), "QQQQ", today)
