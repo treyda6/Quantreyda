@@ -92,6 +92,10 @@ def ensure_tables(con):
     con.execute("""CREATE TABLE IF NOT EXISTS committee_members (
         bioguide VARCHAR, chamber VARCHAR, first VARCHAR, nickname VARCHAR,
         last VARCHAR, committee_id VARCHAR, committee VARCHAR, fetched_on DATE)""")
+    # every current member, for the dashboard's hover bios
+    con.execute("""CREATE TABLE IF NOT EXISTS members (
+        bioguide VARCHAR PRIMARY KEY, chamber VARCHAR, first VARCHAR, nickname VARCHAR,
+        last VARCHAR, party VARCHAR, state VARCHAR, since INTEGER, committees VARCHAR)""")
     con.execute("""CREATE TABLE IF NOT EXISTS companies (
         tkr VARCHAR PRIMARY KEY, cik BIGINT, name VARCHAR, sic INTEGER,
         sic_desc VARCHAR, fetched_on DATE)""")
@@ -119,6 +123,32 @@ def build_roster(legislators, committees, membership, today):
     return rows
 
 
+def build_members(legislators, committees, membership):
+    """Pure: one row per current member with party, state, first year in
+    their current chamber, and every full committee they sit on."""
+    names = {c["thomas_id"]: c["name"] for c in committees}
+    seats = {}
+    for cid, members in membership.items():
+        if cid in names:  # full committees only, not subcommittees
+            for m in members:
+                short = (names[cid].replace("House Committee on ", "")
+                         .replace("Senate Committee on ", "").replace("Senate Select Committee on ", "")
+                         .replace("House Permanent Select Committee on ", "")
+                         .replace("Senate Special Committee on ", ""))
+                seats.setdefault(m.get("bioguide"), []).append(short)
+    rows = []
+    for p in legislators:
+        terms = p.get("terms") or [{}]
+        last_t = terms[-1]
+        same = [t for t in terms if t.get("type") == last_t.get("type")]
+        since = int(same[0]["start"][:4]) if same and same[0].get("start") else None
+        b = p["id"]["bioguide"]
+        rows.append((b, "S" if last_t.get("type") == "sen" else "H", p["name"].get("first"),
+                     p["name"].get("nickname"), p["name"].get("last"), last_t.get("party"),
+                     last_t.get("state"), since, "; ".join(sorted(seats.get(b, [])))))
+    return rows
+
+
 def refresh_rosters(con, force=False):
     ensure_tables(con)
     today = datetime.date.today()
@@ -127,8 +157,13 @@ def refresh_rosters(con, force=False):
         return
     import yaml
     get = lambda name: yaml.safe_load(requests.get(RAW.format(name), timeout=60).text)
-    rows = build_roster(get("legislators-current"), get("committees-current"),
-                        get("committee-membership-current"), today)
+    leg, com, mem = (get("legislators-current"), get("committees-current"),
+                     get("committee-membership-current"))
+    rows = build_roster(leg, com, mem, today)
+    people = build_members(leg, com, mem)
+    if people:
+        con.execute("DELETE FROM members")
+        con.executemany("INSERT INTO members VALUES (?,?,?,?,?,?,?,?,?)", people)
     if rows:
         con.execute("DELETE FROM committee_members")
         con.executemany("INSERT INTO committee_members VALUES (?,?,?,?,?,?,?,?)", rows)
@@ -141,6 +176,11 @@ def member_committees(con, last, first, chamber):
     nickname: "Tommy" Tuberville files as "Thomas") breaks the tie."""
     rows = con.execute("SELECT bioguide, first, nickname, last, committee_id, committee "
                        "FROM committee_members WHERE chamber = ?", [chamber]).fetchall()
+    return sorted({(r[4], r[5]) for r in match_people(rows, last, first)})
+
+
+def match_people(rows, last, first):
+    """Rows (bioguide, first, nickname, last, ...) that are this filer, or []."""
     ln = _last_key(last)
     if not ln:
         return []
@@ -156,7 +196,7 @@ def member_committees(con, last, first, chamber):
                                            fn.startswith(_norm(r[1])))]
         if len({r[0] for r in hits}) != 1:
             return []
-    return sorted({(r[4], r[5]) for r in hits})
+    return hits
 
 
 # -------------------------------------------------------------- companies

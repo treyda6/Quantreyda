@@ -31,36 +31,65 @@ OUT = "site"
 DAYS = 180
 
 CSS = """
-:root{--bg:#fff;--fg:#1d1d1f;--mut:#6e6e73;--line:#e5e5ea;--acc:#0a66c2;--chip:#f2f2f7}
-@media (prefers-color-scheme:dark){:root{--bg:#111;--fg:#eee;--mut:#9a9aa0;--line:#2c2c2e;--acc:#5aa9ff;--chip:#1c1c1e}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);
-font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-header{border-bottom:1px solid var(--line);padding:14px 20px;display:flex;gap:20px;align-items:baseline;flex-wrap:wrap}
-header b{font-size:17px}header a{color:var(--mut);text-decoration:none}header a.on{color:var(--fg);font-weight:600}
-main{max-width:1100px;margin:0 auto;padding:20px}
-h1{font-size:24px;margin:.2em 0 .6em}h2{font-size:18px;margin:1.6em 0 .4em;border-top:1px solid var(--line);padding-top:1em}
-table{border-collapse:collapse;width:100%;font-size:13.5px}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
-th{color:var(--mut);font-weight:600;position:sticky;top:0;background:var(--bg)}
-.wrap{overflow-x:auto}a{color:var(--acc)}code{background:var(--chip);padding:1px 4px;border-radius:4px}
-.filters{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 14px}
-.filters input,.filters select{font:inherit;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
-.filters input{flex:1;min-width:220px}.mut{color:var(--mut);font-size:13px}
-.buy{color:#1a7f37;font-weight:600}.sell{color:#c62828;font-weight:600}
-footer{color:var(--mut);font-size:12px;padding:30px 20px;text-align:center}
+:root,[data-theme=dark]{--bg:#0a0c10;--card:#12151b;--card2:#191d25;--fg:#f3f5f8;--mut:#8a93a3;
+--line:#232934;--acc:#2fe0a0;--acc-ink:#04140d;--up:#2fe0a0;--down:#ff5c63;--warn:#ffb648;--chip:#1d222b;
+--shadow:0 1px 0 rgba(255,255,255,.03),0 10px 30px rgba(0,0,0,.35)}
+[data-theme=light]{--bg:#f4f6f9;--card:#ffffff;--card2:#f1f3f7;--fg:#0c1117;--mut:#5f6b7a;
+--line:#e3e7ee;--acc:#00a86b;--acc-ink:#ffffff;--up:#00995f;--down:#e0353c;--warn:#b26b00;--chip:#eef1f5;
+--shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px rgba(16,24,40,.06)}
+*{box-sizing:border-box}html{background:var(--bg)}body{margin:0;background:var(--bg);color:var(--fg);
+font:15px/1.5 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+-webkit-font-smoothing:antialiased;transition:background .2s,color .2s}
+header{position:sticky;top:0;z-index:20;backdrop-filter:blur(12px);
+background:color-mix(in srgb,var(--bg) 82%,transparent);border-bottom:1px solid var(--line)}
+.bar{max-width:1180px;margin:0 auto;padding:12px 20px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.logo{font-weight:800;font-size:18px;letter-spacing:-.3px;margin-right:14px;display:flex;align-items:center;gap:8px}
+.logo i{width:10px;height:10px;border-radius:50%;background:var(--acc);box-shadow:0 0 12px var(--acc)}
+.bar a.nav{color:var(--mut);text-decoration:none;font-weight:600;font-size:14px;padding:7px 12px;border-radius:999px}
+.bar a.nav:hover{color:var(--fg)}.bar a.nav.on{background:var(--chip);color:var(--fg)}
+.bar .sp{flex:1}.upd{color:var(--mut);font-size:12px}
+.toggle{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:999px;
+padding:6px 12px;font:600 13px inherit;cursor:pointer}
+main{max-width:1180px;margin:0 auto;padding:24px 20px}
+h1{font-size:30px;letter-spacing:-.6px;margin:.1em 0 .3em}h2{font-size:20px;letter-spacing:-.3px;margin:34px 0 10px}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mut);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.5px;
+position:sticky;top:57px;background:var(--bg)}
+tbody tr:hover{background:var(--card)}
+.wrap{overflow-x:auto}a{color:var(--acc)}code{background:var(--chip);padding:1px 5px;border-radius:5px}
+.filters{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 16px}
+.filters input,.filters select{font:inherit;padding:9px 12px;border:1px solid var(--line);border-radius:12px;
+background:var(--card);color:var(--fg)}
+.filters input{flex:1;min-width:240px}.mut{color:var(--mut);font-size:13px}
+.buy{color:var(--up);font-weight:700}.sell{color:var(--down);font-weight:700}
+footer{color:var(--mut);font-size:12px;padding:40px 20px;text-align:center}
 """
+
+THEME_HEAD = """<script>(function(){var t=localStorage.getItem('qt-theme')||
+(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');
+document.documentElement.setAttribute('data-theme',t)})()</script>"""
+
+THEME_JS = """<script>(function(){var b=document.getElementById('theme');
+function label(){b.textContent=document.documentElement.getAttribute('data-theme')==='dark'?'☀ Light':'☾ Dark'}
+label();b.onclick=function(){var t=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
+document.documentElement.setAttribute('data-theme',t);localStorage.setItem('qt-theme',t);label()}})()</script>"""
 
 
 def page(title, active, body, updated):
-    nav = "".join(f'<a href="{href}" class="{"on" if key == active else ""}">{label}</a>'
+    nav = "".join(f'<a href="{href}" class="nav{" on" if key == active else ""}">{label}</a>'
                   for key, href, label in (("digest", "index.html", "Ideas"),
                                            ("trades", "trades.html", "All trades"),
                                            ("backtest", "backtest.html", "Did it work?")))
-    return (f"<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>"
+    return (f"<!DOCTYPE html><html lang='en' data-theme='dark'><head><meta charset='utf-8'>"
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
-            f"<title>{html.escape(title)} · Quantreyda</title><style>{CSS}{front.CSS}</style></head><body>"
-            f"<header><b>Quantreyda</b>{nav}<span class='mut'>updated {updated}</span></header>"
+            f"<title>{html.escape(title)} · Quantreyda</title>{THEME_HEAD}"
+            f"<style>{CSS}{front.CSS}</style></head><body>"
+            f"<header><div class='bar'><span class='logo'><i></i>Quantreyda</span>{nav}"
+            f"<span class='sp'></span><span class='upd'>updated {updated}</span>"
+            f"<button class='toggle' id='theme' type='button'>☀ Light</button></div></header>"
             f"<main>{body}</main><footer>Public filings only (STOCK Act disclosures, SEC Form 4 and "
-            f"13F, USAspending). Research, not investment advice.</footer></body></html>")
+            f"13F, USAspending). Research, not investment advice.</footer>{THEME_JS}</body></html>")
 
 
 def md(text):
@@ -187,7 +216,7 @@ def selftest():
     signals.make_fixture(con)
     out = build(con, datetime.date(2025, 3, 15), tempfile.mkdtemp())
     idx = open(f"{out}/index.html", encoding="utf-8").read()
-    assert "in 30 seconds" in idx and "AAA" in idx
+    assert "30-second version" in idx and "AAA" in idx
     tr = open(f"{out}/trades.html", encoding="utf-8").read()
     rows = trade_rows(con, datetime.date(2025, 3, 31))
     assert {r["tkr"] for r in rows} >= {"AAA", "BBB", "XYZ", "SEL"}, rows

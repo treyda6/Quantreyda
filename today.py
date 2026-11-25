@@ -23,6 +23,7 @@ import contracts
 import digest
 import funds
 import health
+import profiles
 import signals
 
 E = html.escape
@@ -34,31 +35,64 @@ HEALTH_HELP = {
 }
 
 CSS = """
-.hero{background:var(--chip);border-radius:16px;padding:20px 22px;margin:4px 0 26px}
-.hero h1{margin:0 0 4px}.hero p{margin:6px 0 0;font-size:16px}
-.stats{display:flex;gap:12px;flex-wrap:wrap;margin-top:16px}
-.stat{background:var(--bg);border-radius:12px;padding:12px 16px;min-width:150px;flex:1}
-.stat b{display:block;font-size:28px;line-height:1.1}.stat span{color:var(--mut);font-size:13px}
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px}
-.card{border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:8px}
-.card .top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
-.card .tkr{font-size:22px;font-weight:700;letter-spacing:.3px}
-.card .co{color:var(--mut);font-size:13px;margin-top:-6px}
-.card ul{margin:0;padding-left:18px}.card li{margin:2px 0}
-.card .more{font-size:13px;margin-top:auto}
-.badge{font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px;white-space:nowrap}
-.b-Solid{background:#dff3e4;color:#14532d}.b-Mixed{background:#fdf0d5;color:#7a4b00}
-.b-Shaky{background:#fde2e1;color:#8a1c1c}.b-Unknown,.b-none{background:var(--chip);color:var(--mut)}
-@media (prefers-color-scheme:dark){.b-Solid{background:#163d24;color:#a7e3b9}
-.b-Mixed{background:#43320f;color:#f3d38b}.b-Shaky{background:#4a1d1d;color:#f5b1ae}}
+.hero{position:relative;overflow:hidden;background:radial-gradient(120% 140% at 0% 0%,
+color-mix(in srgb,var(--acc) 16%,var(--card)) 0%,var(--card) 55%);border:1px solid var(--line);
+border-radius:22px;padding:26px 26px 22px;margin:4px 0 8px;box-shadow:var(--shadow)}
+.hero .eyebrow{color:var(--acc);font-weight:700;font-size:12px;letter-spacing:1.2px;text-transform:uppercase}
+.hero p{margin:6px 0 0;font-size:16.5px;max-width:860px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}
+.stat{background:color-mix(in srgb,var(--bg) 55%,transparent);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+.stat b{display:block;font-size:34px;line-height:1.05;letter-spacing:-1px;font-variant-numeric:tabular-nums}
+.stat span{color:var(--mut);font-size:13px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:18px;
+display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow);transition:transform .15s,border-color .15s}
+.card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--acc) 45%,var(--line))}
+.card .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.card .tkr{font-size:26px;font-weight:800;letter-spacing:-.5px;color:var(--fg);text-decoration:none}
+.card .co{color:var(--mut);font-size:13px}
+.px{text-align:right}.px b{display:block;font-size:18px;font-variant-numeric:tabular-nums}
+.px span{font-size:13px;font-weight:700}.up{color:var(--up)}.down{color:var(--down)}
+.spark{width:100%;height:54px;display:block}
+.conv{font-size:13px;color:var(--mut)}.conv b{color:var(--fg);font-size:15px}
+.meter{height:6px;border-radius:9px;background:var(--chip);margin-top:6px;overflow:hidden}
+.meter i{display:block;height:100%;border-radius:9px;background:var(--mut)}
+.c-High .meter i{background:var(--up)}.c-Medium .meter i{background:var(--warn)}
+.stats4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.stats4 div{background:var(--card2);border-radius:12px;padding:8px 10px}
+.stats4 span{display:block;color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.stats4 b{font-size:14px;font-variant-numeric:tabular-nums}
+.why{margin:0;padding-left:18px;font-size:14px}.why li{margin:3px 0}
+.foot{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:auto}
+.badge{font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;white-space:nowrap}
+.b-Solid{background:color-mix(in srgb,var(--up) 18%,transparent);color:var(--up)}
+.b-Mixed{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.b-Shaky{background:color-mix(in srgb,var(--down) 18%,transparent);color:var(--down)}
+.b-Unknown,.b-none{background:var(--chip);color:var(--mut)}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
-.chip{font-size:12px;background:var(--chip);border-radius:6px;padding:2px 8px}
+.chip{font-size:12px;font-weight:600;background:var(--chip);border-radius:8px;padding:3px 9px}
+.chip.flag{color:var(--warn)}
 .hint{color:var(--mut);font-size:13px}
-details{border:1px solid var(--line);border-radius:12px;padding:10px 16px;margin:10px 0}
-details summary{cursor:pointer;font-weight:600;font-size:15px}
-details summary span{color:var(--mut);font-weight:400}
-details ul{padding-left:18px;margin:10px 0 4px}details li{margin:4px 0}
+.who{position:relative;border-bottom:1px dotted var(--mut);cursor:help;outline:none}
+.bio{display:none;position:absolute;left:0;top:calc(100% + 8px);z-index:30;width:300px;
+background:var(--card2);color:var(--fg);border:1px solid var(--line);border-radius:14px;padding:12px 14px;
+box-shadow:0 12px 40px rgba(0,0,0,.35);font-size:13px;font-weight:400;line-height:1.45;text-align:left}
+.bio b{display:block;font-size:14px;margin-bottom:4px}.bio .bl{display:block;color:var(--mut);margin-top:3px}
+.who:hover .bio,.who:focus .bio,.who:focus-within .bio{display:block}
+details{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 18px;margin:10px 0}
+details summary{cursor:pointer;font-weight:700;font-size:15px;list-style:none}
+details summary::-webkit-details-marker{display:none}
+details summary:before{content:'+';display:inline-block;width:18px;color:var(--acc);font-weight:800}
+details[open] summary:before{content:'–'}
+details summary span{color:var(--mut);font-weight:500}
+details ul{padding-left:18px;margin:12px 0 4px}details li{margin:6px 0}
 .empty{color:var(--mut);padding:10px 0}
+@media (max-width:640px){main{padding:16px 12px}.hero{padding:20px 16px;border-radius:18px}
+h1{font-size:24px}.stats{grid-template-columns:1fr 1fr 1fr;gap:8px}.stat{padding:10px}
+.stat b{font-size:24px}.stat span{font-size:11px}.cards{grid-template-columns:1fr}
+.stats4{grid-template-columns:repeat(2,1fr)}.bio{width:min(300px,80vw)}
+.bar{gap:4px;padding:10px 12px}.bar a.nav{padding:6px 9px;font-size:13px}.upd{display:none}
+.logo{margin-right:6px}}
 """
 
 
@@ -88,6 +122,45 @@ def friendly_who(r):
     return who
 
 
+def who_html(label, lines, title=None):
+    """A name with a hover/tap card. Everything is escaped here, so callers
+    can drop the result straight into HTML."""
+    body = "".join(f"<span class='bl'>{E(x)}</span>" for x in lines)
+    return (f"<span class='who' tabindex='0'>{E(label)}<span class='bio' role='tooltip'>"
+            f"<b>{E(title or label)}</b>{body}</span></span>")
+
+
+def member_html(con, r, label):
+    m = profiles.member(con, r.last_name, r.first_name, r.chamber)
+    return who_html(label, profiles.member_lines(m), m.get("name"))
+
+
+def insider_html(con, name, cik=None):
+    return who_html(name, profiles.insider_lines(profiles.insider(con, cik, name)))
+
+
+def conviction(i):
+    """0-100 score and the plain-English breakdown behind it.
+
+      up to 40  how many different kinds of buyers (10 each: Congress,
+                insiders, top fund, contract)
+      up to 20  how much money went in (log scale: ~$15k = 4, $1M = 16, $10M+ = 20)
+      up to 20  company health (Solid 20, Mixed 10, unknown 8, Shaky 0)
+      up to 20  how informed the buyers look: a cluster of insiders 10, an
+                executive buying 5, a Congress member on an overseeing committee 5
+    """
+    import math
+    breadth = min(len(i["kinds"]), 4) * 10
+    size = 0 if i["dollars"] <= 0 else max(0, min(20, round(4 * math.log10(i["dollars"] / 1000))))
+    hp = {"Solid": 20, "Mixed": 10, "Shaky": 0}.get(i.get("health"), 8)
+    informed = 10 * i["cluster"] + 5 * i["officer"] + 5 * bool(i["flag"])
+    why = [f"{len(i['kinds'])} kind(s) of buyer: +{breadth}",
+           f"about {digest._money(i['dollars'])} put in: +{size}" if i["dollars"] else "no dollar amount: +0",
+           f"health {i.get('health') or 'not checked'}: +{hp}",
+           f"informed-buyer signs: +{informed}"]
+    return breadth + size + hp + informed, why
+
+
 def collect(con, today, days=7):
     """Everything the page shows, as plain Python data (testable)."""
     start = today - datetime.timedelta(days=days)
@@ -96,7 +169,8 @@ def collect(con, today, days=7):
 
     def idea(t):
         return ideas.setdefault(t, {"tkr": t, "kinds": set(), "why": [], "score": 0.0,
-                                    "flag": "", "company": None})
+                                    "flag": "", "company": None, "dollars": 0.0,
+                                    "cluster": False, "officer": False})
 
     data = {"congress": [], "clusters": [], "big": [], "contracts": [], "funds": [],
             "stale": 0}
@@ -108,18 +182,20 @@ def collect(con, today, days=7):
         for (t, ln), g in cb.groupby(["tkr", "last_name"], sort=False):
             r = g.iloc[0]
             who = friendly_who(r)
+            who_h = member_html(con, r, who)
             flag = committees.committee_flag(con, t, r.last_name, r.first_name, r.chamber)
             lo, hi = g.amount_low.sum(), g.amount_high.sum()
-            row = {"tkr": t, "who": who, "amount": digest._bracket(lo, hi), "lo": float(lo),
+            row = {"tkr": t, "who": who, "who_h": who_h, "amount": digest._bracket(lo, hi), "lo": float(lo),
                    "n": len(g), "lag": _clean(g.lag_days.min()), "filed": g.event_date.max(),
                    "flag": flag}
             data["congress"].append(row)
             i = idea(t)
             i["kinds"].add("Congress")
             i["score"] += min(lo / 50_000, 3)
+            i["dollars"] += float(lo)
             late = f", {int(row['lag'])} days after the trade" if row["lag"] is not None else ""
-            i["why"].append(f"{who} bought {row['amount']}"
-                            f"{f' ({len(g)} purchases)' if len(g) > 1 else ''}, disclosed"
+            n = f" ({len(g)} purchases)" if len(g) > 1 else ""
+            i["why"].append(f"{who_h} bought {E(row['amount'])}{n}, disclosed"
                             f" {_days_ago(row['filed'], today)}{late}.")
             if flag:
                 i["flag"] = flag
@@ -128,18 +204,26 @@ def collect(con, today, days=7):
 
     if signals.has_table(con, "insider_trades"):
         for r in signals.insider_clusters(con, start, today).itertuples():
-            data["clusters"].append({"tkr": r.tkr, "company": r.issuer_name,
+            buyers = ", ".join(insider_html(con, b.strip()) for b in (r.buyers or "").split(";")
+                               if b.strip())
+            data["clusters"].append({"tkr": r.tkr, "company": r.issuer_name, "buyers_h": buyers,
                                      "n": int(r.insiders), "value": float(r.total_value),
                                      "officer": bool(r.any_officer), "when": r.event_date})
             i = idea(r.tkr)
             i["kinds"].add("Insiders")
             i["company"] = i["company"] or r.issuer_name
             i["score"] += 2
+            i["dollars"] += float(r.total_value)
+            i["cluster"] = True
+            i["officer"] = i["officer"] or bool(r.any_officer)
+            exe = ", including an executive" if r.any_officer else ""
             i["why"].append(f"{int(r.insiders)} company insiders bought "
-                            f"{digest._money(r.total_value)} of stock with their own money"
-                            f"{', including an executive' if r.any_officer else ''}.")
+                            f"{E(digest._money(r.total_value))} of stock with their own "
+                            f"money{exe}: {buyers}.")
         for r in signals.big_insider_buys(con, start, today).head(25).itertuples():
+            who_h = insider_html(con, r.owner_name)
             data["big"].append({"tkr": r.tkr, "company": r.issuer_name, "who": r.owner_name,
+                                "who_h": who_h,
                                 "role": (r.owner_relationship or "insider").lower().replace(",", ", "),
                                 "value": float(r.total_value), "when": r.event_date})
             i = idea(r.tkr)
@@ -147,8 +231,11 @@ def collect(con, today, days=7):
                 i["kinds"].add("Insiders")
                 i["company"] = i["company"] or r.issuer_name
                 i["score"] += 1
-                i["why"].append(f"An insider ({(r.owner_relationship or 'insider').lower().split(',')[0]})"
-                                f" bought {digest._money(r.total_value)} of stock.")
+                i["dollars"] += float(r.total_value)
+                i["officer"] = i["officer"] or "OFFICER" in str(r.owner_relationship or "")
+                role = (r.owner_relationship or "insider").lower().split(",")[0]
+                i["why"].append(f"{who_h} ({E(role)}) bought "
+                                f"{E(digest._money(r.total_value))} of stock.")
 
     c = contracts.recent(con, start, today)
     if c is not None:
@@ -158,8 +245,8 @@ def collect(con, today, days=7):
             i = idea(r.tkr)
             i["kinds"].add("Contract")
             i["score"] += 1
-            i["why"].append(f"Won a {digest._money(r.amount)} government contract "
-                            f"from the {r.agency}.")
+            i["why"].append(E(f"Won a {digest._money(r.amount)} government contract "
+                              f"from the {r.agency}."))
 
     f = funds.changes(con, since=start)
     if f is not None:
@@ -176,13 +263,13 @@ def collect(con, today, days=7):
             if kind not in i["kinds"]:
                 i["kinds"].add(kind)
                 i["score"] += 1
-                i["why"].append(w.split(": ", 1)[1].capitalize() + " (last 30 days).")
+                i["why"].append(E(w.split(": ", 1)[1].capitalize() + " (last 30 days)."))
     for t, names in funds.holders(con, list(ideas)).items():
         i = ideas[t]
         if "Top fund" not in i["kinds"]:
             i["kinds"].add("Top fund")
             i["score"] += 1
-            i["why"].append(f"Owned by {', '.join(names)}.")
+            i["why"].append(E(f"Owned by {', '.join(names)}."))
 
     hl = health.lookup(con, list(ideas))
     for t, i in ideas.items():
@@ -191,7 +278,10 @@ def collect(con, today, days=7):
         i["health_why"] = h["reasons"] if h else "Not checked yet."
         i["company"] = (h or {}).get("company") or i["company"]
         i["score"] += 3 * len(i["kinds"]) + {"Solid": 2, "Shaky": -3}.get(i["health"], 0)
-    data["ideas"] = sorted(ideas.values(), key=lambda i: -i["score"])
+        i["profile"] = profiles.company(con, t)
+        i["company"] = i["company"] or i["profile"].get("name")
+        i["conviction"], i["conviction_why"] = conviction(i)
+    data["ideas"] = sorted(ideas.values(), key=lambda i: (-i["conviction"], -i["score"]))
     return data
 
 
@@ -202,18 +292,59 @@ def _badge(verdict):
             f"{E(label)}</span>")
 
 
+def _spark(vals, up):
+    if not vals or len(vals) < 2:
+        return ""
+    lo, hi = min(vals), max(vals)
+    rng = (hi - lo) or 1
+    w, h = 300, 54
+    pts = " ".join(f"{k * w / (len(vals) - 1):.1f},{h - 4 - (v - lo) / rng * (h - 8):.1f}"
+                   for k, v in enumerate(vals))
+    col = "var(--up)" if up else "var(--down)"
+    return (f"<svg class='spark' viewBox='0 0 {w} {h}' preserveAspectRatio='none' aria-hidden='true'>"
+            f"<polyline points='{pts}' fill='none' stroke='{col}' stroke-width='2' "
+            f"vector-effect='non-scaling-stroke' stroke-linejoin='round'/></svg>")
+
+
+def _pct(x):
+    return "—" if x is None else f"{'+' if x >= 0 else ''}{x * 100:.0f}%"
+
+
+def conviction_label(score):
+    return "High" if score >= 70 else "Medium" if score >= 45 else "Low"
+
+
 def _card(i):
+    pr = i.get("profile") or {}
     chips = "".join(f"<span class='chip'>{E(k)}</span>" for k in sorted(i["kinds"]))
     if i["flag"]:
-        chips += f"<span class='chip' title='Their committee oversees this industry'>⚑ {E(i['flag'].split(' (')[0])}</span>"
-    why = "".join(f"<li>{E(w)}</li>" for w in i["why"][:4])
-    return (f"<div class='card'><div class='top'><span class='tkr'>{E(i['tkr'])}</span>"
-            f"{_badge(i['health'])}</div>"
-            f"<div class='co'>{E(i['company'] or '')}</div>"
-            f"<div class='chips'>{chips}</div><ul>{why}</ul>"
-            f"<div class='hint'>Health: {E(i['health_why'])}</div>"
-            f"<a class='more' href='trades.html?q={E(i['tkr'])}'>See every trade in {E(i['tkr'])} →</a>"
-            f"</div>")
+        chips += (f"<span class='chip flag' title='Their committee oversees this industry'>"
+                  f"⚑ {E(i['flag'].split(' (')[0])}</span>")
+    why = "".join(f"<li>{w}</li>" for w in i["why"][:4])  # already escaped HTML
+    price = ""
+    if pr.get("price"):
+        up = (pr.get("chg_1y") or 0) >= 0
+        price = (f"<div class='px'><b>${pr['price']:,.2f}</b>"
+                 f"<span class='{'up' if up else 'down'}'>{_pct(pr.get('chg_1y'))} 1y</span></div>")
+    stats = [("Sales", profiles.money(pr.get("revenue")) or "—"), ("Growth", _pct(pr.get("growth"))),
+             ("Profit", profiles.money(pr.get("net_income")) or "—"),
+             ("P/E", f"{pr['pe']:.0f}" if pr.get("pe") else "—")]
+    stat_html = "".join(f"<div><span>{k}</span><b>{E(v)}</b></div>" for k, v in stats)
+    sc = i["conviction"]
+    lvl = conviction_label(sc)
+    tip = "".join(f"<span class='bl'>{E(x)}</span>" for x in i["conviction_why"])
+    return (f"<article class='card'>"
+            f"<div class='top'><div><a class='tkr' href='trades.html?q={E(i['tkr'])}'>{E(i['tkr'])}</a>"
+            f"<div class='co'>{E(i['company'] or '')}"
+            f"{' · ' + E(pr['sector']) if pr.get('sector') else ''}</div></div>{price}</div>"
+            f"{_spark(pr.get('spark'), (pr.get('chg_1y') or 0) >= 0)}"
+            f"<div class='conv c-{lvl}'><span class='who' tabindex='0'>Conviction "
+            f"<b>{sc}</b>/100 · {lvl}<span class='bio' role='tooltip'><b>How this score adds up</b>"
+            f"{tip}</span></span><div class='meter'><i style='width:{sc}%'></i></div></div>"
+            f"<div class='stats4'>{stat_html}</div>"
+            f"<div class='chips'>{chips}</div><ul class='why'>{why}</ul>"
+            f"<div class='foot'>{_badge(i['health'])}<span class='hint'>{E(i['health_why'])}</span></div>"
+            f"</article>")
 
 
 def _section(title, items, empty="Nothing this week."):
@@ -231,20 +362,21 @@ def render(data, today, days=7):
         lead = top[0]
         summary = (f"The strongest lead right now is <b>{E(lead['tkr'])}</b>"
                    f"{' (' + E(lead['company']) + ')' if lead['company'] else ''}. "
-                   f"{E(lead['why'][0]) if lead['why'] else ''}")
+                   f"{lead['why'][0] if lead['why'] else ''}")
     else:
         summary = "A quiet week: no new buys worth flagging."
     period = "This week" if days <= 7 else "The last %d weeks" % (days // 7)
-    out = [f"<div class='hero'><h1>{period} in 30 seconds</h1>",
+    out = [f"<div class='hero'><div class='eyebrow'>{period}</div><h1>The 30-second version</h1>",
            f"<p>{summary}</p>",
            "<div class='stats'>",
            f"<div class='stat'><b>{n_cong}</b><span>Congress buys of $15k+</span></div>",
            f"<div class='stat'><b>{n_ins}</b><span>notable insider buys</span></div>",
            f"<div class='stat'><b>{len(multi)}</b><span>stocks with 2+ kinds of support</span></div>",
            "</div></div>",
-           "<h2 style='border:0;padding:0;margin-top:0'>Ideas worth researching</h2>",
-           "<p class='hint'>Ranked by how many different kinds of people are buying, with "
-           "healthy companies first. A lead to look into, not a buy signal.</p>"]
+           "<h2>Ideas worth researching</h2>",
+           "<p class='hint'>Ranked by conviction: how many different kinds of people are "
+           "buying, how much money, how healthy the company is, and how informed the buyers "
+           "look. Hover a name for who they are. A lead to look into, not a buy signal.</p>"]
     out.append("<div class='cards'>" + "".join(_card(i) for i in top) + "</div>" if top else
                "<div class='empty'>No ideas this week. That's normal; check back tomorrow.</div>")
 
@@ -253,14 +385,15 @@ def render(data, today, days=7):
         n = f" in {r['n']} purchases" if r["n"] > 1 else ""
         late = f" ({int(r['lag'])} days after the trade)" if r["lag"] is not None else ""
         flag = f" · ⚑ {E(r['flag'])}" if r["flag"] else ""
-        return (f"<b>{E(r['tkr'])}</b>: {E(r['who'])} bought {E(r['amount'])}{n}, disclosed "
+        return (f"<b>{E(r['tkr'])}</b>: {r['who_h']} bought {E(r['amount'])}{n}, disclosed "
                 f"{E(_days_ago(r['filed'], today))}{late}{flag}")
     out.append(_section("Congress buys", [cong_line(r) for r in data["congress"]]))
     out.append(_section("Insider buying", [
         f"<b>{E(r['tkr'])}</b>{' (' + E(r['company']) + ')' if r['company'] else ''}: "
-        f"{r['n']} insiders bought {E(digest._money(r['value']))} together" for r in data["clusters"]] + [
+        f"{r['n']} insiders bought {E(digest._money(r['value']))} together ({r['buyers_h']})"
+        for r in data["clusters"]] + [
         f"<b>{E(r['tkr'])}</b>{' (' + E(r['company']) + ')' if r['company'] else ''}: "
-        f"{E(r['who'])} ({E(r['role'])}) bought {E(digest._money(r['value']))}" for r in data["big"]]))
+        f"{r['who_h']} ({E(r['role'])}) bought {E(digest._money(r['value']))}" for r in data["big"]]))
     out.append(_section("Big new government contracts", [
         f"<b>{E(r['tkr'])}</b>: {E(digest._money(r['amount']))} from the {E(r['agency'] or '')}"
         for r in data["contracts"]]))
@@ -282,6 +415,10 @@ def render(data, today, days=7):
                "added it (from quarterly 13F reports, up to 45 days old).</li>"
                "<li><b>Contract</b>: the company just started a big government contract.</li>"
                "<li><b>⚑</b>: the member sits on a committee that oversees that industry.</li>"
+               "<li><b>Conviction</b>: 0 to 100. Up to 40 for how many kinds of buyers, 20 for "
+               "how much money, 20 for company health, 20 for signs the buyers know something "
+               "(a cluster of insiders, an executive, a committee link). 70+ is High.</li>"
+               "<li><b>Dotted names</b>: hover or tap for who they are and their trading record.</li>"
                + "".join(f"<li>{_badge(k)} {E(v)}</li>" for k, v in HEALTH_HELP.items()) +
                "<li>Check the <a href='backtest.html'>Did it work?</a> tab to see whether "
                "each kind of signal has actually beaten an index fund.</li></ul></details>")
@@ -346,11 +483,13 @@ def selftest():
     assert top["flag"].startswith("Armed Services"), top
     assert top["health"] == "Solid" and top["company"] == "Aaa Inc"
     page = render(d, today, 90)
-    assert "The last 12 weeks in 30 seconds" in page and "strongest lead right now is <b>AAA</b>" in page
-    assert "Sen. A Alpha bought" in page, page
+    assert "The last 12 weeks" in page and "30-second version" in page and "strongest lead right now is <b>AAA</b>" in page
+    assert "Sen. A Alpha<span class='bio'" in page, page
+    assert "Conviction <b>" in page and top["conviction"] >= 60, top["conviction"]
     assert "b-Solid" in page and "⚑ Armed Services" in page
     assert "<details><summary>Congress buys" in page
     assert "<script" not in page.lower()
+    assert ">Ann<span class='bio'" not in page or "Officer at" in page
     quiet = render(collect(duckdb.connect(), today), today)
     assert "quiet week" in quiet and "No ideas this week" in quiet
     win = {"signal": "X", "n_12m": 80, "avg_excess_12m": .05, "median_excess_12m": .02,
