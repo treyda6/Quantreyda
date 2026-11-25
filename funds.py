@@ -51,6 +51,22 @@ def read_funds(path="funds.txt"):
     return out
 
 
+def managers(path="funds.txt"):
+    """{cik: (label, person)} from funds.txt; the person is the first name in
+    the comment's parentheses, e.g. '(Warren Buffett / successors)'."""
+    out = {}
+    if os.path.exists(path):
+        for line in open(path, encoding="utf-8"):
+            body, _, note = line.partition("#")
+            body = body.strip()
+            if not body:
+                continue
+            cik, _, label = body.partition(" ")
+            m = re.search(r"\(([^)/]+)", note)
+            out[int(cik)] = (label.strip() or cik, m.group(1).strip() if m else None)
+    return out
+
+
 def ensure_tables(con):
     con.execute("""CREATE TABLE IF NOT EXISTS fund_holdings (
         fund VARCHAR, cik BIGINT, period DATE, filed DATE, issuer VARCHAR,

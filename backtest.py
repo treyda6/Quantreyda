@@ -210,6 +210,83 @@ def copycat(label, about, events, series, bench):
     return {"label": label, "about": about, "years": years, "total": total}
 
 
+# ---------------------------------------------------------------- strategies
+# A "copy them" portfolio you could actually have run: every day, hold an
+# equal slice of every stock the group bought in the last year (bought the day
+# after it was disclosed, sold a year later); stay in cash when there's none.
+
+STRATEGIES = {"Every stock Congress bought": "Copy Congress",
+              "Politicians with a winning record": "Copy the winners",
+              "Insiders buying together": "Copy insider clusters",
+              "White House and cabinet": "Copy the White House"}
+
+
+def strategy_curve(events, series, bench, hold=COPY_DAYS):
+    """(dates, portfolio value, S&P 500 value) both starting at 1, or None."""
+    import numpy as np
+    days = bench.index
+    if not len(events) or len(days) < 30:
+        return None
+    count = {}
+    for _, e in events.iterrows():
+        s = series.get(e.tkr)
+        if s is None:
+            continue
+        after = s.index[s.index > pd.Timestamp(e.event_date)]
+        if not len(after):
+            continue
+        i0 = days.searchsorted(after[0])          # entry close (no return that day)
+        i1 = min(i0 + hold, len(days) - 1)
+        if i0 >= len(days) - 1:
+            continue
+        arr = count.setdefault(e.tkr, np.zeros(len(days) + 1))
+        arr[i0 + 1] += 1                           # earns from the next day...
+        arr[i1 + 1] -= 1                           # ...through the exit day
+    if not count:
+        return None
+    tk = sorted(count)
+    w = np.array([np.cumsum(count[t])[:-1] for t in tk])          # positions held, per day
+    px = pd.DataFrame({t: series[t] for t in tk}).reindex(days).ffill()
+    rets = px.pct_change().fillna(0).to_numpy().T                  # tickers x days
+    held = w.sum(axis=0)
+    port = np.where(held > 0, (w * rets).sum(axis=0) / np.maximum(held, 1), 0.0)
+    if not held.any():
+        return None
+    first = max(0, int(np.argmax(held > 0)) - 1)  # start at the first entry close, value 1
+    nav = np.cumprod(1 + port[first:])
+    spy = (bench / bench.iloc[first]).to_numpy()[first:]
+    return list(days[first:]), nav, spy
+
+
+def curve_stats(dates, nav, spy):
+    import numpy as np
+    years = max((dates[-1] - dates[0]).days / 365.25, 1e-9)
+    daily = np.diff(nav) / nav[:-1]
+    sharpe = float(daily.mean() / daily.std() * np.sqrt(252)) if len(daily) > 20 and daily.std() > 0 else None
+    k = max(0, len(nav) - 253)
+    return {"total": float(nav[-1] - 1), "spy_total": float(spy[-1] - 1),
+            "cagr": float(nav[-1] ** (1 / years) - 1) if years >= 1 else None,
+            "one_year": float(nav[-1] / nav[k] - 1) if len(nav) > 253 else None,
+            "spy_one_year": float(spy[-1] / spy[k] - 1) if len(spy) > 253 else None,
+            "sharpe": sharpe, "start": str(dates[0].date()), "years": round(years, 1)}
+
+
+def strategies(groups, series, bench):
+    out = []
+    for label, about, ev in groups:
+        got = strategy_curve(ev, series, bench)
+        if not got:
+            continue
+        dates, nav, spy = got
+        step = max(1, len(dates) // 160)  # ~160 points is plenty for a small chart
+        idx = list(range(0, len(dates), step)) + ([len(dates) - 1] if (len(dates) - 1) % step else [])
+        out.append({"label": STRATEGIES.get(label, label), "group": label, "about": about,
+                    "dates": [str(dates[i].date()) for i in idx],
+                    "nav": [round(float(nav[i]), 4) for i in idx],
+                    "spy": [round(float(spy[i]), 4) for i in idx], **curve_stats(dates, nav, spy)})
+    return out
+
+
 def build_events(con, start, end):
     groups = {}
     if signals.has_table(con, "senate_trades"):
@@ -247,8 +324,9 @@ def run(con, start, end, fetch=True):
         res = evaluate(ev, series, bench)
         summary.append(summarize(res, label))
         detail.append(res.assign(signal=label))
-    run.copycat = [copycat(label, about, ev, series, bench)
-                   for label, about, ev in copycat_groups(con, start, end, groups, series, bench)]
+    cg = copycat_groups(con, start, end, groups, series, bench)
+    run.copycat = [copycat(label, about, ev, series, bench) for label, about, ev in cg]
+    run.strategies = strategies(cg, series, bench)
     return summary, (pd.concat(detail) if detail else pd.DataFrame())
 
 
@@ -267,7 +345,7 @@ def copycat_md(cc):
     return "\n".join(out)
 
 
-def write_report(summary, start, end, path="reports/backtest.md", cc=None):
+def write_report(summary, start, end, path="reports/backtest.md", cc=None, strat=None):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     text = (f"# Backtest: signals vs SPY\n\nFilings from {start} to {end}. Entry at the close "
             "of the first trading day after the filing date. \"vs SPY\" is the signal's "
@@ -291,7 +369,7 @@ def write_report(summary, start, end, path="reports/backtest.md", cc=None):
     with open(path.replace(".md", ".json"), "w", encoding="utf-8") as f:
         json.dump({"start": str(start), "end": str(end), "summary": [
             {k: (None if isinstance(v, float) and v != v else v) for k, v in s.items()}
-            for s in summary], "copycat": cc or []}, f, default=float)
+            for s in summary], "copycat": cc or [], "strategies": strat or []}, f, default=float)
     return text
 
 
@@ -342,6 +420,15 @@ def selftest():
     picked = proven_picks(cb, {"AAA": up}, flat)
     assert list(picked.event_date) == [D(2023, 1, 10)] and picked.last_name.iloc[0] == "Alpha", picked
     assert "If you had copied them" in copycat_md(run.copycat)
+    st = {x["group"]: x for x in run.strategies}["Every stock Congress bought"]
+    assert st["label"] == "Copy Congress" and st["nav"][0] == 1.0 and st["nav"][-1] > 1, st["nav"][-3:]
+    assert st["spy"][-1] == 1.0 and (st["sharpe"] is None or st["sharpe"] > 0), st
+    # one stock up 1%/day held 3 days of a flat index: 1.01^3
+    d3 = pd.bdate_range("2025-01-01", periods=40)
+    up3 = pd.Series([1.01 ** i for i in range(40)], index=d3)
+    ev = pd.DataFrame({"tkr": ["U"], "event_date": [D(2025, 1, 1)]})
+    dts, nav, spy = strategy_curve(ev, {"U": up3}, pd.Series(1.0, index=d3), hold=3)
+    assert abs(nav[-1] - 1.01 ** 3) < 1e-9 and nav[0] == 1 and abs(nav[2] - 1.01 ** 2) < 1e-9, nav[:5]
     print(_fmt_table(summary))
     print("backtest selftest ok")
 
@@ -359,7 +446,8 @@ if __name__ == "__main__":
     c = duckdb.connect(DB_PATH)
     ensure_schema(c)
     summ, det = run(c, start, end, fetch="--no-fetch" not in sys.argv)
-    print(write_report(summ, start, end, cc=getattr(run, "copycat", None)))
+    print(write_report(summ, start, end, cc=getattr(run, "copycat", None),
+                       strat=getattr(run, "strategies", None)))
     from schema import save_report
     for p in ("reports/backtest.md", "reports/backtest.json"):
         save_report(c, p)

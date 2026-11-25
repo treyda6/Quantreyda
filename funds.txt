@@ -4,5 +4,6 @@
 # so you can check you've got the right one.
 1067983 Berkshire     # Berkshire Hathaway (Warren Buffett / successors)
 1336528 Pershing      # Pershing Square (Bill Ackman)
-1112520 Akre          # Akre Capital Management
+1112520 Akre          # Akre Capital Management (Chuck Akre)
 1709323 Himalaya      # Himalaya Capital (Li Lu)
+1166559 Gates         # Bill & Melinda Gates Foundation Trust (Bill Gates)

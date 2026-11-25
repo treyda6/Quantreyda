@@ -62,6 +62,10 @@ def official_key(slug):
     return "w-" + (slug or "")
 
 
+def fund_key(cik):
+    return f"f-{cik}"
+
+
 def _image(r):
     """(ext, bytes) if the response is a real, small image, else None."""
     ctype = (r.headers.get("Content-Type") or "").split(";")[0].strip().lower()
@@ -117,6 +121,8 @@ def wanted(con, tickers):
             "SELECT slug, max(name) FROM wh_trades GROUP BY 1").fetchall()]
     except Exception:
         pass
+    import funds
+    out += [(fund_key(cik), "official", person) for cik, (_, person) in funds.managers().items() if person]
     return out
 
 
@@ -235,7 +241,7 @@ def selftest():
     con.execute("CREATE TABLE members (bioguide VARCHAR)")
     con.execute("INSERT INTO members VALUES ('A1'), ('B2')")
     keys = [k for k, _, _ in wanted(con, ["AAA", "BBB"])]
-    assert keys == ["l-AAA", "l-BBB", "c-A1", "c-B2"], keys
+    assert keys[:4] == ["l-AAA", "l-BBB", "c-A1", "c-B2"] and "f-1067983" in keys, keys
     HAVE.clear()
     print("pictures selftest ok")
 

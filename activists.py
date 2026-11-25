@@ -46,6 +46,31 @@ def ensure_tables(con):
         file VARCHAR PRIMARY KEY, form VARCHAR, filed DATE, tkr VARCHAR, company VARCHAR,
         investor VARCHAR, url VARCHAR)""")
     con.execute("CREATE TABLE IF NOT EXISTS stake_days (d DATE PRIMARY KEY)")
+    con.execute("""CREATE TABLE IF NOT EXISTS filings_13f (
+        file VARCHAR PRIMARY KEY, filed DATE, cik BIGINT, fund VARCHAR, url VARCHAR)""")
+
+
+def parse_13f(text):
+    """Rows (file, filed, cik, fund, url) for every 13F-HR in one daily form.idx."""
+    out = []
+    for line in text.splitlines():
+        m = LINE_RE.match(line)
+        if not m or m.group("form").strip() not in ("13F-HR", "13F-HR/A"):
+            continue
+        f = m.group("file").rsplit("/", 1)[-1]
+        acc, d, cik = f.replace(".txt", ""), m.group("date"), int(m.group("cik"))
+        out.append((f, datetime.date(int(d[:4]), int(d[4:6]), int(d[6:])), cik,
+                    m.group("name").strip(),
+                    f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc.replace('-', '')}/{acc}-index.htm"))
+    return out
+
+
+def recent_13f(con, n=25):
+    try:
+        return con.execute("SELECT filed, fund, url FROM filings_13f ORDER BY filed DESC, fund "
+                           "LIMIT ?", [n]).fetchall()
+    except Exception:
+        return []
 
 
 def parse_index(text, cik_to_tkr):
@@ -101,6 +126,9 @@ def refresh(con, days=7):
         if r.status_code != 200:
             continue  # not published yet; try again tomorrow
         rows = parse_index(r.text, cik_to_tkr)
+        thirteen = parse_13f(r.text)
+        if thirteen:
+            con.executemany("INSERT OR REPLACE INTO filings_13f VALUES (?,?,?,?,?)", thirteen)
         if rows:
             con.executemany("INSERT OR REPLACE INTO stakes VALUES (?,?,?,?,?,?,?)", rows)
         con.execute("INSERT OR REPLACE INTO stake_days VALUES (?)", [d])
@@ -151,6 +179,10 @@ def selftest():
     assert recent(con, datetime.date(2025, 3, 1), datetime.date(2025, 3, 31))[0][0] == "ACME"
     assert for_ticker(con, "ACME")[0][1] == "13D"
     assert recent(duckdb.connect(), filed, filed) == []
+    t = parse_13f(idx + "13F-HR           FRONT ROW ADVISORS LLC                                        555         20250311    edgar/data/555/0000555-25-000009.txt\n")
+    assert len(t) == 1 and t[0][2] == 555 and t[0][3] == "FRONT ROW ADVISORS LLC", t
+    con.executemany("INSERT INTO filings_13f VALUES (?,?,?,?,?)", t)
+    assert recent_13f(con)[0][1] == "FRONT ROW ADVISORS LLC"
     print("activists selftest ok")
 
 

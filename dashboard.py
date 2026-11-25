@@ -28,6 +28,7 @@ import duckdb
 import committees
 import digest
 import pictures
+import sections
 import leaders
 import signals
 import stockpage
@@ -56,6 +57,18 @@ background:color-mix(in srgb,var(--bg) 82%,transparent);border-bottom:1px solid 
 .bar a.nav{color:var(--mut);text-decoration:none;font-weight:600;font-size:14px;padding:7px 12px;border-radius:999px}
 .bar a.nav:hover{color:var(--fg)}.bar a.nav.on{background:var(--chip);color:var(--fg)}
 .bar .sp{flex:1}.upd{color:var(--mut);font-size:12px}
+.tabs{display:none}
+@media(max-width:700px){
+.bar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:4px;padding:10px 14px}.bar::-webkit-scrollbar{display:none}
+.bar a.nav{white-space:nowrap}.upd{display:none}
+.tabs{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:30;justify-content:space-around;
+padding:8px 4px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--line);
+background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px)}
+.tabs a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--mut);
+text-decoration:none;font-size:11px;font-weight:600}
+.tabs svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tabs a.on{color:var(--fg)}.tabs a.on svg{stroke:var(--acc)}
+body{padding-bottom:74px}}
 .toggle{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:999px;
 padding:6px 12px;font:600 13px inherit;cursor:pointer}
 main{max-width:1180px;margin:0 auto;padding:24px 20px}
@@ -90,22 +103,37 @@ label();b.onclick=function(){var t=document.documentElement.getAttribute('data-t
 document.documentElement.setAttribute('data-theme',t);localStorage.setItem('qt-theme',t);label()}})()</script>"""
 
 
+ICONS = {  # simple 24px line icons for the phone tab bar
+    "digest": "<path d='M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z'/>",
+    "congress": "<path d='M3 10h18M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18M12 3l9 5H3z'/>",
+    "insiders": "<circle cx='12' cy='8' r='4'/><path d='M4 21c1-4.5 4.2-6.5 8-6.5s7 2 8 6.5'/>",
+    "funds": "<path d='M4 20V10M10 20V4M16 20v-7M21 20H3'/>",
+    "trades": "<circle cx='11' cy='11' r='6.5'/><path d='M16 16l5 5'/>",
+}
+NAV = (("digest", "index.html", "Ideas"), ("congress", "congress.html", "Congress"),
+       ("insiders", "insiders.html", "Insiders"), ("funds", "funds.html", "Funds"),
+       ("trades", "trades.html", "All trades"), ("leaders", "leaders.html", "Leaderboard"),
+       ("backtest", "backtest.html", "Did it work?"))
+
+
 def page(title, active, body, updated, root=""):
     nav = "".join(f'<a href="{root}{href}" class="nav{" on" if key == active else ""}">{label}</a>'
-                  for key, href, label in (("digest", "index.html", "Ideas"),
-                                           ("leaders", "leaders.html", "Leaderboard"),
-                                           ("trades", "trades.html", "All trades"),
-                                           ("backtest", "backtest.html", "Did it work?")))
+                  for key, href, label in NAV)
+    tabs = "".join(
+        f"<a href='{root}{href}' class='{'on' if key == active else ''}'><svg viewBox='0 0 24 24' "
+        f"aria-hidden='true'>{ICONS[key]}</svg><span>{'Search' if key == 'trades' else label}</span></a>"
+        for key, href, label in NAV if key in ICONS)
     return (f"<!DOCTYPE html><html lang='en' data-theme='dark'><head><meta charset='utf-8'>"
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
             f"<title>{html.escape(title)} · Quantreyda</title>{THEME_HEAD}"
-            f"<style>{CSS}{front.CSS}{stockpage.CSS}{leaders.LB_CSS}{pictures.CSS}</style></head><body>"
+            f"<style>{CSS}{front.CSS}{stockpage.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}</style></head><body>"
             f"<header><div class='bar'><span class='logo'><i></i>Quantreyda</span>{nav}"
             f"<span class='sp'></span><span class='upd'>updated {updated}</span>"
             f"<button class='toggle' id='theme' type='button'>☀ Light</button></div></header>"
             f"<main>{body}</main><footer>Public filings only (STOCK Act disclosures, SEC Form 4 and "
             f"13F, USAspending). Research, not investment advice. Member portraits: public domain "
-            f"(@unitedstates); other photos: Wikimedia Commons.</footer>{THEME_JS}</body></html>")
+            f"(@unitedstates); other photos: Wikimedia Commons.</footer>"
+            f"<nav class='tabs'>{tabs}</nav>{THEME_JS}</body></html>")
 
 
 def md(text):
@@ -132,7 +160,7 @@ def trade_rows(con, today, days=DAYS):
                 who += f" ({front.OWNER.get(o, o)})"
             rows.append({"filed": str(filed), "traded": str(txn or ""), "tkr": tkr,
                          "src": "Senate" if ch == "S" else "House", "who": who, "side": side,
-                         "amt": digest._bracket(lo, hi), "lo": lo or 0, "what": asset or "",
+                         "amt": digest._bracket(lo, hi), "lo": lo or 0, "hi": hi, "what": asset or "",
                          "own": own, "last": ln, "first": fn})
     if signals.has_table(con, "insider_trades"):
         for r in con.execute("""
@@ -160,7 +188,7 @@ def trade_rows(con, today, days=DAYS):
             rows.append({"filed": str(filed), "traded": str(txn or ""), "tkr": tkr,
                          "src": whitehouse.group(title), "who": f"{name} ({title})",
                          "side": "buy" if tx == "Purchase" else "sell" if tx == "Sale" else "other",
-                         "amt": digest._bracket(lo, hi), "lo": lo or 0,
+                         "amt": digest._bracket(lo, hi), "lo": lo or 0, "hi": hi,
                          "what": (kind + ": " if kind != "stock" else "") + (desc or ""),
                          "own": "self", "slug": slug})
     rows.sort(key=lambda x: x["filed"], reverse=True)
@@ -263,6 +291,7 @@ function draw() {
 }
 [q, src, side, size, own].forEach(el => el.addEventListener('input', draw));
 const p = new URLSearchParams(location.search); if (p.get('q')) q.value = p.get('q');
+if (p.get('src')) src.value = p.get('src');
 draw();
 """
 
@@ -343,8 +372,20 @@ def build(con, today, out=OUT):
         with open(f"{out}/{stockpage.href(t)}", "w", encoding="utf-8") as f:
             f.write(page(t, "", body, updated, root="../"))
         built.append(t)
+    rows = trade_rows(con, today)
     with open(f"{out}/trades.html", "w", encoding="utf-8") as f:
-        f.write(trades_page(trade_rows(con, today), updated, built))
+        f.write(trades_page(rows, updated, built))
+    bt = json.loads(bt_json) if bt_json else {}
+    for name, title, make in (("congress", "Congress", lambda: sections.page_congress(con, rows, today, bt, set(built))),
+                              ("insiders", "Insiders", lambda: sections.page_insiders(con, rows, today, bt, set(built))),
+                              ("funds", "Funds", lambda: sections.page_funds(con, today, set(built)))):
+        try:
+            body = make()
+        except Exception as e:  # one section failing shouldn't take the site down
+            print(f"{name} page skipped ({type(e).__name__}: {e})")
+            body = f"<h1>{title}</h1><p>This page couldn't be built this run.</p>"
+        with open(f"{out}/{name}.html", "w", encoding="utf-8") as f:
+            f.write(page(title, name, body, updated))
     with open(f"{out}/leaders.html", "w", encoding="utf-8") as f:
         f.write(page("Leaderboard", "leaders", leaders.render(con, board, built), updated))
     open(f"{out}/.nojekyll", "w").close()
@@ -372,6 +413,10 @@ def selftest():
     assert "</script><b>x" not in tr, "data can't break out of the script tag"
     assert "watchlist" not in idx.lower() or "Your watchlist" not in idx
     assert "first check runs on sunday" in open(f"{out}/backtest.html", encoding="utf-8").read().lower()
+    cg = open(f"{out}/congress.html", encoding="utf-8").read()
+    assert "Congress trading" in cg and "class='tabs'" in cg and "href='congress.html' class='on'" in cg
+    assert "Insider trading" in open(f"{out}/insiders.html", encoding="utf-8").read()
+    assert "Funds" in open(f"{out}/funds.html", encoding="utf-8").read()
     print("dashboard selftest ok")
 
 
