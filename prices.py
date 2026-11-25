@@ -56,9 +56,15 @@ def fetch(con, tickers, start=datetime.date(2014, 1, 1), batch=50, refresh_days=
     """Make sure `prices` covers each ticker from `start` to about today."""
     ensure_tables(con)
     today = datetime.date.today()
-    fresh = {r[0] for r in con.execute(
-        "SELECT tkr FROM price_fetches WHERE fetched_on >= ?",
-        [today - datetime.timedelta(days=refresh_days)]).fetchall()}
+    # Fresh = fetched lately AND already reaching back to `start` (a quick
+    # 10-day top-up for the health check mustn't stop a 2-year chart fetch).
+    # A ticker fetched lately with no rows at all is delisted: also skip.
+    fresh = {r[0] for r in con.execute("""
+        SELECT f.tkr FROM price_fetches f
+        LEFT JOIN (SELECT tkr, min(d) AS first_d FROM prices GROUP BY tkr) p USING (tkr)
+        WHERE f.fetched_on >= ? AND (p.first_d IS NULL OR p.first_d <= ?)""",
+        [today - datetime.timedelta(days=refresh_days),
+         start + datetime.timedelta(days=10)]).fetchall()}
     todo = sorted({t.upper() for t in tickers} - fresh)
     for i in range(0, len(todo), batch):
         chunk = todo[i:i + batch]
@@ -74,7 +80,33 @@ def fetch(con, tickers, start=datetime.date(2014, 1, 1), batch=50, refresh_days=
         time.sleep(1)  # be gentle; Yahoo rate-limits bursts
 
 
+def selftest():
+    import pandas as pd
+    global _download
+    real, calls = _download, []
+
+    def fake(tickers, start):
+        calls.append((tuple(tickers), start))
+        idx = pd.bdate_range(start, periods=5)
+        return {t: pd.Series([1.0] * 5, index=idx) for t in tickers}
+    _download = fake
+    try:
+        con = duckdb.connect()
+        today = datetime.date.today()
+        fetch(con, ["AAA"], start=today - datetime.timedelta(days=10))  # health-style top-up
+        fetch(con, ["AAA"], start=today - datetime.timedelta(days=740))  # chart needs 2 years
+        assert len(calls) == 2, "a short top-up must not block a longer history fetch"
+        fetch(con, ["AAA"], start=today - datetime.timedelta(days=740))
+        assert len(calls) == 2, "already covered today: no refetch"
+    finally:
+        _download = real
+    print("prices selftest ok")
+
+
 if __name__ == "__main__":
+    if "--selftest" in sys.argv:
+        selftest()
+        sys.exit()
     c = duckdb.connect(DB_PATH)
     fetch(c, sys.argv[1:] or [BENCHMARK], refresh_days=0)
     print(c.execute("SELECT tkr, count(*), min(d), max(d) FROM prices GROUP BY 1").df())
