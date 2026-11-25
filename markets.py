@@ -170,12 +170,15 @@ def refresh(con):
     try:
         r = s.get(POLY_TRADES, params={"limit": 500, "takerOnly": "true", "filterType": "CASH",
                                        "filterAmount": BIG_BET}, timeout=60)
+        if r.status_code != 200:  # filters refused: take the latest trades, filter here
+            notes.append(f"big-bet filter HTTP {r.status_code}")
+            r = s.get(POLY_TRADES, params={"limit": 500}, timeout=60)
         r.raise_for_status()
         bets = parse_bets(r.json())
         con.executemany("INSERT OR REPLACE INTO pred_bets VALUES (?,?,?,?,?,?,?,?,?)", bets)
         con.execute("DELETE FROM pred_bets WHERE ts < ?", [now - datetime.timedelta(days=14)])
     except (requests.RequestException, ValueError) as e:
-        notes.append(f"big bets {type(e).__name__}")
+        notes.append(f"big bets {type(e).__name__} {getattr(e.response, 'status_code', '') or ''}".strip())
     print(f"prediction markets: {len(rows)} questions" + (f" ({'; '.join(notes)})" if notes else ""))
 
 
