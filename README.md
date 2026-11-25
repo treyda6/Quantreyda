@@ -190,6 +190,18 @@ The report explains each column. In short: a signal is only interesting if it
 beats SPY on average *and* typically *and* more than half the time, at 6 and 12
 months, over a decent number of examples.
 
+## On your phone
+
+The site works like an app on a phone: a tab bar along the bottom (Ideas,
+Congress, Insiders, Funds, Search). The Congress and Insiders pages show the
+most active people, a map of the largest recent trades (tiles sized by
+dollars, green for buys and red for sales; switch between single trades and
+totals per stock, over 7, 30 or 90 days), the latest trades, and a "copy
+them" portfolio from the weekly backtest charted against the S&P 500. The
+Funds page shows what the managers in `funds.txt` bought last quarter and
+the latest 13F filings from SEC's daily index. Add it to your home screen
+from the browser's share menu.
+
 ## Extra context (runs inside daily.py)
 
 - `python contracts.py --days 30`: federal contracts of $50M+ that just started,
