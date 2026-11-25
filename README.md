@@ -202,6 +202,14 @@ Funds page shows what the managers in `funds.txt` bought last quarter and
 the latest 13F filings from SEC's daily index. Add it to your home screen
 from the browser's share menu.
 
+## What bettors expect
+
+`python markets.py` pulls the most-traded open questions on Polymarket and
+Kalshi about the Fed, inflation, tariffs, shutdowns, elections, laws and big
+companies (free public data, no keys), plus recent $10k+ bets. They're on the
+"Odds" page, and a stock page shows any open question that names its company.
+Sports and crypto are left out.
+
 ## Extra context (runs inside daily.py)
 
 - `python contracts.py --days 30`: federal contracts of $50M+ that just started,
