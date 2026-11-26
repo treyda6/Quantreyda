@@ -285,7 +285,7 @@ function draw() {
     const tag = r.src + (r.party ? ' / ' + r.party : '');
     const xs = r.xs === null || r.xs === undefined ? '<span class="mut">—</span>'
              : `<span class="${r.xs >= 0 ? 'up' : 'down'}">${r.xs >= 0 ? '+' : ''}${(r.xs * 100).toFixed(1)}%</span>`;
-    const stock = PAGES.includes(r.tkr) ? `<a href="s/${encodeURIComponent(r.tkr)}.html"><b>${esc(r.tkr)}</b></a>` : `<b>${esc(r.tkr)}</b>`;
+    const stock = PAGES[r.tkr] ? `<a href="s/${PAGES[r.tkr]}.html"><b>${esc(r.tkr)}</b></a>` : `<b>${esc(r.tkr)}</b>`;
     return `<tr><td><div class="pic">${lg}<div class="t">${stock}<small>${esc(r.what).slice(0, 40)}</small></div></div></td>
     <td class="${r.side}">${r.side}<small class="mut" style="display:block">${esc(r.amt)}</small></td>
     <td><div class="pic">${face}<div class="t">${esc(r.who)}${r.own === 'family' ? ' <span class="fam">family</span>' : ''}<small>${esc(tag)}</small></div></div></td>
@@ -301,7 +301,7 @@ draw();
 def trades_page(rows, updated, built=()):
     # "</" is escaped so no data string can close the script tag early
     data = json.dumps(rows).replace("</", "<\\/")
-    pages = json.dumps(sorted(built)).replace("</", "<\\/")
+    pages = json.dumps({t: stockpage.slug(t) for t in sorted(built)}).replace("</", "<\\/")
     body = (f"<h1>All trades, last {DAYS} days</h1>"
             "<p class='mut'>Every disclosed congressional, White House and cabinet trade and "
             "insider open-market buy or sale with a ticker. <span class='fam'>family</span> marks "
@@ -362,7 +362,14 @@ def build(con, today, out=OUT):
                 "an S&P 500 index fund.</p></div>")
     with open(f"{out}/backtest.html", "w", encoding="utf-8") as f:
         f.write(page("Did it work?", "backtest", body, updated))
+    rows = trade_rows(con, today)
+    # Every ticker on the all-trades page gets a page, so every one is
+    # clickable. The picked ones (ideas, most bought) get the full research;
+    # the rest show what's on file and fill in as data arrives.
     pages = stockpage.pick(con, today, idea_tickers)
+    picked = set(pages)
+    pages += [t for t in dict.fromkeys(r.get("tkr") for r in rows)
+              if t and t not in picked and stockpage.VALID.fullmatch(t)]
     os.makedirs(f"{out}/s", exist_ok=True)
     built = []
     for t in pages:
@@ -374,7 +381,6 @@ def build(con, today, out=OUT):
         with open(f"{out}/{stockpage.href(t)}", "w", encoding="utf-8") as f:
             f.write(page(t, "", body, updated, root="../"))
         built.append(t)
-    rows = trade_rows(con, today)
     with open(f"{out}/trades.html", "w", encoding="utf-8") as f:
         f.write(trades_page(rows, updated, built))
     bt = json.loads(bt_json) if bt_json else {}

@@ -29,7 +29,8 @@ import secextras
 import today as front
 
 E = html.escape
-MAX_PAGES = 300
+MAX_PAGES = 300  # full-research pages; every other traded ticker gets a basic one
+VALID = re.compile(r"[A-Z][A-Z0-9.\-/]{0,7}")
 
 CSS = """
 .sh{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
@@ -80,7 +81,7 @@ def pick(con, today, idea_tickers):
                    GROUP BY 1 HAVING sum(shares * price_per_share) >= 100000
                    ORDER BY 2 DESC LIMIT 150"""):
         for t, _ in profiles._all(con, sql, [start, today]):
-            if t and t not in out and re.fullmatch(r"[A-Z][A-Z0-9.\-/]{0,7}", t):
+            if t and t not in out and VALID.fullmatch(t):
                 out.append(t)
     return out[:MAX_PAGES]
 
@@ -208,7 +209,7 @@ def explain(tkr, pr, h, marks, sells, records, flags, news_rows, stakes=(), ci=N
     qa = []
     name = pr.get("name") or (h or {}).get("company") or tkr
     sector = (pr.get("sector") or "").lower()
-    s = f"<b>{E(name)}</b> ({E(tkr)})"
+    s = f"<b>{E(name)}</b> ({E(tkr)})" if name != tkr else f"<b>{E(tkr)}</b>"
     s += f" is in the <b>{E(sector)}</b> business." if sector else " is a publicly traded company."
     size = _size(pr.get("revenue"))
     if size:
