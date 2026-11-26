@@ -185,7 +185,8 @@ def refresh(con, names, today=None):
             FROM members m JOIN trades t ON t.chamber = m.chamber
               AND lower(trim(t.last_name)) = lower(m.last)
             WHERE t.filed_date >= ?""", [today - datetime.timedelta(days=365)]).fetchall()
-    except Exception:  # rosters not loaded yet
+    except Exception as e:  # rosters not loaded yet
+        print(f"  members: {type(e).__name__}: {e}")
         members = []
     have = dict(con.execute("SELECT bioguide, checked_on FROM fec_member").fetchall())
     due = sorted((m for m in members if m[0] not in have or (today - have[m[0]]).days >= EVERY),

@@ -153,7 +153,8 @@ def refresh_rosters(con, force=False):
     ensure_tables(con)
     today = datetime.date.today()
     last = con.execute("SELECT max(fetched_on) FROM committee_members").fetchone()[0]
-    if not force and last and (today - last).days < ROSTER_DAYS:
+    have_members = con.execute("SELECT count(*) FROM members").fetchone()[0]
+    if not force and last and (today - last).days < ROSTER_DAYS and have_members:
         return
     import yaml
     get = lambda name: yaml.safe_load(requests.get(RAW.format(name), timeout=60).text)
