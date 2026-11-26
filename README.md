@@ -45,6 +45,12 @@ at **https://treyda6.github.io/Quantreyda/** with three pages: today's digest,
 a searchable list of every trade from the last 180 days, and the backtest.
 Nothing needs to run on your computer.
 
+The site also hosts **The Advisor Track**, a self-study investing course, at
+**https://treyda6.github.io/Quantreyda/course/**. Its files live in
+[`course/`](course/), and the workflow copies them into the site on every run.
+On a phone, open that link and use "Add to Home Screen" to get an app icon; it
+works offline after the first visit.
+
 One-time setup in the repo's **Settings**:
 
 1. **Pages** → Build and deployment → Source: **GitHub Actions**.
