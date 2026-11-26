@@ -144,6 +144,9 @@ def main():
     pages = stockpage.pick(con, today, digest.digest_tickers(con, today, 14))
     for label, step in (("prices", lambda: prices.fetch(con, set(pages) | {prices.BENCHMARK},
                                                          start=today - datetime.timedelta(days=740))),
+                        ("prices for the other traded stocks",  # charts on the basic pages
+                         lambda: prices.fetch(con, set(recent_tickers(con, today)) - set(pages),
+                                              start=today - datetime.timedelta(days=740), minutes=10)),
                         ("industry codes", lambda: committees.refresh_companies(con, pages)),
                         ("health", lambda: health.refresh(con, pages)),
                         ("news", lambda: news.refresh(con, pages)),

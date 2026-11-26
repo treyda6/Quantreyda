@@ -36,7 +36,8 @@ PORTRAIT_URLS = ["https://raw.githubusercontent.com/unitedstates/images/gh-pages
                  "https://unitedstates.github.io/images/congress/225x275/{bioguide}.jpg"]
 WIKI_SUMMARY = "https://en.wikipedia.org/api/rest_v1/page/summary/{title}"
 RETRY_DAYS = 30          # try again for a missing picture after this long
-PER_RUN = 400            # downloads per run, at most
+PER_RUN = 2000           # downloads per run, at most
+MINUTES = 12             # ...and stop after this long; the rest come next run
 MAX_BYTES = 400_000
 HAVE = {}   # key -> file name; filled by write(), read by the html helpers
 EXT = {"image/png": "png", "image/jpeg": "jpg", "image/jpg": "jpg", "image/webp": "webp",
@@ -109,8 +110,10 @@ def fetch_official(s, name):
 
 
 def wanted(con, tickers):
-    """[(key, kind, arg)] for everything the site could show a picture for."""
-    out = [(logo_key(t), "logo", t) for t in sorted(set(tickers)) if t]
+    """[(key, kind, arg)] for everything the site could show a picture for:
+    people first (a few hundred), then logos in the order given (most traded
+    first), so the pictures people see most arrive first."""
+    out = []
     try:
         out += [(member_key(b), "member", b) for (b,) in con.execute(
             "SELECT bioguide FROM members WHERE bioguide IS NOT NULL").fetchall()]
@@ -123,6 +126,7 @@ def wanted(con, tickers):
         pass
     import funds
     out += [(fund_key(cik), "official", person) for cik, (_, person) in funds.managers().items() if person]
+    out += [(logo_key(t), "logo", t) for t in dict.fromkeys(tickers) if t]
     return out
 
 
@@ -134,14 +138,18 @@ def refresh(con, tickers, today=None):
     todo = [w for w in wanted(con, tickers) if w[0] not in have][:PER_RUN]
     s = requests.Session()
     s.headers["User-Agent"] = companyintel.UA
-    got = 0
+    got, n, stop = 0, 0, time.monotonic() + MINUTES * 60
     for key, kind, arg in todo:
+        if time.monotonic() > stop:
+            break
+        n += 1
         pic = (fetch_logo(s, arg) if kind == "logo" else
                fetch_member(s, arg) if kind == "member" else fetch_official(s, arg))
         con.execute("INSERT OR REPLACE INTO pictures VALUES (?, ?, ?, ?)",
                     [key, today, pic and pic[0], pic and pic[1]])
         got += bool(pic)
-    print(f"pictures: tried {len(todo)}, found {got}")
+    left = len(todo) - n
+    print(f"pictures: tried {n}, found {got}" + (f"; {left} left for next run" if left else ""))
 
 
 def write(con, out):
@@ -241,7 +249,9 @@ def selftest():
     con.execute("CREATE TABLE members (bioguide VARCHAR)")
     con.execute("INSERT INTO members VALUES ('A1'), ('B2')")
     keys = [k for k, _, _ in wanted(con, ["AAA", "BBB"])]
-    assert keys[:4] == ["l-AAA", "l-BBB", "c-A1", "c-B2"] and "f-1067983" in keys, keys
+    assert keys[:2] == ["c-A1", "c-B2"] and "f-1067983" in keys, keys
+    assert keys[-2:] == ["l-AAA", "l-BBB"], "logos come last, in the order given"
+    assert [k for k, _, _ in wanted(con, ["ZZZ", "AAA", "ZZZ"])][-2:] == ["l-ZZZ", "l-AAA"]
     HAVE.clear()
     print("pictures selftest ok")
 
