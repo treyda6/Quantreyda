@@ -22,6 +22,7 @@ script with three print-heavy steps already.
 
 import datetime
 import os
+import time
 import traceback
 import sys
 
@@ -92,22 +93,35 @@ def house_years(today=None):
     return [y - 1, y]
 
 
+_T0 = [None, None]  # (label, start) of the section running now
+
+
+def section(label):
+    """Print a section header, and how long the previous section took."""
+    now = time.monotonic()
+    if _T0[0]:
+        print(f"    ({_T0[0]}: {(now - _T0[1]) / 60:.1f} min)")
+    _T0[:] = [label, now]
+    if label:
+        print(f"\n--- {label} ---")
+
+
 def main():
     print(f"=== Quantreyda daily run: {datetime.datetime.now()} ===")
 
-    print("\n--- Senate ---")
+    section("Senate")
     scrape_senate.main(max_minutes=20)
 
     years = house_years()
-    print(f"\n--- House {years} ---")
+    section(f"House {years}")
     scrape_house.main(years)
 
-    print("\n--- Resolve entities ---")
+    section("Resolve entities")
     entities.main()
 
     # Form 4 needs SEC_CONTACT_EMAIL; skip (don't crash) without it so the
     # congress half still runs on a fresh checkout.
-    print("\n--- Insider trades (Form 4, last 7 days) ---")
+    section("Insider trades (Form 4, last 7 days)")
     try:
         scrape_insiders.main_live(days=7)
     except SystemExit as e:
@@ -121,7 +135,7 @@ def main():
                         ("Activist 5%+ stakes (13D/13G)", lambda: activists.refresh(_con())),
                         ("Bills moving in Congress", lambda: bills.refresh(_con())),
                         ("Prediction markets (Polymarket, Kalshi)", lambda: markets.refresh(_con()))):
-        print(f"\n--- {label} ---")
+        section(f"{label}")
         try:
             step()
         except SystemExit as e:
@@ -129,16 +143,16 @@ def main():
         except Exception as e:
             print(f"skipped ({type(e).__name__}: {e}{_where(e)})")
 
-    print("\n--- Digest ---")
+    section("Digest")
     digest.main(days=7)
 
-    print("\n--- Watchlist alerts ---")
+    section("Watchlist alerts")
     alerts.main()
 
     # Stock pages: two years of prices, a health check and the latest SEC
     # filings ("news") for every stock that gets a page. All free; each step
     # caches, so after the first day this only fetches what's new.
-    print("\n--- Stock pages: prices, health, news ---")
+    section("Stock pages: prices, health, news")
     con = _con()
     today = datetime.date.today()
     pages = stockpage.pick(con, today, digest.digest_tickers(con, today, 14))
@@ -158,13 +172,17 @@ def main():
                         ("new risk factors (10-K)", lambda: secextras.refresh_risks(con, pages)),
                         ("logos and portraits",
                          lambda: pictures.refresh(con, list(pages) + recent_tickers(con, today)))):
+        t0 = time.monotonic()
         try:
             step()
         except SystemExit as e:
             print(f"{label} skipped: {e}")
         except Exception as e:
             print(f"{label} skipped ({type(e).__name__}: {e}{_where(e)})")
+        print(f"    ({label}: {(time.monotonic() - t0) / 60:.1f} min)")
     con.close()
+    section(None)
+
 
 def selftest():
     assert house_years(datetime.date(2026, 1, 15)) == [2025, 2026]
