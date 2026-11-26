@@ -1,6 +1,6 @@
 // Keeps the course working offline once it has been opened.
 // Pages load from the network when online (so updates show up), and from the cache when offline.
-const CACHE = "advisor-track-v1";
+const CACHE = "advisor-track-v2";
 const FILES = ["./", "index.html", "manifest.webmanifest", "icon-180.png", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", (e) => {

@@ -143,6 +143,42 @@ button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .pager a { color: var(--accent); text-decoration: none; font-weight: 600; padding: 8px 0; }
 .pager a:hover { text-decoration: underline; }
 a { color: var(--accent); }
+/* glossary + flash cards */
+.tools { display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap; }
+.tools a { flex: 1 1 0; text-align: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); text-decoration: none; font-size: 0.9rem; font-weight: 600; background: var(--paper); }
+.tools a:hover { border-color: var(--accent); }
+.tools a.on { background: var(--accent); color: var(--paper); border-color: var(--accent); }
+.tools a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.tool-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 8px 0 6px; font-family: var(--display); }
+.tool-bar input[type=search], .tool-bar select { font: inherit; font-size: 0.95rem; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); min-width: 0; }
+.tool-bar input[type=search] { flex: 1 1 240px; }
+.tool-bar input:focus-visible, .tool-bar select:focus-visible { outline: 2px solid var(--accent); }
+.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 0.92rem; color: var(--muted); cursor: pointer; }
+.chk input { accent-color: var(--accent); }
+h2.gl-letter { font-family: var(--mono); font-size: 0.95rem; color: var(--accent); margin: 26px 0 4px; padding-bottom: 4px; border-bottom: 1px solid var(--line); }
+dl.gl { margin: 0; }
+.gl-row { display: grid; grid-template-columns: minmax(140px, 220px) minmax(0, 1fr); gap: 4px 18px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.gl-row dt { font-family: var(--display); font-weight: 600; }
+.gl-row dd { margin: 0; max-width: 62ch; }
+.gl-link { font-family: var(--mono); font-size: 0.75rem; white-space: nowrap; margin-left: 4px; }
+@media (max-width: 560px) { .gl-row { grid-template-columns: minmax(0, 1fr); } }
+.fc-wrap { display: flex; flex-direction: column; align-items: stretch; gap: 12px; margin-top: 18px; max-width: 620px; }
+.fc-card { all: unset; box-sizing: border-box; cursor: pointer; min-height: 240px; padding: 28px 26px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); display: flex; flex-direction: column; justify-content: center; gap: 12px; text-align: center; transition: background .2s, border-color .2s; }
+.fc-card:hover { border-color: var(--accent); }
+.fc-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fc-card.flipped { background: var(--accent-soft); border-color: var(--accent); }
+.fc-side { font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+.fc-text { font-family: var(--body); font-size: 1.15rem; line-height: 1.5; color: var(--ink); }
+.fc-card:not(.flipped) .fc-text { font-family: var(--display); font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
+.fc-card.flipped .fc-text { font-size: 1.1rem; }
+.fc-hint { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); }
+.fc-count { font-family: var(--mono); font-size: 0.85rem; color: var(--muted); text-align: center; }
+.fc-btns { justify-content: center; margin-top: 0; }
+.fc-keys { text-align: center; margin: 0; }
+.fc-reset { text-align: center; margin: 0; }
+.fc-reset button { font-size: 0.8rem; padding: 6px 12px; }
+button:disabled { opacity: 0.45; cursor: default; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -154,6 +190,7 @@ a { color: var(--accent); }
     <div class="brand"><b>The Advisor Track</b><span>Beginner to financial-advisor knowledge</span></div>
     <div class="meter" aria-hidden="true"><i id="meterBar"></i></div>
     <div class="meter-label" id="meterLabel">0 of 0 lessons complete</div>
+    <div class="tools" id="tools"><a href="#glossary" id="tGloss">Glossary</a><a href="#flashcards" id="tCards">Flash cards</a></div>
     <details class="toc" id="toc" open>
       <summary><span>All lessons</span><span id="tocCur"></span></summary>
       <nav id="nav"></nav>
@@ -2152,6 +2189,207 @@ const LESSONS = [
 
 ];
 
+
+/* ---------- glossary: [term, definition, lesson id] ---------- */
+const GLOSSARY = [
+["Emergency fund", "Cash set aside for job loss or surprise bills, usually 3 to 6 months of essential expenses, kept in savings rather than stocks.", "1-1"],
+["Employer match", "Money an employer adds to your 401(k) when you contribute, such as 100% of the first 4% of pay. An instant, guaranteed return.", "1-1"],
+["Time horizon", "How long until you need the money. The most important input in choosing investments.", "1-1"],
+["Risk capacity", "How much loss your finances can actually absorb, based on income, savings, and time horizon.", "1-1"],
+["Risk tolerance", "How much loss you can emotionally handle without panicking. Also called risk willingness.", "1-1"],
+["Compounding", "Earning returns on your past returns, so growth accelerates over time.", "1-2"],
+["Rule of 72", "72 divided by the annual return gives the approximate years for money to double.", "1-2"],
+["Real return", "Return after inflation. Roughly the nominal return minus the inflation rate.", "1-2"],
+["Expense ratio", "A fund's annual fee as a percentage of your balance, taken out automatically.", "1-5"],
+["Roth IRA", "A retirement account funded with after-tax money. Growth and qualified withdrawals are tax-free; no required minimum distributions for the owner.", "1-3"],
+["Traditional IRA", "A retirement account where contributions may be tax-deductible, growth is tax-deferred, and withdrawals are taxed as income.", "1-3"],
+["Qualified distribution", "A Roth IRA withdrawal of earnings that's tax-free because the owner is at least 59½ and the account has met the 5-year rule.", "1-3"],
+["5-year rule", "Roth IRA earnings are only tax-free if 5 years have passed since your first Roth contribution (and you're 59½ or older).", "1-3"],
+["Required minimum distribution (RMD)", "The minimum the IRS makes you withdraw yearly from tax-deferred accounts, starting at age 73 (75 for those born 1960 or later).", "1-3"],
+["401(k)", "An employer retirement plan with higher contribution limits than an IRA; may offer traditional and Roth versions.", "1-3"],
+["SEP IRA", "A retirement plan for self-employed people and small businesses, funded by employer contributions up to 25% of pay.", "1-3"],
+["Solo 401(k)", "A 401(k) for a business owner with no employees besides a spouse; lets you contribute as both employee and employer.", "1-3"],
+["SIMPLE IRA", "A retirement plan for businesses with up to 100 employees, with required employer contributions and lower limits.", "1-3"],
+["Direct rollover", "Moving retirement money straight from one plan to another, trustee to trustee, with no taxes withheld.", "1-3"],
+["Indirect rollover", "Taking a check from a plan and redepositing it within 60 days; 20% is withheld from 401(k) payouts.", "1-3"],
+["Cost basis", "What you paid for an investment, including commissions. Used to figure your gain or loss.", "1-4"],
+["Capital gain", "Profit from selling an investment for more than its cost basis.", "1-4"],
+["Short-term capital gain", "Gain on an asset held one year or less, taxed at ordinary income rates.", "1-4"],
+["Long-term capital gain", "Gain on an asset held more than one year, taxed at 0%, 15%, or 20%.", "1-4"],
+["Qualified dividend", "A dividend that meets holding-period rules and is taxed at long-term capital gains rates.", "1-4"],
+["Tax-loss harvesting", "Selling investments at a loss to offset gains and up to $3,000 of ordinary income a year.", "1-4"],
+["Wash sale", "Buying the same or substantially identical security within 30 days before or after selling it at a loss. The loss is disallowed for now.", "1-4"],
+["Asset location", "Placing tax-inefficient investments in tax-advantaged accounts and tax-efficient ones in taxable accounts.", "1-4"],
+["Common stock", "Ownership in a company with voting rights and a claim on what's left after everyone else is paid.", "1-5"],
+["Preferred stock", "Stock that pays a fixed dividend and gets paid before common stock, usually without voting rights.", "1-5"],
+["Market capitalization", "Share price times shares outstanding: the stock market's value of a company.", "1-5"],
+["Dividend", "A cash payment from a company's profits to shareholders.", "1-5"],
+["Bond", "A loan to a government or company that pays interest and returns face value at maturity.", "1-5"],
+["Coupon", "A bond's fixed annual interest rate, applied to its par value.", "1-5"],
+["Par value", "A bond's face value, usually $1,000, repaid at maturity.", "3-2"],
+["Maturity", "The date a bond's principal is repaid.", "1-5"],
+["Investment grade", "Bonds rated BBB- (or Baa3) or better, considered lower default risk.", "1-5"],
+["High-yield bond", "A bond rated below investment grade; pays more because default risk is higher. Also called junk bond.", "1-5"],
+["Mutual fund", "A pooled portfolio bought and sold once a day at net asset value.", "1-5"],
+["Net asset value (NAV)", "A mutual fund's value per share, calculated once a day after the close.", "1-5"],
+["Index fund", "A fund that holds everything in an index, such as the S&P 500, at very low cost.", "1-5"],
+["ETF", "Exchange-traded fund: a pooled portfolio that trades on an exchange all day like a stock.", "1-5"],
+["Sales load", "A commission charged when buying (front-end, A shares) or selling (back-end) certain mutual funds.", "1-5"],
+["Breakpoint", "An investment amount at which a mutual fund's sales charge drops.", "5-3"],
+["Letter of intent", "A promise to invest enough within 13 months to reach a mutual fund breakpoint, getting the lower charge now.", "5-3"],
+["Rights of accumulation", "Counting existing fund holdings toward reaching a breakpoint on new purchases.", "5-3"],
+["REIT", "Real estate investment trust: a company owning real estate that must pay out most income as dividends.", "1-5"],
+["Bid", "The highest price a buyer is offering right now.", "1-6"],
+["Ask", "The lowest price a seller will accept right now. Also called the offer.", "1-6"],
+["Spread", "The gap between the bid and ask; a hidden trading cost.", "1-6"],
+["Market order", "An order to buy or sell immediately at the best available price.", "1-6"],
+["Limit order", "An order to buy at or below, or sell at or above, a set price. May not fill.", "1-6"],
+["Stop order", "An order that becomes a market order once a set price is hit; used to limit losses.", "1-6"],
+["Settlement (T+1)", "The exchange of cash and shares, one business day after a U.S. stock trade.", "1-6"],
+["SIPC", "Protects customers up to $500,000 (including $250,000 cash) if a brokerage fails. Doesn't cover market losses.", "1-6"],
+["Margin", "Borrowing from your broker to buy securities, which magnifies gains and losses.", "1-6"],
+["Short selling", "Borrowing shares to sell now and buy back later, profiting if the price falls.", "1-6"],
+["SEC", "Securities and Exchange Commission: the federal securities regulator that runs EDGAR.", "1-6"],
+["FINRA", "The self-regulatory organization overseeing broker-dealers and their reps; runs the SIE and Series 7.", "1-6"],
+["NASAA", "North American Securities Administrators Association: state regulators who write the Series 63, 65, and 66.", "5-1"],
+["Revenue", "Total sales in a period. The top line.", "2-1"],
+["Gross margin", "Gross profit (revenue minus cost of goods sold) divided by revenue.", "2-1"],
+["Operating income (EBIT)", "Profit from running the business, before interest and taxes.", "2-1"],
+["Operating margin", "Operating income divided by revenue.", "2-1"],
+["Net income", "Profit left after all expenses, interest, and taxes. The bottom line.", "2-1"],
+["EPS", "Earnings per share: net income divided by shares outstanding. Use diluted EPS.", "2-1"],
+["EBITDA", "Earnings before interest, taxes, depreciation, and amortization.", "2-1"],
+["Non-GAAP", "'Adjusted' figures that don't follow standard accounting rules. Compare to GAAP numbers.", "2-1"],
+["Dilution", "Your ownership share shrinking as a company issues more shares.", "2-1"],
+["Balance sheet", "A snapshot of what a company owns and owes: assets = liabilities + equity.", "2-2"],
+["Shareholders' equity", "Assets minus liabilities. Also called book value.", "2-2"],
+["Goodwill", "The premium paid for acquisitions above the target's book value.", "2-2"],
+["Current ratio", "Current assets divided by current liabilities; a measure of short-term liquidity.", "2-2"],
+["Debt-to-equity", "Total debt divided by shareholders' equity; a measure of leverage.", "2-2"],
+["Return on equity (ROE)", "Net income divided by shareholders' equity.", "2-2"],
+["Cash from operations", "Cash a business actually generated from its operations in a period.", "2-2"],
+["Capital expenditures (capex)", "Money spent on equipment, buildings, and other long-term assets.", "2-2"],
+["Free cash flow", "Cash from operations minus capital expenditures. Cash available for owners.", "2-2"],
+["10-K", "A company's audited annual report filed with the SEC.", "2-3"],
+["10-Q", "A company's unaudited quarterly report.", "2-3"],
+["8-K", "A report of major events, filed within 4 business days.", "2-3"],
+["Proxy statement (DEF 14A)", "Filing before the annual meeting showing executive pay, board members, and votes.", "2-3"],
+["13D / 13G", "Filings for owners of more than 5% of a company: 13D for activists, 13G for passive holders.", "2-3"],
+["MD&A", "Management's Discussion and Analysis: Item 7 of a 10-K, where management explains results.", "2-3"],
+["EDGAR", "The SEC's free online database of every public filing.", "2-3"],
+["P/E ratio", "Share price divided by earnings per share.", "2-4"],
+["Enterprise value (EV)", "Market cap plus debt minus cash: the price of the whole business.", "2-4"],
+["EV/EBITDA", "Enterprise value divided by EBITDA; compares companies with different debt levels.", "2-4"],
+["FCF yield", "Free cash flow divided by market cap.", "2-4"],
+["Discounted cash flow (DCF)", "Valuing a business as the present value of its future free cash flows.", "2-4"],
+["Discount rate", "The return you require for the risk; used to convert future cash to today's value.", "2-4"],
+["Terminal value", "In a DCF, the value of all cash flows beyond the forecast period; usually most of the total.", "2-4"],
+["Margin of safety", "Buying well below your estimate of value so errors don't sink you.", "2-4"],
+["Moat", "A durable competitive advantage that protects a company's profits.", "2-5"],
+["Switching costs", "The pain or expense customers face to change providers; a type of moat.", "2-5"],
+["Network effect", "When a product gets more valuable as more people use it; a type of moat.", "2-5"],
+["ROIC", "Return on invested capital: after-tax operating income divided by debt plus equity minus cash.", "2-5"],
+["Capital allocation", "How management uses cash: reinvest, acquire, pay dividends, buy back stock, or pay down debt.", "2-5"],
+["Share buyback", "A company repurchasing its own shares, increasing each remaining owner's stake.", "2-5"],
+["Standard deviation", "A measure of how much returns vary around their average; a common risk measure.", "3-1"],
+["Systematic risk", "Market-wide risk that can't be diversified away.", "3-1"],
+["Unsystematic risk", "Risk specific to one company or industry; can be diversified away.", "3-1"],
+["Correlation", "How closely two investments move together, from +1 to −1.", "3-1"],
+["Beta", "How much a stock tends to move relative to the market. 1.0 moves with it.", "3-1"],
+["Sharpe ratio", "Return above the risk-free rate divided by standard deviation: return per unit of risk.", "3-1"],
+["Efficient frontier", "The set of portfolios giving the highest expected return for each level of risk.", "3-1"],
+["Drawdown", "The fall from a portfolio's peak to its low.", "3-1"],
+["Sequence-of-returns risk", "The danger of a market drop right before or early in retirement withdrawals.", "3-1"],
+["Asset allocation", "How a portfolio is split between stocks, bonds, and cash.", "3-2"],
+["Current yield", "A bond's annual coupon divided by its current price.", "3-2"],
+["Yield to maturity (YTM)", "A bond's total return if held to maturity, including gain or loss back to par.", "3-2"],
+["Duration", "A bond's price sensitivity to interest rates; roughly the % price change for a 1% rate move.", "3-2"],
+["Premium bond", "A bond trading above par. Coupon > current yield > YTM.", "3-2"],
+["Discount bond", "A bond trading below par. Coupon < current yield < YTM.", "3-2"],
+["Rebalancing", "Selling what grew and buying what lagged to return to a target allocation.", "3-2"],
+["Annuity", "An insurance contract that can turn savings into a stream of payments, sometimes for life.", "3-2"],
+["Target-date fund", "A fund that shifts from stocks to bonds automatically as a target year approaches.", "3-2"],
+["Loss aversion", "Feeling losses about twice as strongly as equal gains.", "3-3"],
+["Anchoring", "Fixating on a reference number, like your purchase price.", "3-3"],
+["Confirmation bias", "Seeking only information that supports what you already believe.", "3-3"],
+["Disposition effect", "Selling winners too soon and holding losers too long.", "3-3"],
+["Behavior gap", "The return investors lose by buying high and selling low compared to the funds they own.", "3-3"],
+["Core and satellite", "A portfolio with an index-fund core and a smaller set of individual picks.", "3-4"],
+["Investment policy statement (IPS)", "A written set of goals, allocation, limits, and rules for managing a portfolio.", "3-4"],
+["Insider", "An officer, director, or owner of more than 10% of a company's stock.", "4-1"],
+["Form 4", "Filing reporting an insider's trade, due within 2 business days.", "4-1"],
+["Code P", "Form 4 code for an open-market or private purchase: the strongest insider signal.", "4-1"],
+["10b5-1 plan", "A pre-scheduled trading plan that protects insiders; trades under it carry less information.", "4-1"],
+["Short-swing profit rule", "Section 16(b): insiders must return profits from buying and selling within 6 months.", "4-1"],
+["Cluster buying", "Several insiders buying the same company's stock within a short period.", "4-1"],
+["STOCK Act", "2012 law requiring members of Congress to report trades within 45 days, in dollar ranges.", "4-2"],
+["Periodic Transaction Report (PTR)", "The form members of Congress file to report individual trades.", "4-2"],
+["13F", "Quarterly holdings report from managers with $100M+, due 45 days after quarter end. Long positions only.", "4-3"],
+["Backtest", "Testing how a strategy would have performed on past data.", "4-4"],
+["Look-ahead bias", "Using information in a backtest that wasn't available at the time.", "4-4"],
+["Survivorship bias", "Testing only companies that still exist, ignoring ones that failed.", "4-4"],
+["Overfitting", "Tweaking rules until they fit past data perfectly, so they fail going forward.", "4-4"],
+["Material non-public information (MNPI)", "Important information not yet public. Trading on it in breach of duty is insider trading.", "4-5"],
+["Tipper / tippee", "The person who passes inside information, and the person who trades on it. Both can be liable.", "4-5"],
+["Investment adviser", "Someone in the business of giving securities advice for pay; must generally register.", "4-5"],
+["Front running", "Trading ahead of a client's order for your own benefit. Prohibited.", "4-5"],
+["Outside business activity", "Paid work outside your firm, which you must report to the firm (FINRA Rule 3270).", "4-5"],
+["SIE", "Securities Industry Essentials exam. The only FINRA exam you can take without a sponsor.", "5-1"],
+["Series 7", "FINRA exam to sell nearly all securities as a registered representative. Requires a sponsor.", "5-1"],
+["Series 63", "NASAA exam for state registration as a securities agent.", "5-1"],
+["Series 65", "NASAA exam to give fee-based advice as an investment adviser representative.", "5-1"],
+["Series 66", "NASAA exam combining the 63 and 65; requires the Series 7.", "5-1"],
+["Registered representative", "A licensed broker who works for a broker-dealer.", "5-1"],
+["Investment adviser representative (IAR)", "An individual who gives advice or manages accounts for an investment adviser.", "5-1"],
+["Dual registration", "Being registered as both a rep and an IAR, so you can earn commissions and fees.", "5-1"],
+["BrokerCheck", "FINRA's free public database of advisors' licenses and disciplinary records.", "5-1"],
+["Primary market", "Where new securities are sold to investors for the first time, as in an IPO.", "5-2"],
+["Secondary market", "Where investors trade existing securities with each other.", "5-2"],
+["Prospectus", "The disclosure document required for a new securities offering.", "5-2"],
+["JTWROS", "Joint tenants with right of survivorship: a joint account that passes to the surviving owner.", "5-2"],
+["Churning", "Excessive trading in a client's account to generate commissions. Prohibited.", "5-2"],
+["Selling away", "Selling investments not approved by your firm. Prohibited.", "5-2"],
+["Layering", "The money laundering stage of moving funds around to hide their source.", "5-2"],
+["Suspicious Activity Report (SAR)", "A confidential report firms file on suspicious transactions, generally $5,000 or more.", "5-2"],
+["Currency Transaction Report (CTR)", "A report firms file for cash transactions over $10,000 in a day.", "5-2"],
+["Regulation T", "Federal Reserve rule setting 50% initial margin on stock purchases.", "5-2"],
+["Call option", "The right to buy a stock at the strike price until expiration.", "5-3"],
+["Put option", "The right to sell a stock at the strike price until expiration.", "5-3"],
+["Strike price", "The price at which an option can be exercised.", "5-3"],
+["Premium (option)", "The price paid for an option: intrinsic value plus time value.", "5-3"],
+["Covered call", "Owning 100 shares and selling a call on them for income, capping upside.", "5-3"],
+["Protective put", "Owning shares and buying a put as insurance against a drop.", "5-3"],
+["General obligation bond", "A municipal bond backed by the issuer's taxing power.", "5-3"],
+["Revenue bond", "A municipal bond repaid from a specific project's income.", "5-3"],
+["Tax-equivalent yield", "Muni yield divided by (1 − tax bracket): the taxable yield needed to match it.", "5-3"],
+["Maintenance margin", "The minimum equity in a margin account: 25% for long stock under FINRA rules.", "5-3"],
+["Uniform Securities Act", "The model law most state securities laws are based on.", "5-4"],
+["Federal covered adviser", "An investment adviser registered with the SEC (generally $110M+ under management).", "5-4"],
+["De minimis exemption", "An adviser with no office in a state and 5 or fewer retail clients there needn't register there.", "5-4"],
+["Fiduciary duty", "An adviser's duty of care and loyalty, putting the client's interest first.", "5-4"],
+["Form ADV Part 2", "An adviser's brochure describing services, fees, and conflicts, delivered to clients.", "5-4"],
+["Term life insurance", "Pays a death benefit only if you die during the term. Cheapest coverage.", "5-5"],
+["Whole life insurance", "Permanent coverage with fixed premiums and guaranteed cash value.", "5-5"],
+["1035 exchange", "A tax-free swap of one annuity or life policy for another.", "5-5"],
+["Surrender charge", "A fee for withdrawing from an annuity early, usually declining over several years.", "5-5"],
+["CFP", "CERTIFIED FINANCIAL PLANNER: a credential requiring education, exam, experience, and ethics.", "5-5"],
+["Regulation Best Interest", "SEC rule requiring broker-dealers to act in retail customers' best interest when recommending.", "6-1"],
+["Form CRS", "A short client relationship summary describing services, fees, and conflicts.", "6-1"],
+["Reverse churning", "Putting a rarely-trading client in a costly fee-based account with little added service.", "6-1"],
+["Trusted contact person", "Someone a firm can contact about a client's account if exploitation is suspected.", "6-1"],
+["4% rule", "Withdraw 4% of savings in year one of retirement, then adjust for inflation.", "6-2"],
+["Full retirement age", "The age for full Social Security benefits: 67 for those born 1960 or later.", "6-2"],
+["529 plan", "A tax-advantaged education savings account.", "6-2"],
+["Revocable living trust", "A trust that holds assets during life and passes them outside probate.", "6-2"],
+["Beneficiary designation", "Names who inherits an account; overrides a will.", "6-2"],
+["Step-up in basis", "Inherited assets' cost basis resets to value at death, erasing the built-in gain.", "6-2"],
+["SECURE Act 10-year rule", "Most non-spouse heirs must empty an inherited IRA within 10 years.", "6-2"],
+["Center of influence", "A professional, such as a CPA or attorney, who can refer clients.", "6-3"],
+["Assets under management", "Total client money an advisor oversees.", "6-3"],
+["Net new assets", "Money coming in minus money going out of a practice.", "6-3"],
+["Branch office administrator (BOA)", "The staff member who runs operations and client service in an Edward Jones branch.", "6-4"]
+];
+
 /* ---------- state ---------- */
 const STORE = "advisor-track-v1";
 function load() { try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) { return {}; } }
@@ -2174,7 +2412,8 @@ function renderNav(curId) {
   $("meterBar").style.width = (n / LESSONS.length * 100) + "%";
   $("meterLabel").textContent = `${n} of ${LESSONS.length} lessons complete`;
   const cur = LESSONS.find(l => l.id === curId);
-  $("tocCur").textContent = cur ? cur.num : "";
+  $("tocCur").textContent = cur ? cur.num : curId === "glossary" ? "Glossary" : curId === "flashcards" ? "Flash cards" : "";
+  [["tGloss", "glossary"], ["tCards", "flashcards"]].forEach(([el, id]) => { $(el).classList.toggle("on", curId === id); if (curId === id) $(el).setAttribute("aria-current", "page"); else $(el).removeAttribute("aria-current"); });
 }
 
 function renderLesson(id) {
@@ -2247,7 +2486,146 @@ function renderLesson(id) {
   if (window.innerWidth <= 860) $("toc").open = false;
 }
 
+
+/* ---------- glossary + flash cards ---------- */
+const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const lessonOf = (id) => LESSONS.find(l => l.id === id);
+const phaseOf = (g) => +g[2].split("-")[0];
+function closeTocOnPhone() { if (window.innerWidth <= 860) $("toc").open = false; }
+
+function renderGlossary() {
+  const sorted = GLOSSARY.slice().sort((a, b) => a[0].localeCompare(b[0], "en", { sensitivity: "base" }));
+  $("lesson").innerHTML = `
+    <div class="eyebrow">Reference</div>
+    <h1>Glossary</h1>
+    <p class="lede">${GLOSSARY.length} terms from the course, each linked to the lesson that teaches it.</p>
+    <div class="tool-bar">
+      <label for="glSearch" class="sr">Search terms</label>
+      <input id="glSearch" type="search" placeholder="Search terms or definitions" autocomplete="off">
+      <label for="glPhase" class="sr">Phase</label>
+      <select id="glPhase"><option value="0">All phases</option>${PHASES.map(p => `<option value="${p.id}">${p.title}</option>`).join("")}</select>
+    </div>
+    <p class="meta" id="glCount"></p>
+    <div id="glList"></div>`;
+  $("pager").innerHTML = `<span></span><span><a href="#flashcards">Study these as flash cards →</a></span>`;
+  const draw = () => {
+    const q = $("glSearch").value.trim().toLowerCase();
+    const ph = +$("glPhase").value;
+    const rows = sorted.filter(g => (!ph || phaseOf(g) === ph) && (!q || g[0].toLowerCase().includes(q) || g[1].toLowerCase().includes(q)));
+    $("glCount").textContent = rows.length === GLOSSARY.length ? "" : `${rows.length} of ${GLOSSARY.length} terms`;
+    if (!rows.length) { $("glList").innerHTML = `<p>No terms match. Try a shorter search.</p>`; return; }
+    let html = "", letter = "";
+    rows.forEach(g => {
+      const L = /[a-z]/i.test(g[0][0]) ? g[0][0].toUpperCase() : "#";
+      if (L !== letter) { if (letter) html += "</dl>"; letter = L; html += `<h2 class="gl-letter">${L}</h2><dl class="gl">`; }
+      const l = lessonOf(g[2]);
+      html += `<div class="gl-row"><dt>${esc(g[0])}</dt><dd>${esc(g[1])} <a class="gl-link" href="#l-${g[2]}">Lesson ${l ? l.num : g[2]}</a></dd></div>`;
+    });
+    $("glList").innerHTML = html + "</dl>";
+  };
+  $("glSearch").addEventListener("input", draw);
+  $("glPhase").addEventListener("change", draw);
+  draw();
+  renderNav("glossary");
+  closeTocOnPhone();
+}
+
+let fc = null;
+function renderFlashcards() {
+  state.known = state.known || {};
+  const prefs = state.fc || { phase: 0, reverse: false, hideKnown: false };
+  $("lesson").innerHTML = `
+    <div class="eyebrow">Practice</div>
+    <h1>Flash cards</h1>
+    <p class="lede">Tap the card to flip it. Mark each one "Got it" or "Study again". Cards you know can be hidden so you focus on the rest.</p>
+    <div class="tool-bar">
+      <label for="fcPhase" class="sr">Phase</label>
+      <select id="fcPhase"><option value="0">All phases</option>${PHASES.map(p => `<option value="${p.id}">${p.title}</option>`).join("")}</select>
+      <label class="chk" for="fcReverse"><input type="checkbox" id="fcReverse"> Definition first</label>
+      <label class="chk" for="fcHide"><input type="checkbox" id="fcHide"> Hide cards I know</label>
+    </div>
+    <div class="fc-wrap">
+      <button type="button" class="fc-card" id="fcCard" aria-live="polite"><span class="fc-side" id="fcSide"></span><span class="fc-text" id="fcText"></span><span class="fc-hint" id="fcHint"></span></button>
+      <div class="fc-count" id="fcCount" role="status"></div>
+      <div class="btns fc-btns">
+        <button type="button" class="ghost" id="fcPrev">← Back</button>
+        <button type="button" class="ghost" id="fcAgain">Study again</button>
+        <button type="button" id="fcGot">Got it</button>
+        <button type="button" class="ghost" id="fcShuffle">Shuffle</button>
+      </div>
+      <p class="meta fc-keys">Keyboard: space flips, ← and → move, K marks known.</p>
+      <p class="fc-reset"><button type="button" class="ghost" id="fcReset">Reset what I know</button></p>
+    </div>`;
+  $("pager").innerHTML = `<span><a href="#glossary">← Glossary</a></span><span></span>`;
+  $("fcPhase").value = prefs.phase; $("fcReverse").checked = prefs.reverse; $("fcHide").checked = prefs.hideKnown;
+
+  const build = () => {
+    const ph = +$("fcPhase").value, hide = $("fcHide").checked;
+    state.fc = { phase: ph, reverse: $("fcReverse").checked, hideKnown: hide }; save(state);
+    const deck = shuffle(GLOSSARY.filter(g => (!ph || phaseOf(g) === ph) && !(hide && state.known[g[0]])));
+    fc = { deck, i: 0, flipped: false, step };
+    show();
+  };
+  const show = () => {
+    const pool = GLOSSARY.filter(g => { const ph = +$("fcPhase").value; return !ph || phaseOf(g) === ph; });
+    const knownN = pool.filter(g => state.known[g[0]]).length;
+    if (!fc.deck.length) {
+      $("fcSide").textContent = "All done";
+      $("fcText").textContent = knownN ? "You've marked every card in this set as known." : "No cards in this set.";
+      $("fcHint").textContent = "Untick \"Hide cards I know\" to review them again.";
+      $("fcCount").textContent = `${knownN} of ${pool.length} known`;
+      ["fcPrev", "fcAgain", "fcGot"].forEach(k => $(k).disabled = true);
+      return;
+    }
+    ["fcPrev", "fcAgain", "fcGot"].forEach(k => $(k).disabled = false);
+    if (fc.i >= fc.deck.length) fc.i = 0;
+    const g = fc.deck[fc.i], rev = $("fcReverse").checked;
+    const front = rev ? g[1] : g[0], back = rev ? g[0] : g[1];
+    const l = lessonOf(g[2]);
+    $("fcCard").classList.toggle("flipped", fc.flipped);
+    $("fcCard").classList.toggle("is-known", !!state.known[g[0]]);
+    $("fcSide").textContent = fc.flipped ? (rev ? "Term" : "Definition") : (rev ? "Definition" : "Term");
+    $("fcText").textContent = fc.flipped ? back : front;
+    $("fcHint").textContent = fc.flipped ? `From Lesson ${l ? l.num : ""}${state.known[g[0]] ? " · marked known" : ""}` : "Tap to flip";
+    $("fcCount").textContent = `Card ${fc.i + 1} of ${fc.deck.length} · ${knownN} of ${pool.length} known`;
+  };
+  const step = (d) => { fc.i = (fc.i + d + fc.deck.length) % fc.deck.length; fc.flipped = false; show(); };
+  const mark = (known) => {
+    if (!fc.deck.length) return;
+    const g = fc.deck[fc.i];
+    if (known) state.known[g[0]] = true; else delete state.known[g[0]];
+    save(state);
+    if (known && $("fcHide").checked) { fc.deck.splice(fc.i, 1); fc.flipped = false; show(); }
+    else step(1);
+  };
+  $("fcCard").addEventListener("click", () => { if (!fc.deck.length) return; fc.flipped = !fc.flipped; show(); });
+  $("fcPrev").addEventListener("click", () => step(-1));
+  $("fcGot").addEventListener("click", () => mark(true));
+  $("fcAgain").addEventListener("click", () => mark(false));
+  $("fcShuffle").addEventListener("click", build);
+  $("fcReset").addEventListener("click", () => {
+    const b = $("fcReset");
+    if (b.dataset.confirm) { state.known = {}; save(state); delete b.dataset.confirm; b.textContent = "Reset what I know"; build(); }
+    else { b.dataset.confirm = "1"; b.textContent = "Tap again to clear all known cards"; }
+  });
+  ["fcPhase", "fcReverse", "fcHide"].forEach(k => $(k).addEventListener("change", build));
+  build();
+  renderNav("flashcards");
+  closeTocOnPhone();
+}
+
+document.addEventListener("keydown", (e) => {
+  if (!fc || !$("fcCard") || e.target.closest("input, select, textarea")) return;
+  if (e.key === " " && e.target === document.body) { e.preventDefault(); $("fcCard").click(); }
+  else if (e.key === "ArrowRight" && fc.deck.length) fc.step(1);
+  else if (e.key === "ArrowLeft" && fc.deck.length) fc.step(-1);
+  else if (e.key.toLowerCase() === "k") $("fcGot").click();
+});
+
 function route(scroll) {
+  fc = null;
+  if (location.hash === "#glossary") { renderGlossary(); if (scroll) window.scrollTo({ top: 0 }); return; }
+  if (location.hash === "#flashcards") { renderFlashcards(); if (scroll) window.scrollTo({ top: 0 }); return; }
   const m = location.hash.match(/^#l-(\d+-\d+)$/);
   const id = m && LESSONS.some(l => l.id === m[1]) ? m[1] : (state.last || LESSONS[0].id);
   renderLesson(id);
