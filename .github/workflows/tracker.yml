@@ -43,6 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 340
     env:
+      PYTHONUNBUFFERED: "1"  # log lines appear as they happen, with real timestamps
       SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
       SMTP_USER: ${{ secrets.SMTP_USER }}
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}

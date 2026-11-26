@@ -84,6 +84,9 @@ def ensure_table(con):
         security_title VARCHAR, trans_code VARCHAR, acquired_disposed VARCHAR,
         shares DOUBLE, price_per_share DOUBLE, shares_owned_following DOUBLE,
         PRIMARY KEY (accession_number, trans_seq))""")
+    # Filings already read, including ones that held no transactions to store,
+    # so the daily run doesn't download thousands of filings it has seen.
+    con.execute("CREATE TABLE IF NOT EXISTS insider_seen (accession_number VARCHAR PRIMARY KEY)")
 
 
 def _num(x):
@@ -364,6 +367,10 @@ def main_live(days=DAYS_DEFAULT, limit=None):
     done = {(r[0], r[1]) for r in con.execute(
         f"SELECT accession_number, trans_seq FROM {TABLE}").fetchall()}
 
+    seen = {r[0] for r in con.execute(
+        f"SELECT accession_number FROM {TABLE} UNION SELECT accession_number FROM insider_seen"
+    ).fetchall()}
+
     s = _session()
     added = skipped = 0
     today = datetime.date.today()
@@ -376,14 +383,19 @@ def main_live(days=DAYS_DEFAULT, limit=None):
         for path in filings:
             if limit is not None and added >= limit:
                 break
+            acc = accession_from_path(path)
+            if acc in seen:  # read on an earlier run
+                skipped += 1
+                continue
             time.sleep(RATE_LIMIT_SECS)
             txt = fetch_filing(s, path)
             if not txt:
-                continue
+                continue  # a failed download is retried next run
+            seen.add(acc)
+            con.execute("INSERT OR IGNORE INTO insider_seen VALUES (?)", [acc])
             xml = extract_xml(txt)
             if not xml:
                 continue
-            acc = accession_from_path(path)
             rows = parse_form4_xml(xml, date.isoformat())
             for row in rows:
                 row["accession_number"] = acc
@@ -397,7 +409,7 @@ def main_live(days=DAYS_DEFAULT, limit=None):
 
     total = con.execute(f"SELECT count(*) FROM {TABLE}").fetchone()[0]
     print(f"\n{total} insider transactions in {DB_PATH}; this run added {added},"
-          f" skipped {skipped} already-stored")
+          f" skipped {skipped} already read")
 
 
 SAMPLE_FORM4_XML = """<?xml version="1.0"?>
@@ -582,6 +594,21 @@ def selftest():
     finally:
         time.sleep = real_sleep
     assert r.status_code == 200 and _FlakyThenOK.calls == 3
+
+    # the daily run downloads each filing once, even one with nothing to store
+    g, fetched, mem = globals(), [], duckdb.connect()
+    saved = {k: g[k] for k in ("duckdb", "_session", "list_daily_form4", "fetch_filing", "extract_xml")}
+    g.update(duckdb=type("D", (), {"connect": staticmethod(lambda _: mem)}), _session=lambda: None,
+             list_daily_form4=lambda s, d: iter(["a/0000000001-26-000001.txt", "a/0000000001-26-000002.txt"]),
+             fetch_filing=lambda s, p: fetched.append(p) or "txt", extract_xml=lambda t: None)
+    time.sleep = lambda _: None
+    try:
+        main_live(days=1)
+        main_live(days=1)
+    finally:
+        g.update(saved)
+        time.sleep = real_sleep
+    assert len(fetched) == 2, fetched
 
     print("selftest ok")
 
