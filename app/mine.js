@@ -6,7 +6,7 @@
   var QT = window.QT, view = document.getElementById("mi-view");
   if (!QT || !view) return;
   var esc = QT.esc, money = QT.money, pct = QT.pct, KINDS = QT.KINDS;
-  var S = QT.state, D = null, editing = {}, pending = null;
+  var S = QT.state, D = null, editing = {}, pending = null, IMP = null;
   var TABS = ["accounts", "watch", "journal", "alerts", "settings", "backup"];
   var IRA = { roth: 1, trad: 1, custodial_roth: 1 };
 
@@ -115,6 +115,8 @@
       (num(a.cash) ? "<div><span>Cash</span><b class='qt-money'>" + money(num(a.cash)) + "</b></div>" : "") +
       (total ? "<div><span>Of all accounts</span><b>" + pct(t.value / total, false) + "</b></div>" : "") + "</div>";
     if (NOTES[a.kind]) h += "<p class='mi-note'>" + esc(NOTES[a.kind]) + "</p>";
+    if (a.link) h += "<p class='mi-note'>Imported from " + esc(a.link.broker) + (a.link.last4 ? " account …" + esc(a.link.last4) : "") +
+      " on " + esc(a.link.at || "") + ". Import a new file from the same account to update it.</p>";
     if (IRA[a.kind]) {
       var L = QT.IRA_LIMIT, used = iraUsed(a.owner), left = Math.max(0, L.base - used);
       h += "<p class='mi-note'>" + L.year + " IRA contributions" + (a.owner ? " for " + esc(a.owner) : "") + ": <b class='qt-money'>" +
@@ -147,7 +149,7 @@
             "<td><button class='mi-x' data-act='rm' title='Remove'>×</button></td></tr>";
         } else {
           var sub = num(hh.sh).toLocaleString("en-US", { maximumFractionDigits: 4 }) + " sh" +
-            (r.p ? " @ " + money(r.p.c, true) + (r.p.manual ? " (manual)" : "") : "");
+            (r.p ? " @ " + money(r.p.c, true) + (r.p.manual ? " (manual)" : r.p.file ? " (from import)" : "") : "");
           h += "<tr><td>" + stockCell(hh.t, sub) + "<div>" + journalChip(hh.t) + chips(hh.t) + "</div></td>" +
             "<td class='num'><span class='qt-money'>" + (r.val == null ? "<span class='mut'>no price</span>" : money(r.val)) + "</span></td>" +
             "<td class='num'>" + (r.gain == null ? "<span class='mut'>—</span>" : "<span class='qt-money " + cls(r.gain) + "'>" +
@@ -172,8 +174,197 @@
     return h + "</div>";
   }
 
+  // ---------------------------------------------------------------- broker import
+  // The file is parsed here by brokerimport.js and never leaves this device.
+  var HOWTO = [
+    ["Fidelity", "On fidelity.com: Accounts → Positions → the download icon (top right of the table). Pick “All accounts” first to get every account in one file."],
+    ["Schwab", "On schwab.com: Accounts → Positions → Export (top right). “All accounts” exports each account as its own section."],
+    ["Vanguard", "On vanguard.com: My accounts → Download center → choose the accounts, “CSV” and “Holdings”."],
+    ["Anyone else", "Any positions or holdings download with a symbol and a quantity (or shares) column works. You can also copy the table from the broker's website or a spreadsheet and paste it below."]
+  ];
+
+  function importCard(open) {
+    return "<div class='mi-card' id='mi-import'><details" + (open ? " open" : "") + "><summary><b>Import from your broker</b> " +
+      "<span class='mut'>Fidelity, Schwab, Vanguard, E*TRADE or any CSV</span></summary>" +
+      "<p class='mi-note'>Faster and more exact than typing: shares, cost basis and cash come straight from the broker's download. " +
+      "The file is read on this device and never uploaded, and account numbers are cut to their last 4 digits. " +
+      "Importing again later updates the same accounts.</p>" +
+      "<form class='mi-form' data-act='imp-file'><label>Positions file<input type='file' name='f' multiple " +
+      "accept='.csv,.txt,.tsv,text/csv,text/plain,text/tab-separated-values'></label></form>" +
+      "<form class='mi-form' data-act='imp-paste'><textarea name='txt' placeholder='…or paste the positions table here (copied from the broker&#39;s site or a spreadsheet)'></textarea>" +
+      "<button class='mi-btn'>Read pasted text</button></form>" +
+      "<details style='margin-top:10px'><summary class='mut'>Where to find the download</summary>" +
+      HOWTO.map(function (x) { return "<p class='mi-note'><b>" + esc(x[0]) + ":</b> " + esc(x[1]) + "</p>"; }).join("") +
+      "<p class='mi-note'>Brokers move these buttons now and then; look for “Download” or “Export” on the positions page.</p></details>" +
+      "</details></div>";
+  }
+
+  function findMatch(pa) {
+    var name = (pa.name || "").toLowerCase();
+    return S.accounts.filter(function (a) {
+      return a.link && a.link.broker === pa.broker && pa.last4 && a.link.last4 === pa.last4;
+    })[0] || S.accounts.filter(function (a) {
+      return a.link && a.link.broker === pa.broker && !pa.last4 && (a.link.name || "").toLowerCase() === name;
+    })[0] || (name && name !== "imported account" ? S.accounts.filter(function (a) { return !a.link && a.name.toLowerCase() === name; })[0] : null);
+  }
+
+  function startImport(results) {
+    var list = [], notes = [];
+    results.forEach(function (r) {
+      notes = notes.concat(r.notes.map(function (n) { return (r.file ? r.file + ": " : "") + n; }));
+      r.accounts.forEach(function (pa) {
+        pa.broker = r.broker;
+        var m = findMatch(pa);
+        pa.include = true;
+        pa.target = m ? m.id : "new";
+        pa.newName = m ? m.name : (r.broker !== "CSV" && r.broker !== "List" && !/^Account …/.test(pa.name) ? r.broker + " " : "") + pa.name;
+        if (/^(Imported account|Account …\w*)$/.test(pa.name) && r.broker !== "CSV" && r.broker !== "List") pa.newName = r.broker + " " + pa.name.replace("Imported account", "account");
+        pa.newKind = m ? m.kind : pa.kind;
+        pa.owner = m ? (m.owner || "") : "";
+        list.push(pa);
+      });
+    });
+    if (!list.length) return flash(notes[0] || "Nothing to import in that file.", true);
+    IMP = { accounts: list, notes: notes };
+    go("accounts"); draw(); scrollTo(0, 0);
+  }
+
+  function diffText(pa) {
+    if (pa.target === "new") return "";
+    var a = S.accounts.filter(function (x) { return x.id === pa.target; })[0];
+    if (!a) return "";
+    var old = {}, add = 0, chg = 0, rm = 0, seen = {};
+    a.holdings.forEach(function (h) { old[h.t] = h; });
+    pa.holdings.forEach(function (h) {
+      seen[h.t] = 1;
+      if (!old[h.t]) add++; else if (Math.abs(num(old[h.t].sh) - h.sh) > 1e-6) chg++;
+    });
+    a.holdings.forEach(function (h) { if (!seen[h.t]) rm++; });
+    var bits = [];
+    if (add) bits.push(add + " new");
+    if (chg) bits.push(chg + " with new share counts");
+    if (rm) bits.push(rm + " no longer held (removed)");
+    return "Updates <b>" + esc(a.name) + "</b>: " + (bits.length ? bits.join(", ") : "same holdings") +
+      "; cash " + money(num(a.cash)) + " → " + money(pa.cash) + ".";
+  }
+
+  function kindOptions(sel) {
+    return (sel ? "" : "<option value='' selected>Pick a type…</option>") + Object.keys(KINDS).map(function (k) {
+      return "<option value='" + k + "'" + (k === sel ? " selected" : "") + ">" + esc(KINDS[k]) + "</option>";
+    }).join("");
+  }
+
+  function renderImport() {
+    var n = IMP.accounts.length;
+    var h = "<div class='mi-card' id='mi-review'><div class='mi-head'><h3>Review your import</h3><span class='sp'></span>" +
+      "<span class='mut'>" + n + " account" + (n === 1 ? "" : "s") + " found</span></div>" +
+      "<p class='mi-note'>Check the type of each account (it decides the tax notes and the IRA limit) and where it should go. " +
+      "Nothing is saved until you press Save.</p>";
+    IMP.notes.forEach(function (x) { h += "<p class='mi-note down'>" + esc(x) + "</p>"; });
+    IMP.accounts.forEach(function (pa, i) {
+      var opts = "<option value='new'" + (pa.target === "new" ? " selected" : "") + ">A new account</option>" +
+        S.accounts.map(function (a) {
+          return "<option value='" + a.id + "'" + (pa.target === a.id ? " selected" : "") + ">Update: " + esc(a.name) + "</option>";
+        }).join("");
+      h += "<div class='mi-imp' data-i='" + i + "'><div class='mi-head'><label class='row'><input type='checkbox' data-k='include'" +
+        (pa.include ? " checked" : "") + "> <b>" + esc(pa.broker) + " · " + esc(pa.name) + "</b></label>" +
+        (pa.last4 ? "<span class='mut'>…" + esc(pa.last4) + "</span>" : "") + "<span class='sp'></span><span class='mut'>" +
+        pa.holdings.length + " holding" + (pa.holdings.length === 1 ? "" : "s") + (pa.cash ? " · cash <span class='qt-money'>" + money(pa.cash) + "</span>" : "") +
+        (pa.value ? " · <span class='qt-money'>" + money(pa.value) + "</span> in the file" : "") + "</span></div>";
+      if (pa.include) {
+        h += "<div class='mi-form'><label>Save as<select data-k='target'>" + opts + "</select></label>" +
+          "<label>Name<input data-k='newName' value='" + esc(pa.newName) + "'></label>" +
+          "<label>Type<select data-k='newKind'" + (pa.newKind ? "" : " class='need'") + ">" + kindOptions(pa.newKind) + "</select></label>" +
+          "<label>For (optional)<input data-k='owner' placeholder='e.g. Emma' value='" + esc(pa.owner) + "'></label></div>";
+        var d = diffText(pa);
+        if (d) h += "<p class='mi-note'>" + d + "</p>";
+        h += "<details><summary class='mut'>See the holdings</summary><div class='wrap'><table class='mi-t'><thead><tr><th>Stock</th>" +
+          "<th class='num'>Shares</th><th class='num'>Cost / share</th><th class='num'>Price in file</th></tr></thead><tbody>" +
+          pa.holdings.map(function (x) {
+            return "<tr><td><b>" + esc(x.t) + "</b><small class='mut' style='display:block'>" + esc(x.desc) + "</small></td><td class='num'>" +
+              x.sh.toLocaleString("en-US", { maximumFractionDigits: 4 }) + "</td><td class='num'>" + (x.cost ? money(x.cost, true) : "—") +
+              "</td><td class='num'>" + (x.price ? money(x.price, true) : "—") + "</td></tr>";
+          }).join("") + "</tbody></table></div>" +
+          (pa.skipped.length ? "<p class='mi-note'>Left out (no stock or fund ticker, such as bonds, CDs or options): " +
+            esc(pa.skipped.join("; ")) + "</p>" : "") + "</details>";
+      }
+      h += "</div>";
+    });
+    return h + "<p style='margin:16px 0 0'><button class='mi-btn pri' data-act='imp-save'>Save to this device</button> " +
+      "<button class='mi-btn' data-act='imp-cancel'>Cancel</button></p></div>";
+  }
+
+  function saveImport() {
+    var todo = IMP.accounts.filter(function (pa) { return pa.include; });
+    if (!todo.length) return flash("Tick at least one account to import.", true);
+    var miss = todo.filter(function (pa) { return !pa.newKind; });
+    if (miss.length) return flash("Pick a type for " + miss.map(function (pa) { return pa.name; }).join(", ") + ".", true);
+    var targets = {};
+    for (var i = 0; i < todo.length; i++) {
+      var t = todo[i].target;
+      if (t !== "new" && targets[t]) return flash("Two imported accounts point at the same account. Pick a different one for one of them.", true);
+      targets[t] = 1;
+    }
+    var today = new Date().toISOString().slice(0, 10), nH = 0, tickers = [];
+    todo.forEach(function (pa) {
+      var a = pa.target === "new" ? null : S.accounts.filter(function (x) { return x.id === pa.target; })[0];
+      if (!a) { a = { id: uid(), contrib: 0, holdings: [] }; S.accounts.push(a); }
+      var old = {};
+      a.holdings.forEach(function (h) { old[h.t] = h; });
+      a.name = pa.newName.trim() || pa.name; a.kind = pa.newKind; a.owner = pa.owner.trim(); a.cash = pa.cash;
+      a.holdings = pa.holdings.map(function (x) {
+        var o = old[x.t] || {};
+        tickers.push(x.t);
+        return { t: x.t, sh: x.sh, cost: x.cost || num(o.cost) || 0, px: x.price ? 0 : num(o.px) || 0, fpx: x.price || 0 };
+      });
+      a.link = { broker: pa.broker, last4: pa.last4, name: pa.name, at: today };
+      nH += a.holdings.length;
+    });
+    IMP = null; save(); draw(); scrollTo(0, 0);
+    flash("Imported " + todo.length + " account" + (todo.length === 1 ? "" : "s") + " and " + nH + " holdings. Saved on this device only.");
+    QT.fillQuotes(D, tickers).then(draw);
+  }
+
+  function readFiles(files) {
+    if (!window.QTImport) return flash("The importer didn't load. Reload the page and try again.", true);
+    Promise.all(Array.prototype.map.call(files, function (f) {
+      return f.text().then(function (txt) { var r = QTImport.parse(txt, f.name); r.file = f.name; return r; });
+    })).then(startImport, function () { flash("Couldn't read that file.", true); });
+  }
+
+  function wireImport() {
+    var ff = view.querySelector("form[data-act=imp-file]");
+    if (ff) ff.f.onchange = function () { if (ff.f.files.length) readFiles(ff.f.files); };
+    var pf = view.querySelector("form[data-act=imp-paste]");
+    if (pf) pf.onsubmit = function (ev) {
+      ev.preventDefault();
+      if (!window.QTImport) return flash("The importer didn't load. Reload the page and try again.", true);
+      var r = QTImport.parse(pf.txt.value, ""); r.file = "";
+      startImport([r]);
+    };
+    if (!IMP) return;
+    view.querySelectorAll(".mi-imp").forEach(function (box) {
+      var pa = IMP.accounts[+box.dataset.i];
+      box.querySelectorAll("[data-k]").forEach(function (el) {
+        el.onchange = function () {
+          var k = el.dataset.k;
+          pa[k] = el.type === "checkbox" ? el.checked : el.value;
+          if (k === "target" && el.value !== "new") {  // updating: start from that account's settings
+            var a = S.accounts.filter(function (x) { return x.id === el.value; })[0];
+            if (a) { pa.newName = a.name; pa.newKind = a.kind; pa.owner = a.owner || ""; }
+          }
+          if (k === "include" || k === "target" || k === "newKind") draw();
+        };
+      });
+    });
+    view.querySelector("[data-act=imp-save]").onclick = saveImport;
+    view.querySelector("[data-act=imp-cancel]").onclick = function () { IMP = null; draw(); flash("Import cancelled. Nothing was saved."); };
+  }
+
   function renderAccounts() {
     var accs = S.accounts, h = "";
+    if (IMP) return renderImport();
+    h += importCard(!accs.length);
     if (accs.length) {
       var t = QT.totals(accs, D), byKind = {};
       accs.forEach(function (a) { byKind[a.kind] = (byKind[a.kind] || 0) + QT.totals([a], D).value; });
@@ -225,6 +416,8 @@
   }
 
   function wireAccounts() {
+    wireImport();
+    if (IMP) return;
     wireJournalChips();
     view.querySelectorAll("form[data-act=newacct]").forEach(function (f) {
       f.onsubmit = function (ev) {

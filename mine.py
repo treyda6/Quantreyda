@@ -177,6 +177,9 @@ border-radius:10px;background:var(--bg);color:var(--fg)}
 .mi-set input[type=checkbox]{width:18px;height:18px;accent-color:var(--acc)}
 .mi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:2px 16px}
 .mi-msg{font-size:13px;margin-top:8px}
+.mi-imp{border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin:12px 0;background:var(--card2)}
+.mi-imp select.need{border-color:var(--warn);box-shadow:0 0 0 2px color-mix(in srgb,var(--warn) 30%,transparent)}
+#mi-import summary{cursor:pointer;font-size:15px}
 .mi-stock{display:flex;align-items:center;gap:10px}.mi-stock small{display:block;color:var(--mut);font-size:12px;max-width:180px;
 overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mi-chip.add{color:var(--mut);background:none;border:1px dashed var(--line)}
@@ -218,7 +221,7 @@ def page():
             "<button data-tab='backup'>Backup</button></div>"
             "<div id='mi-view'><p class='mut'>Loading…</p></div>"
             "<noscript><p>This page needs JavaScript, because it runs entirely in your browser.</p></noscript>"
-            "</div><script src='mine.js'></script>")
+            "</div><script src='brokerimport.js'></script><script src='mine.js'></script>")
 
 
 def selftest():
@@ -259,6 +262,16 @@ def selftest():
     assert "data-tab='journal'" in body, "the decision journal has its own tab"
     # nothing personal is ever written to the site
     assert "watchlist.txt" not in body and not re.search(r"WATCHLIST", body)
+    assert "brokerimport.js" in body
+    # the broker-file importer is JavaScript; check it with node when available (CI has it)
+    import shutil
+    import subprocess
+    node = shutil.which("node")
+    if node:
+        test = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests", "brokerimport_test.js")
+        subprocess.run([node, test], check=True)
+    else:
+        print("node not found: skipped the broker import test")
     print("mine selftest ok")
 
 
