@@ -453,6 +453,14 @@ def _yf_download(symbols, period):
     return out
 
 
+def _universe():
+    try:
+        import mine
+        return mine.universe()
+    except Exception:
+        return []
+
+
 def _fmt_px(v):
     v = float(v)
     return round(v, 2) if v >= 10 else round(v, 4)
@@ -502,7 +510,7 @@ def _store_blob(con, tkr, blob, today):
                 [tkr, today, last, json.dumps(blob, separators=(",", ":"))])
 
 
-def refresh_prices(con, minutes=30, batch=150, download=None):
+def refresh_prices(con, minutes=30, batch=150, download=None, priority=None):
     """Top up every ticker we have prices for, then fetch full history for
     new ones until the time runs out. Stocks and ETFs before funds."""
     ensure_tables(con)
@@ -512,10 +520,18 @@ def refresh_prices(con, minutes=30, batch=150, download=None):
     rows = con.execute("""
         SELECT s.tkr, s.kind, p.fetched, p.last_d, p.js IS NOT NULL AND p.last_d IS NOT NULL
         FROM lk_symbols s LEFT JOIN lk_px p USING (tkr)""").fetchall()
-    order = {"stock": 0, "etf": 0, "fund": 1, "money": 2}
-    topup = [r[0] for r in rows if r[4] and (r[2] is None or r[2] < today)]
+    # Tiers, so a run that runs out of time drops the long tail, not the names
+    # people hold: universe.txt first, then stocks and ETFs, then funds; within
+    # a tier the stalest first.
+    first = set(priority if priority is not None else _universe())
+    order = {"stock": 1, "etf": 1, "fund": 2, "money": 3}
+    old = datetime.date(1970, 1, 1)
+
+    def tier(r):
+        return (0 if r[0] in first else order.get(r[1], 4), r[2] or old, r[0])
+    topup = [r[0] for r in sorted((r for r in rows if r[4] and (r[2] is None or r[2] < today)), key=tier)]
     new = [r for r in rows if not r[4] and (r[2] is None or (today - r[2]).days >= REFETCH_DAYS)]
-    new = [r[0] for r in sorted(new, key=lambda r: (order.get(r[1], 3), r[0]))]
+    new = [r[0] for r in sorted(new, key=tier)]
     stats = {"topped": 0, "new": 0, "missing": 0}
     redo = []
 
@@ -799,7 +815,7 @@ def selftest():
            "BRK.B|Berkshire Hathaway Inc. Class B|N|BRK.B|N|100|N|BRK=B\n"
            "SPY|SPDR S&P 500 ETF Trust|P|SPY|Y|100|N|SPY\nABR$D|Arbor pref|N|ABRpD|N|100|N|ABR-D\n")
     mf = ("Fund Symbol|Fund Name|Fund Family Name|Type|Category|Pricing Agent\n"
-          "FXAIX|Fidelity 500 Index Fund|Fidelity|MF|O|x\nSPAXX|Fidelity Government Money Market|Fidelity|$$|G|x\n"
+          "FXAIX|Fidelity 500 Index Fund|Fidelity|MF|O|x\nMMKTX|Example Government Money Market|Example Funds|$$|G|x\n"
           "ANNUX|Some annuity|Ins Co|AN|M|x\n")
     sec = {"fields": ["cik", "name", "ticker", "exchange"],
            "data": [[320193, "Apple Inc.", "AAPL", "Nasdaq"], [1067983, "BERKSHIRE HATHAWAY INC", "BRK-B", "NYSE"]]}
@@ -808,7 +824,7 @@ def selftest():
     assert listed["QQQ"][1] == "etf" and listed["SPY"][2] == "NYSE Arca"
     funds = parse_funds(mf)
     assert funds == {"FXAIX": ("Fidelity 500 Index Fund", "fund", "Fidelity"),
-                     "SPAXX": ("Fidelity Government Money Market", "money", "Fidelity")}
+                     "MMKTX": ("Example Government Money Market", "money", "Example Funds")}
     assert _nice_name("Apple Inc. - Common Stock") == "Apple Inc."
     con = duckdb.connect()
     files = {NASDAQ_LISTED: nas, OTHER_LISTED: oth, FUNDS_LISTED: mf, SEC_TICKERS: json.dumps(sec)}
@@ -852,17 +868,18 @@ def selftest():
         calls.append((tuple(symbols), period))
         start = today - datetime.timedelta(days=365 * 8) if period == "max" else today - datetime.timedelta(days=14)
         n = 365 * 8 * 5 // 7 if period == "max" else 9
-        return {s: frame(start, n) for s in symbols if s not in ("ANNUX", "SPAXX")}
-    st = refresh_prices(con, minutes=1, download=dl)
-    assert st["new"] >= 5 and st["missing"] == 1, st  # SPAXX unknown in this fake
-    assert calls[0][1] == "max" and "AAPL" in calls[0][0] and "BRK-B" in calls[0][0]
+        return {s: frame(start, n) for s in symbols if s not in ("ANNUX", "MMKTX")}
+    st = refresh_prices(con, minutes=1, download=dl, batch=2, priority={"FXAIX"})
+    assert st["new"] >= 5 and st["missing"] == 1, st  # MMKTX unknown in this fake
+    assert calls[0] == (("FXAIX", "AAPL"), "max"), "universe.txt names first, then stocks, then funds"
+    assert calls[-1][0][-1] == "MMKTX", "money market funds last"
     blob = json.loads(con.execute("SELECT js FROM lk_px WHERE tkr = 'AAPL'").fetchone()[0])
     assert blob["m"] and blob["d"] and blob["div"], "monthly + daily + dividends"
     assert blob["d"][0][0] >= (today - datetime.timedelta(days=365 * 5 + 1)).isoformat()
     assert len({m[0][:7] for m in blob["m"]}) == len(blob["m"]), "one row per month"
     con.execute("UPDATE lk_px SET fetched = fetched - INTERVAL 1 DAY")
     calls.clear()
-    st = refresh_prices(con, minutes=1, download=dl)
+    st = refresh_prices(con, minutes=1, download=dl, priority=set())
     assert calls[0][1] == "10d" and st["topped"] >= 5, (calls, st)
     # a split in the top-up window: history must be refetched in full
     old = json.loads(con.execute("SELECT js FROM lk_px WHERE tkr = 'AAPL'").fetchone()[0])
@@ -882,7 +899,7 @@ def selftest():
     assert doc["px"]["m"]["c"] and doc["n"] == "Apple Inc."
     t = doc["px"]["d"]["t"]
     assert t[0] > 19000 and all(1 <= g <= 5 for g in t[1:]), "delta-encoded trading days"
-    assert os.path.exists(f"{out}/look/d/BRK-B.json") and not os.path.exists(f"{out}/look/d/SPAXX.json")
+    assert os.path.exists(f"{out}/look/d/BRK-B.json") and not os.path.exists(f"{out}/look/d/MMKTX.json")
     os.path.getsize(f"{out}/look/d/AAPL.json") < 20000 or print("note: big file")
     body = inject("<div class='sh'></div><section class='panel'>c</section><section class='panel qa'>q",
                   "AAPL")

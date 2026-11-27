@@ -77,6 +77,13 @@ prices arrive its page says so. Stored prices are daily closes; the 1D chart loa
 live from TradingView in your browser. Foreign companies that file 20-F reports usually have no
 statements.
 
+The Mine page values anything you hold or watch the same way: popular funds
+and stocks in `universe.txt` come with the page (`mine.json`), and any other
+ticker is priced from its lookup file. `universe.txt` is now just the list that
+goes first: the daily price run fills and refreshes it before stocks and ETFs,
+then mutual funds, then money market funds, so the names people hold stay
+current even on a day the run runs out of time.
+
 **Buy and Sell** open the same symbol at Fidelity in a new tab (and copy the
 ticker, in case you need to paste it). You sign in and place the order on
 Fidelity's own site or app; this site never places trades or sees your login.
