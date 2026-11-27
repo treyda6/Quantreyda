@@ -50,6 +50,7 @@ border-radius:22px;padding:26px 26px 22px;margin:4px 0 8px;box-shadow:var(--shad
 .hero p{margin:6px 0 0;font-size:16.5px;max-width:860px}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}
 .stat{background:color-mix(in srgb,var(--bg) 55%,transparent);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+a.stat{color:inherit;text-decoration:none}a.stat:hover{border-color:var(--acc)}
 .stat b{display:block;font-size:34px;line-height:1.05;letter-spacing:-1px;font-variant-numeric:tabular-nums}
 .stat span{color:var(--mut);font-size:13px}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
@@ -514,18 +515,18 @@ def render(data, today, days=7, pages=None):
     out = [f"<div class='hero'><div class='eyebrow'>{period}</div><h1>The 30-second version</h1>",
            f"<p>{summary}</p>",
            "<div class='stats'>",
-           f"<div class='stat'><b>{n_cong}</b><span>Congress buys of $15k+</span></div>",
-           f"<div class='stat'><b>{n_ins}</b><span>notable insider buys</span></div>",
-           f"<div class='stat'><b>{len(multi)}</b><span>stocks with 2+ kinds of support</span></div>",
+           f"<a class='stat' href='#everything'><b>{n_cong}</b><span>Congress buys of $15k+</span></a>",
+           f"<a class='stat' href='#everything'><b>{n_ins}</b><span>notable insider buys</span></a>",
+           f"<a class='stat' href='#ideas'><b>{len(multi)}</b><span>stocks with 2+ kinds of support</span></a>",
            "</div></div>",
-           "<h2>Ideas worth researching</h2>",
+           "<h2 id='ideas'>Ideas worth researching</h2>",
            "<p class='hint'>Ranked by conviction: how many different kinds of people are "
            "buying, how much money, how healthy the company is, and how informed the buyers "
            "look. Hover a name for who they are. A lead to look into, not a buy signal.</p>"]
     out.append("<div class='cards'>" + "".join(_card(i) for i in top) + "</div>" if top else
                "<div class='empty'>No ideas this week. That's normal; check back tomorrow.</div>")
 
-    out.append("<h2>Everything else</h2>")
+    out.append("<h2 id='everything'>Everything else</h2>")
     def cong_line(r):
         n = f" in {r['n']} purchases" if r["n"] > 1 else ""
         late = f" ({int(r['lag'])} days after the trade)" if r["lag"] is not None else ""

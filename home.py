@@ -35,6 +35,7 @@ import os
 import sys
 
 import headlines
+import links
 import markets
 import pictures
 import stockpage
@@ -428,7 +429,7 @@ def _ago(d, day, now):
 def _x(t, pages, root=""):
     if t in pages:
         return f"<a class='x' href='{root}{stockpage.href(t)}'>{E(t)}</a>"
-    return f"<span class='x'>{E(t)}</span>"
+    return f"<a class='x' href='{E(links.look(t, root))}'>{E(t)}</a>"
 
 
 def _event_li(e, pages, now):
@@ -528,8 +529,8 @@ function addNews(items){
   var have={};feed.querySelectorAll('li[data-k=news]').forEach(function(li){li.remove()});
   items.slice(0,60).forEach(function(r){if(!r||!r.t||!r.d||have[r.u])return;have[r.u]=1;
     var li=document.createElement('li');li.className='k-news';li.dataset.k='news';li.dataset.d=r.d;
-    var xs=(r.k||[]).slice(0,6).map(function(k){return pages[k]?"<a class='x' href='s/"+esc(slug(k))+".html'>"+esc(k)+"</a>"
-      :"<span class='x'>"+esc(k)+"</span>"}).join('');
+    var xs=(r.k||[]).slice(0,6).map(function(k){return "<a class='x' href='"+(pages[k]?"s/"+esc(slug(k))+".html"
+      :"look.html?s="+encodeURIComponent(k))+"'>"+esc(k)+"</a>"}).join('');
     li.innerHTML="<div class='fb'><a class='ft' href='"+esc(r.u)+"' target='_blank' rel='noopener'>"+esc(r.t)+"</a>"
       +(xs?"<div class='xs'>"+xs+"</div>":"")+"<div class='fm'><span class='tag'>News"+(r.s?' · '+esc(r.s):'')+"</span><span class='ago'></span></div></div>";
     var at=t(li),kids=feed.children,j=0;while(j<kids.length&&t(kids[j])>=at)j++;
@@ -588,8 +589,8 @@ def render(con, today, data=None, soon=(), pages=(), names=None, now=None):
     stats = [
         (f"<a href='{front._stock_href(ideas[0]['tkr'])}'>{E(ideas[0]['tkr'])}</a>" if ideas else "—",
          "top idea"),
-        (str(len(ideas)), "worth researching"),
-        (str(n_buys), "notable buys"),
+        (f"<a href='ideas.html'>{len(ideas)}</a>", "worth researching"),
+        (f"<a href='trades.html?side=buy'>{n_buys}</a>", "notable buys"),
     ]
     try:
         evs = events(con, today, data)

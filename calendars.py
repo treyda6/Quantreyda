@@ -30,6 +30,8 @@ import time
 
 import requests
 
+import links
+
 E = html.escape
 try:
     from zoneinfo import ZoneInfo
@@ -647,10 +649,7 @@ def for_ticker(con, tkr, today):
 # ---------- HTML ----------
 
 def _stock(tkr, built, root=""):
-    if tkr in built:
-        import stockpage
-        return f"<a href='{root}{stockpage.href(tkr)}'><b>{E(tkr)}</b></a>"
-    return f"<b>{E(tkr)}</b>"
+    return f"<a href='{E(links.stock(tkr, built, root))}'><b>{E(tkr)}</b></a>"
 
 
 def _badge(v):

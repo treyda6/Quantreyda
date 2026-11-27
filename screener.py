@@ -433,7 +433,7 @@ def home_teaser(con, today, n=3, root=""):
         return ""
     items = "".join(
         f"<li><a href='{root}screener.html'>{pictures.logo_html(r['tkr'], root)}</a>"
-        f"<div><b>{E(r['tkr'])}</b> <span class='scr-tier {r['tier']}'>{_tier_label(r)}</span>"
+        f"<div><a class='pl' href='{E(links.stock_page(r['tkr'], root))}'><b>{E(r['tkr'])}</b></a> <span class='scr-tier {r['tier']}'>{_tier_label(r)}</span>"
         f"<small style='display:block;color:var(--mut)'>{E(r['why'][0][0]) if r['why'] else ''}</small></div></li>"
         for r in rows)
     return (f"<style>{CSS}.scr-tz{{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}}"

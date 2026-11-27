@@ -434,6 +434,7 @@ function draw() {
 [q, src, side, size, own].forEach(el => el.addEventListener('input', draw));
 const p = new URLSearchParams(location.search); if (p.get('q')) q.value = p.get('q');
 if (p.get('src')) src.value = p.get('src');
+if (p.get('side')) side.value = p.get('side');
 draw();
 """
 
