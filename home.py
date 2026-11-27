@@ -578,7 +578,7 @@ def render(con, today, data=None, soon=(), pages=(), names=None, now=None):
     odds = markets.top(con, 3)
     if ideas:
         lead = ideas[0]
-        line = (f"Strongest research lead: <b>{E(lead['tkr'])}</b>"
+        line = (f"Strongest research lead: {front._tk(lead['tkr'])}"
                 f"{' (' + E(lead['company']) + ')' if lead.get('company') else ''}.")
     else:
         line = "No new research leads today."

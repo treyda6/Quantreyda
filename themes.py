@@ -26,6 +26,7 @@ import statistics
 import sys
 import urllib.parse
 
+import links
 import pictures
 import profiles
 
@@ -352,8 +353,7 @@ def _heat(n):
 
 
 def _href(tkr, pages):
-    import stockpage
-    return stockpage.href(tkr) if tkr in pages else f"trades.html?q={E(tkr)}"
+    return E(links.stock(tkr, pages))
 
 
 def _company_row(con, t, ev, pages):
@@ -501,7 +501,7 @@ def selftest():
     assert ai["vs_spy"] < 0 and ai["attention"] is None
     html_ = page(con, today, {"OKLO"})
     assert "What could the next decade be built on?" in html_ and "id='nuclear'" in html_
-    assert "s/OKLO.html" in html_ and "trades.html?q=CCJ" in html_
+    assert "s/OKLO.html" in html_ and "look.html?s=CCJ" in html_
     assert html_.index("id='nuclear'") < html_.index("id='ai'"), "hottest theme first"
     assert "themes.html#nuclear" in home_teaser(con, today)
     assert "How to study a future theme" in page(duckdb.connect(), today), "empty DB still renders"

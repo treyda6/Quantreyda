@@ -30,6 +30,7 @@ import html
 import json
 import sys
 
+import links
 import pictures
 import profiles
 
@@ -331,9 +332,7 @@ draw();
 
 
 def _href(tkr, pages, root=""):
-    import stockpage
-    return (f"{root}{stockpage.href(tkr)}" if tkr in pages
-            else f"{root}trades.html?q={E(tkr)}")
+    return links.stock(tkr, pages, root)
 
 
 def _tier_label(r):
@@ -506,7 +505,7 @@ def selftest():
     assert tier(10e6) == "nano" and tier(5e9) == "big" and tier(None) is None
     html_ = page(con, today, {"TINY"})
     assert "Small companies people in the know are buying" in html_
-    assert "s/TINY.html" in html_ and "trades.html?q=DUMP" in html_
+    assert "s/TINY.html" in html_ and "look.html?s=DUMP" in html_
     con.execute("UPDATE health SET company = '</script><b>x' WHERE tkr = 'TINY'")
     assert "</script><b>x" not in page(con, today), "data can't break out of the script tag"
     tz = home_teaser(con, today)

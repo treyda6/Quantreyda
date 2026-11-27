@@ -365,7 +365,7 @@ document.querySelectorAll('.hl-feed').forEach(function(box){
     list.innerHTML=rows.length?rows.map(function(r){
       var chips=(r.k||[]).map(function(t){return pages[t]
         ?"<a class='k' href='"+esc((d.root||'')+'s/'+pages[t]+'.html')+"'>"+esc(t)+"</a>"
-        :"<span class='k'>"+esc(t)+"</span>"}).join('');
+        :"<a class='k' href='"+esc((d.root||'')+'look.html?s='+encodeURIComponent(t))+"'>"+esc(t)+"</a>"}).join('');
       return "<li><a class='t' href='"+esc(r.u)+"' target='_blank' rel='noopener'>"+esc(r.t)+"</a>"
         +"<div class='hl-m'><span class='cat "+esc(r.c)+"'>"+esc(NAMES[r.c]||r.c)+"</span><span>"+esc(r.s)
         +"</span><span>· "+ago(r.d)+"</span>"+chips+"</div></li>"}).join('')

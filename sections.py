@@ -20,6 +20,7 @@ import datetime
 import html
 import math
 
+import links
 import pictures
 
 E = html.escape
@@ -37,8 +38,7 @@ def _pct(x, plus=True):
 
 
 def _stock_href(tkr, pages, root=""):
-    return (f"{root}s/{E(tkr)}.html" if tkr in pages
-            else f"{root}trades.html?q={E(tkr)}")
+    return E(links.stock(tkr, pages, root))
 
 
 def dollars(r):
@@ -170,7 +170,7 @@ def _short_date(d):
         return E(d)
 
 
-def recent_list(rows, n=10, more=""):
+def recent_list(rows, n=10, more="", pages=(), root=""):
     items = []
     for r in rows[:n]:
         lg = (f"<span class='lg'><img src='{E(r['logo'])}' alt='' loading='lazy'></span>" if r.get("logo")
@@ -179,12 +179,15 @@ def recent_list(rows, n=10, more=""):
         face = (f"<span class='face{tint}'><img src='{E(r['face'])}' alt='' loading='lazy'></span>" if r.get("face")
                 else f"<span class='face mono{tint}'>{E(r.get('ini') or '?')}</span>")
         tag = r["src"] + (f" · {r['party']}" if r.get("party") else "")
+        who = r["who"].split(" (")[0]
         side = {"buy": "Purchase", "sell": "Sale"}.get(r["side"], "Other")
         xs = "" if r.get("xs") is None else (f"<small class='{'up' if r['xs'] >= 0 else 'down'}'>"
                                              f"{_pct(r['xs'])} vs S&amp;P</small>")
         items.append(
-            f"<li><div class='pic'>{lg}<div class='t'><b>{E(r['tkr'])}</b><small>{_short_date(r['filed'])}</small></div></div>"
-            f"<div class='pic'>{face}<div class='t'>{E(r['who'].split(' (')[0])}<small>{E(tag)}</small></div></div>"
+            f"<li><div class='pic'>{lg}<div class='t'><a class='pl' href='{_stock_href(r['tkr'], pages, root)}'>"
+            f"<b>{E(r['tkr'])}</b></a><small>{_short_date(r['filed'])}</small></div></div>"
+            f"<div class='pic'>{face}<div class='t'><a class='pl' href='{E(links.person(who, root))}' "
+            f"title='Every trade by {E(who)}'>{E(who)}</a><small>{E(tag)}</small></div></div>"
             f"<div class='amt {r['side']}'><b>{E(r['amt'])}</b><small>{side}</small>{xs}</div></li>")
     if not items:
         return "<p class='hint'>Nothing filed yet.</p>"
@@ -253,12 +256,12 @@ def page_congress(con, rows, today, bt, pages):
              if r.get("face") else f"<span class='face big mono{tint}'>{E(r.get('ini') or '?')}</span>")
         name = r["who"].split(" (")[0]
         people.append((f, name, f"{r['src']}" + (f" · {r['party']}" if r.get("party") else ""),
-                       f"trades.html?q={name.split()[-1]}"))
+                       links.person(name)))
     return ("<div class='sec-top'><h1>Congress trading</h1><p class='hint'>Most active this month</p></div>"
             + faces_row(people)
             + treemap_block(cg, today, pages, "c")
             + "<section><div class='sec-h'><h2>Recent trades</h2></div>"
-            + recent_list(cg, 10, "trades.html?src=Congress") + "</section>"
+            + recent_list(cg, 10, "trades.html?src=Congress", pages) + "</section>"
             + strategies_html(bt, ("Every stock Congress bought", "Politicians with a winning record")))
 
 
@@ -275,7 +278,7 @@ def page_insiders(con, rows, today, bt, pages):
             + faces_row(people)
             + treemap_block(ins, today, pages, "i")
             + "<section><div class='sec-h'><h2>Recent trades</h2></div>"
-            + recent_list(ins, 10, "trades.html?src=Insider") + "</section>"
+            + recent_list(ins, 10, "trades.html?src=Insider", pages) + "</section>"
             + strategies_html(bt, ("Insiders buying together",)))
 
 

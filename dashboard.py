@@ -136,21 +136,43 @@ border-radius:6px;padding:1px 6px;margin-left:4px}
 .tt td{vertical-align:middle}
 @media(max-width:640px){.tt th:nth-child(4),.tt td:nth-child(4){display:none}.tt td,.tt th{padding:8px 6px}
 .tt .pic{gap:7px}.tt .pic .t small{max-width:110px}.tt .lg,.tt .face{width:28px;height:28px}}.tt .num{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+a.pl{color:inherit;text-decoration:none}a.pl:hover{color:var(--acc);text-decoration:underline}
 .buy{color:var(--up);font-weight:700}.sell{color:var(--down);font-weight:700}
 footer{color:var(--mut);font-size:12px;padding:40px 20px;text-align:center}
+.tip{text-decoration:underline dotted color-mix(in srgb,var(--mut) 70%,transparent);text-underline-offset:3px;cursor:help;outline:none}
+.tipb{display:none;position:fixed;z-index:60;max-width:min(300px,calc(100vw - 16px));padding:10px 12px;border-radius:12px;
+background:var(--card);color:var(--fg);border:1px solid var(--line);box-shadow:0 12px 34px rgba(0,0,0,.35);
+font:400 13px/1.45 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;text-transform:none;letter-spacing:0;pointer-events:none}
 """
 
 THEME_HEAD = """<script>(function(){var t=localStorage.getItem('qt-theme')||
 (matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');
 document.documentElement.setAttribute('data-theme',t)})()</script>"""
 
-THEME_JS = """<script>(function(){var b=document.getElementById('theme');
-function label(){b.innerHTML=document.documentElement.getAttribute('data-theme')==='dark'?'☀<span class=tl> Light</span>':'☾<span class=tl> Dark</span>'}
-label();b.onclick=function(){var t=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
-document.documentElement.setAttribute('data-theme',t);localStorage.setItem('qt-theme',t);label()};
-var m=document.getElementById('nvt');if(m){document.addEventListener('click',function(e){
-if(m.checked&&!e.target.closest('.nv,.nvb,#nvt'))m.checked=false});
-document.addEventListener('keydown',function(e){if(e.key==='Escape')m.checked=false})}})()</script>"""
+def site_css():
+    """Every page's styles, written once to app.css (cached) instead of
+    ~50 KB copied into each of the site's pages."""
+    return "".join((CSS, front.CSS, home.CSS, stockpage.CSS, business.CSS, leaders.LB_CSS, pictures.CSS,
+                    sections.CSS, markets.CSS, calendars.CSS, moves.CSS, economy.CSS, readiness.CSS, lookup.CSS))
+
+
+def _version(text):
+    """Short content hash: a changed file gets a new URL, so no stale copy."""
+    import hashlib
+    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:10]
+
+
+_ASSETS = {}
+
+
+def asset_tags(root=""):
+    """<link>/<script> for the shared stylesheet and script, cache-busted."""
+    if not _ASSETS:
+        _ASSETS["css"] = _version(site_css())
+        with open(os.path.join(APP_DIR, "ui.js"), encoding="utf-8") as f:
+            _ASSETS["js"] = _version(f.read())
+    return (f"<link rel='stylesheet' href='{root}app.css?v={_ASSETS['css']}'>",
+            f"<script src='{root}ui.js?v={_ASSETS['js']}' defer></script>")
 
 
 ICONS = {  # simple 24px line icons for the phone tab bar
@@ -236,6 +258,7 @@ LOGO = ("<svg viewBox='0 0 32 32' aria-hidden='true' fill='none' stroke-linecap=
 
 def page(title, active, body, updated, root=""):
     nav = nav_html(active, root)
+    css, js = asset_tags(root)
     tabs = "".join(
         f"<a href='{root}{href}' class='{'on' if key == active else ''}'><svg viewBox='0 0 24 24' "
         f"aria-hidden='true'>{ICONS[key]}</svg><span>{TAB_LABEL.get(key, label)}</span></a>"
@@ -243,7 +266,7 @@ def page(title, active, body, updated, root=""):
     return (f"<!DOCTYPE html><html lang='en' data-theme='dark'><head><meta charset='utf-8'>"
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
             f"<title>{html.escape(title)} · Quantreyda</title>{THEME_HEAD}{app_head(root)}"
-            f"<style>{CSS}{front.CSS}{home.CSS}{stockpage.CSS}{business.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}{calendars.CSS}{moves.CSS}{economy.CSS}{readiness.CSS}{lookup.CSS}</style></head><body>"
+            f"{css}{js}</head><body>"
             "<header><div class='bar'>" + f"<a class='logo' href='{root}index.html' aria-label='Quantreyda home'>{LOGO}</a>{lookup.search_html(root)}{nav}"
             f"<span class='sp'></span>"
             f"<button class='toggle' id='theme' type='button'>☀ Light</button></div></header>"
@@ -251,7 +274,7 @@ def page(title, active, body, updated, root=""):
             f"filings (Form 4, 8-K, 13F), STOCK Act disclosures, USAspending. Research, not "
             f"investment advice. Member portraits: public domain "
             f"(@unitedstates); other photos: Wikimedia Commons.</footer>"
-            f"<nav class='tabs'>{tabs}</nav>{THEME_JS}</body></html>")
+            f"<nav class='tabs'>{tabs}</nav></body></html>")
 
 
 def md(text):
@@ -401,10 +424,11 @@ function draw() {
     const tag = r.src + (r.party ? ' / ' + r.party : '');
     const xs = r.xs === null || r.xs === undefined ? '<span class="mut">—</span>'
              : `<span class="${r.xs >= 0 ? 'up' : 'down'}">${r.xs >= 0 ? '+' : ''}${(r.xs * 100).toFixed(1)}%</span>`;
-    const stock = PAGES[r.tkr] ? `<a href="s/${PAGES[r.tkr]}.html"><b>${esc(r.tkr)}</b></a>` : `<b>${esc(r.tkr)}</b>`;
+    const stock = `<a href="${PAGES[r.tkr] ? 's/' + PAGES[r.tkr] + '.html' : 'look.html?s=' + encodeURIComponent(r.tkr)}"><b>${esc(r.tkr)}</b></a>`;
+    const who = r.who.split(' (')[0], name = `<a class="pl" href="?q=${encodeURIComponent(who)}" title="Every trade by ${esc(who)}">${esc(r.who)}</a>`;
     return `<tr><td><div class="pic">${lg}<div class="t">${stock}<small>${esc(r.what).slice(0, 40)}</small></div></div></td>
     <td class="${r.side}">${r.side}<small class="mut" style="display:block">${esc(r.amt)}</small></td>
-    <td><div class="pic">${face}<div class="t">${esc(r.who)}${r.own === 'family' ? ' <span class="fam">family</span>' : ''}<small>${esc(tag)}</small></div></div></td>
+    <td><div class="pic">${face}<div class="t">${name}${r.own === 'family' ? ' <span class="fam">family</span>' : ''}<small>${esc(tag)}</small></div></div></td>
     <td>${r.filed}</td><td>${r.traded}</td><td class="num">${xs}</td></tr>`}).join('');
 }
 [q, src, side, size, own].forEach(el => el.addEventListener('input', draw));
@@ -448,8 +472,10 @@ def trades_page(rows, updated, built=()):
 
 def build(con, today, out=OUT):
     os.makedirs(out, exist_ok=True)
-    for name in os.listdir(APP_DIR):  # manifest, icons, service worker: the site root
+    for name in os.listdir(APP_DIR):  # manifest, icons, service worker, ui.js: the site root
         shutil.copy(os.path.join(APP_DIR, name), out)
+    with open(f"{out}/app.css", "w", encoding="utf-8") as f:
+        f.write(site_css())
     pictures.write(con, out)
     updated = datetime.datetime.now().strftime("%b %d, %Y %H:%M UTC") \
         if os.environ.get("GITHUB_ACTIONS") else f"{today:%b %d, %Y}"
@@ -460,14 +486,9 @@ def build(con, today, out=OUT):
         # two weeks: enough to fill the page, still fresh (Congress files up to 45 days late anyway)
         data = front.collect(con, today, 14, records=records)
         idea_tickers = [i["tkr"] for i in data["ideas"]]
-        body = front.render(data, today, 14)
-    except Exception as e:  # one bad row shouldn't take the whole site down
+    except Exception:  # one bad row shouldn't take the whole site down
         import traceback
         traceback.print_exc()
-        body = (f"<h1>Today</h1><p>This week's summary couldn't be built this run "
-                f"({html.escape(type(e).__name__)}). The other pages are current.</p>")
-    with open(f"{out}/ideas.html", "w", encoding="utf-8") as f:
-        f.write(page("Ideas", "ideas", body, updated))
     bt_json = load_report(con, "reports/backtest.json")
     bt_md = load_report(con, "reports/backtest.md")
     if bt_json:
@@ -513,6 +534,16 @@ def build(con, today, out=OUT):
         built.append(t)
     with open(f"{out}/trades.html", "w", encoding="utf-8") as f:
         f.write(trades_page(rows, updated, built))
+    # after the stock pages, so every ticker in it links to a page that exists
+    try:
+        body = front.render(data, today, 14, set(built))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        body = (f"<h1>Today</h1><p>This week's summary couldn't be built this run "
+                f"({html.escape(type(e).__name__)}). The other pages are current.</p>")
+    with open(f"{out}/ideas.html", "w", encoding="utf-8") as f:
+        f.write(page("Ideas", "ideas", body, updated))
     # Any stock, ETF or mutual fund: static data files the lookup page reads
     try:
         lookup.write(con, out, built, today)
@@ -600,6 +631,9 @@ def selftest():
     assert json.load(open(f"{out}/manifest.webmanifest"))["start_url"] == "./index.html"
     assert "href='manifest.webmanifest'" in idx and "register('sw.js')" in idx
     assert "href='../manifest.webmanifest'" in st and "register('../sw.js')" in st
+    # styles and the shared script live in one cached file each, not in every page
+    assert "<style>" not in idx[:idx.index("</head>")] and "href='app.css?v=" in idx and "src='../ui.js?v=" in st
+    assert ".tipb{" in open(f"{out}/app.css", encoding="utf-8").read() and os.path.exists(f"{out}/ui.js")
     assert "Whose buys beat the market?" in open(f"{out}/leaders.html", encoding="utf-8").read()
     tr = open(f"{out}/trades.html", encoding="utf-8").read()
     rows = trade_rows(con, datetime.date(2025, 3, 31))
@@ -612,6 +646,9 @@ def selftest():
     assert "watchlist" not in idx.lower() or "Your watchlist" not in idx
     assert "first check runs on sunday" in open(f"{out}/backtest.html", encoding="utf-8").read().lower()
     cg = open(f"{out}/congress.html", encoding="utf-8").read()
+    assert "class='pl' href='s/AAA.html'" in cg and "trades.html?q=" in cg, "recent trades link the stock and the person"
+    ideas_pg = open(f"{out}/ideas.html", encoding="utf-8").read()
+    assert "class='pl' href='s/AAA.html'><b>AAA</b>" in ideas_pg, "every ticker in the summary is a link"
     assert "Congress trading" in cg and "class='tabs'" in cg and 'href="congress.html" class="nav on"' in cg
     assert "Insider trading" in open(f"{out}/insiders.html", encoding="utf-8").read()
     fp = open(f"{out}/funds.html", encoding="utf-8").read()

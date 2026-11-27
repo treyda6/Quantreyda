@@ -42,6 +42,7 @@ import zipfile
 import duckdb
 
 import health
+import links
 
 NASDAQ_LISTED = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
 OTHER_LISTED = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
@@ -623,8 +624,7 @@ def page_data(blob, today):
             "div": blob.get("div", []), "spl": blob.get("spl", [])}
 
 
-def slug(tkr):
-    return re.sub(r"[^A-Za-z0-9]+", "-", tkr).strip("-").upper()
+slug = links.slug
 
 
 def write(con, out, built=(), today=None):
