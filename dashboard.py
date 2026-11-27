@@ -36,6 +36,7 @@ import fundpage
 import funds
 import headlines
 import home
+import cycle
 import economy
 import markets
 import mine
@@ -243,7 +244,7 @@ def page(title, active, body, updated, root=""):
     return (f"<!DOCTYPE html><html lang='en' data-theme='dark'><head><meta charset='utf-8'>"
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
             f"<title>{html.escape(title)} · Quantreyda</title>{THEME_HEAD}{app_head(root)}"
-            f"<style>{CSS}{front.CSS}{home.CSS}{stockpage.CSS}{business.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}{calendars.CSS}{moves.CSS}{economy.CSS}{readiness.CSS}{lookup.CSS}</style></head><body>"
+            f"<style>{CSS}{front.CSS}{home.CSS}{stockpage.CSS}{business.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}{calendars.CSS}{moves.CSS}{economy.CSS}{cycle.CSS}{readiness.CSS}{lookup.CSS}</style></head><body>"
             "<header><div class='bar'>" + f"<a class='logo' href='{root}index.html' aria-label='Quantreyda home'>{LOGO}</a>{lookup.search_html(root)}{nav}"
             f"<span class='sp'></span>"
             f"<button class='toggle' id='theme' type='button'>☀ Light</button></div></header>"
@@ -553,6 +554,10 @@ def build(con, today, out=OUT):
         economy.write_pages(con, out, page, updated, set(built))
     except Exception as e:
         print(f"economy detail pages skipped ({type(e).__name__}: {e})")
+    try:
+        cycle.write_pages(con, out, page, updated, set(built))
+    except Exception as e:
+        print(f"cycle detail pages skipped ({type(e).__name__}: {e})")
     try:  # the hourly job (news.yml) reuses this file's stock links and moves
         rd = readiness.site_json(con, set(built))
         if rd:

@@ -304,7 +304,23 @@ Sports and crypto are left out.
 ## Markets and the economy
 
 `economy.html` on the site (built by [`economy.py`](economy.py), refreshed in
-the daily run) has two halves, and every card opens its own page under `e/`:
+the daily run) has three parts, and every card opens its own page under `e/`:
+
+- **Where are we in the cycle?** ([`cycle.py`](cycle.py)) Two 0-100 gauges in
+  the spirit of Howard Marks. *Market cycle* (fear to greed) averages
+  valuation (Shiller CAPE from multpl.com, the Buffett indicator of stock
+  market value vs GDP, and stocks' earnings yield vs the 10-year real bond
+  yield), credit (Baa and junk-bond spreads) and sentiment (VIX, consumer
+  mood, the S&P 500 vs its 200-day average), each ranked against its own
+  history back as far as FRED goes. *Liquidity* (draining to flooding) covers
+  the Fed's net liquidity (balance sheet minus the Treasury's cash account and
+  reverse repo), the balance sheet itself, real M2, the dollar's trend, the
+  10-year real rate, bank lending standards and Chicago Fed financial
+  conditions. A line says what the two mean together, and the slow debt cycle
+  (federal debt vs GDP, interest as a share of federal revenue, household debt
+  payments) is shown for context. The home page's Markets block carries both
+  scores, and Readiness's markets level now counts financial conditions and
+  fast drains in net liquidity.
 
 - **Prices** for oil, natural gas, gasoline, diesel, gold, silver, platinum,
   palladium, copper, corn, wheat, soybeans, coffee, cocoa, cattle, bitcoin,
