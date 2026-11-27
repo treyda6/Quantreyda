@@ -17,8 +17,9 @@ It does six things:
 4. **Watches your stocks**: put tickers in `watchlist.txt` and get an email
    when a member of Congress or an insider buys or sells one. A **Sunday email**
    sums up the week.
-5. **Adds context**: big new government contracts, what a few proven
-   long-term funds (Berkshire and others in `funds.txt`) bought last quarter,
+5. **Adds context**: big new government contracts, what about 70 well-known
+   funds (Berkshire, Pershing Square, Baupost and others in `funds.txt`) own and
+   bought last quarter, each with its own page listing every holding,
    a ⚑ when a member of Congress trades in an industry their committee
    oversees, and a "where signals agree" list of stocks with several kinds of
    support at once.

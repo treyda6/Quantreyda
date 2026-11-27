@@ -159,7 +159,8 @@ def main():
     for label, step in (("prices", lambda: prices.fetch(con, set(pages) | {prices.BENCHMARK},
                                                          start=today - datetime.timedelta(days=740))),
                         ("prices for the other traded stocks",  # charts on the basic pages
-                         lambda: prices.fetch(con, set(recent_tickers(con, today)) - set(pages),
+                         lambda: prices.fetch(con, set(recent_tickers(con, today) + funds.page_tickers(con))
+                                              - set(pages),
                                               start=today - datetime.timedelta(days=740), minutes=10)),
                         ("industry codes", lambda: committees.refresh_companies(con, pages)),
                         ("health", lambda: health.refresh(con, pages)),
@@ -171,7 +172,8 @@ def main():
                         ("short interest (FINRA)", lambda: secextras.refresh_short(con, pages)),
                         ("new risk factors (10-K)", lambda: secextras.refresh_risks(con, pages)),
                         ("logos and portraits",
-                         lambda: pictures.refresh(con, list(pages) + recent_tickers(con, today)))):
+                         lambda: pictures.refresh(con, list(pages) + recent_tickers(con, today)
+                                                 + funds.page_tickers(con)))):
         t0 = time.monotonic()
         try:
             step()
