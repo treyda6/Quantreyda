@@ -103,6 +103,9 @@
     "activist": "An investor bought 5%+ of the company and may push for changes (13D filing).",
     "market cycle": "Where the economy and market look to be in the boom-and-bust cycle, read from growth, jobs, rates, credit and earnings.",
     "liquidity": "How easy money is to get: the Fed's balance sheet, bank reserves, credit spreads and lending. More liquidity usually lifts stocks.",
+    "owner earnings": "Cash from operations minus the spending needed to keep the business going: what an owner could take out each year.",
+    "margin of safety": "How far the price is below our rough estimate of value. 20%+ leaves room for being wrong.",
+    "roic": "Return on invested capital: profit earned on all the money (debt and equity) put into the business. Above 10-15% is a good business.",
     "money tracked": "The total value of US stocks the followed funds reported in their latest 13F filings."
   };
   var SEL = ".stats4 span,.kv span,.fst span,th,.badge,.chips .chip,dt,[data-term]";
@@ -114,7 +117,7 @@
     var els = (root || document).querySelectorAll(SEL);
     for (var i = 0; i < els.length; i++) {
       var el = els[i];
-      if (el.hasAttribute("data-tip") || el.closest("a,button,header,.bio")) continue;
+      if (el.hasAttribute("data-tip") || el.closest("a,button,header,.bio,.vs-tbl thead")) continue;
       var k = key(el);
       if (!k) continue;
       el.setAttribute("data-tip", G[k]);

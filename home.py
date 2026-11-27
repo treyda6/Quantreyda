@@ -56,6 +56,8 @@ SECTIONS = (
      (), False),
     ("ideas", "ideas.html", "Ideas", "Stocks with several kinds of smart money behind them, "
      "with a health check on each company.", (), False),
+    ("value", "value.html", "Value screen", "What each company is worth against its price, how good "
+     "the business is, red flags and owner-minded management.", (), False),
     ("screener", "screener.html", "Small caps", "Small companies with the numbers to grow big.",
      ("screener",), True),
     ("themes", "themes.html", "Future themes", "Long-term trends and the companies positioned for them.",

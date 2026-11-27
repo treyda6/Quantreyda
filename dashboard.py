@@ -51,6 +51,7 @@ import lookup
 import stockpage
 import business
 import themes
+import value
 import whitehouse
 import today as front
 from schema import DB_PATH, ensure_schema, load_report
@@ -154,7 +155,7 @@ def site_css():
     """Every page's styles, written once to app.css (cached) instead of
     ~50 KB copied into each of the site's pages."""
     return "".join((CSS, front.CSS, home.CSS, stockpage.CSS, business.CSS, leaders.LB_CSS, pictures.CSS,
-                    sections.CSS, markets.CSS, calendars.CSS, moves.CSS, economy.CSS, cycle.CSS, readiness.CSS, lookup.CSS))
+                    sections.CSS, markets.CSS, calendars.CSS, moves.CSS, economy.CSS, cycle.CSS, readiness.CSS, lookup.CSS, value.CSS))
 
 
 def _version(text):
@@ -192,7 +193,8 @@ NAV = (("home", "index.html", "Home"),
        ("economy", "economy.html", "Markets & economy"), ("moves", "moves.html", "Market moves"),
        ("calendar", "calendar.html", "Calendar"), ("odds", "markets.html", "Odds"),
        ("news", "news.html", "News"), ("readiness", "readiness.html", "Readiness"),
-       ("ideas", "ideas.html", "Ideas"), ("screener", "screener.html", "Small caps"),
+       ("ideas", "ideas.html", "Ideas"), ("value", "value.html", "Value screen"),
+       ("screener", "screener.html", "Small caps"),
        ("themes", "themes.html", "Future themes"),
        ("congress", "congress.html", "Congress"), ("insiders", "insiders.html", "Insiders"),
        ("funds", "funds.html", "Funds"), ("trades", "trades.html", "All trades"),
@@ -203,7 +205,7 @@ NAV = (("home", "index.html", "Home"),
 # Menu button that opens every group as a labeled column.
 GROUP = {"economy": "Markets", "moves": "Markets", "calendar": "Markets", "odds": "Markets",
          "news": "Markets", "readiness": "Markets",
-         "ideas": "Ideas", "screener": "Ideas", "themes": "Ideas",
+         "ideas": "Ideas", "value": "Ideas", "screener": "Ideas", "themes": "Ideas",
          "congress": "Who's buying", "insiders": "Who's buying", "funds": "Who's buying",
          "trades": "Who's buying", "leaders": "Who's buying", "backtest": "Who's buying"}
 TAB_LABEL = {"economy": "Markets", "trades": "Search"}
@@ -553,6 +555,8 @@ def build(con, today, out=OUT):
         print(f"lookup data skipped ({type(e).__name__}: {e})")
     with open(f"{out}/look.html", "w", encoding="utf-8") as f:
         f.write(page("Look up", "", lookup.lookup_page(), updated))
+    with open(f"{out}/value.html", "w", encoding="utf-8") as f:  # value.js fills it from look/screen.json
+        f.write(page("Value screen", "value", value.page(), updated))
     bt = json.loads(bt_json) if bt_json else {}
     for name, title, make in (("congress", "Congress", lambda: sections.page_congress(con, rows, today, bt, set(built))),
                               ("insiders", "Insiders", lambda: sections.page_insiders(con, rows, today, bt, set(built))),
@@ -677,7 +681,10 @@ def selftest():
     assert "id='lk' data-mode='page'" in lk and "src='look.js'" in lk and os.path.exists(f"{out}/look.js")
     assert "id='lk-q'" in idx and "src='../look.js'" in st and "data-tkr='AAA'" in st
     assert st.index("lk-panel") < st.index("panel qa"), "history panel sits under the first chart"
-    assert os.path.exists(f"{out}/look/index.json")
+    assert os.path.exists(f"{out}/look/index.json") and os.path.exists(f"{out}/look/screen.json")
+    vs = open(f"{out}/value.html", encoding="utf-8").read()
+    assert "id='vs'" in vs and "src='value.js'" in vs and os.path.exists(f"{out}/value.js")
+    assert vs.index("src='value.js'") < vs.index("src='look.js'"), "look.js uses value.js's scorecards"
     mv = open(f"{out}/moves.html", encoding="utf-8").read()
     assert "Market moves" in mv and 'class="nav on">Market moves' in mv
     # the menu: Home and Mine on the bar, everything else in three groups
