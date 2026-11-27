@@ -101,6 +101,8 @@
     "white house": "The President, Vice President or a cabinet-level official reported buying it.",
     "fed": "A Federal Reserve governor reported buying it.",
     "activist": "An investor bought 5%+ of the company and may push for changes (13D filing).",
+    "market cycle": "Where the economy and market look to be in the boom-and-bust cycle, read from growth, jobs, rates, credit and earnings.",
+    "liquidity": "How easy money is to get: the Fed's balance sheet, bank reserves, credit spreads and lending. More liquidity usually lifts stocks.",
     "money tracked": "The total value of US stocks the followed funds reported in their latest 13F filings."
   };
   var SEL = ".stats4 span,.kv span,.fst span,th,.badge,.chips .chip,dt,[data-term]";

@@ -43,6 +43,7 @@ import moves
 import pictures
 import secextras
 import digest
+import cycle
 import economy
 import funds
 import health
@@ -155,6 +156,7 @@ def main(quick=False):
                         ("Prediction markets (Polymarket, Kalshi)", lambda: markets.refresh(_con())),
                         ("Earnings, economic and IPO calendars", lambda: calendars.refresh(_con())),
                         ("Commodities, crypto and the economy (Yahoo, FRED)", lambda: economy.refresh(_con())),
+                        ("Market cycle and liquidity gauges (FRED, multpl)", lambda: cycle.refresh(_con())),
                         ("Readiness levels (cyber, geopolitics, grid, weather, supply, health)",
                          lambda: readiness.refresh(_con()))):
         section(f"{label}")

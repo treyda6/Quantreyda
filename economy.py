@@ -827,6 +827,11 @@ def page(con, built=frozenset()):
             body.append("<h2>Biggest moves this month</h2><div class='movers'>" + "".join(
                 f"<a href='{DIR}/{v['a'][1]}.html'><span>{E(v['a'][2])}</span>{fmt_chg(v['chg']['1M'])}</a>"
                 for v in movers) + "</div>")
+    try:
+        import cycle  # here, not at the top: cycle.py builds on this module
+        body.append(cycle.section(con))
+    except Exception as e:  # the cycle gauges are one block; the page still renders
+        print(f"cycle section skipped ({type(e).__name__}: {e})")
     body.append("<h2 id='prices'>Prices</h2><p class='hint'>Commodities, metals and crypto. Tap any one for its "
                 "full chart, what moves it, and the stocks and funds that move with it. Prices are the "
                 "latest daily close (crops and cattle converted from cents to dollars).</p>")
@@ -955,8 +960,13 @@ def home_teaser(con, today=None, root=""):
     for slug, v in inds.items():
         if v["v"] is not None:
             bits.append(f"<a href='{root}{DIR}/{slug}.html'><span>{E(v['i'][2])}</span> <b>{fmt_ind(v['v'], v['i'][5])}</b></a>")
+    try:
+        import cycle
+        mood += cycle.home_line(con, root)
+    except Exception as e:
+        print(f"cycle home line skipped ({type(e).__name__}: {e})")
     if not bits:
-        return ""
+        return mood
     return mood + "<div class='movers'>" + "".join(bits) + "</div>"
 
 

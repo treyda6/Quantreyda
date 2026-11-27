@@ -36,6 +36,7 @@ import fundpage
 import funds
 import headlines
 import home
+import cycle
 import economy
 import markets
 import mine
@@ -153,7 +154,7 @@ def site_css():
     """Every page's styles, written once to app.css (cached) instead of
     ~50 KB copied into each of the site's pages."""
     return "".join((CSS, front.CSS, home.CSS, stockpage.CSS, business.CSS, leaders.LB_CSS, pictures.CSS,
-                    sections.CSS, markets.CSS, calendars.CSS, moves.CSS, economy.CSS, readiness.CSS, lookup.CSS))
+                    sections.CSS, markets.CSS, calendars.CSS, moves.CSS, economy.CSS, cycle.CSS, readiness.CSS, lookup.CSS))
 
 
 def _version(text):
@@ -585,6 +586,10 @@ def build(con, today, out=OUT):
         economy.write_pages(con, out, page, updated, set(built))
     except Exception as e:
         print(f"economy detail pages skipped ({type(e).__name__}: {e})")
+    try:
+        cycle.write_pages(con, out, page, updated, set(built))
+    except Exception as e:
+        print(f"cycle detail pages skipped ({type(e).__name__}: {e})")
     try:  # the hourly job (news.yml) reuses this file's stock links and moves
         rd = readiness.site_json(con, set(built))
         if rd:
