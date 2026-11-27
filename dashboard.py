@@ -35,6 +35,7 @@ import fundpage
 import funds
 import headlines
 import home
+import economy
 import markets
 import moves
 import pictures
@@ -197,7 +198,7 @@ def page(title, active, body, updated, root=""):
     return (f"<!DOCTYPE html><html lang='en' data-theme='dark'><head><meta charset='utf-8'>"
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
             f"<title>{html.escape(title)} · Quantreyda</title>{THEME_HEAD}{app_head(root)}"
-            f"<style>{CSS}{front.CSS}{home.CSS}{stockpage.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}{calendars.CSS}{moves.CSS}</style></head><body>"
+            f"<style>{CSS}{front.CSS}{home.CSS}{stockpage.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}{calendars.CSS}{moves.CSS}{economy.CSS}</style></head><body>"
             f"<header><div class='bar'><span class='logo'><i></i>Quantreyda</span>{nav}"
             f"<span class='sp'></span>"
             f"<button class='toggle' id='theme' type='button'>☀ Light</button></div></header>"
@@ -471,7 +472,8 @@ def build(con, today, out=OUT):
                               ("funds", "Funds", lambda: sections.page_funds(con, today, set(built))),
                               ("markets", "Odds", lambda: markets.page(con)),
                               ("moves", "Market moves", lambda: moves.page(con, today, set(built))),
-                              ("calendar", "Calendar", lambda: calendars.page(con, today, set(built)))):
+                              ("calendar", "Calendar", lambda: calendars.page(con, today, set(built))),
+                              ("economy", "Markets & economy", lambda: economy.page(con, set(built)))):
         try:
             body = make()
         except Exception as e:  # one section failing shouldn't take the site down
@@ -492,6 +494,10 @@ def build(con, today, out=OUT):
         fundpage.build(con, out, set(built), page, updated)
     except Exception as e:  # the fund pages are extras; never block the site
         print(f"fund pages skipped ({type(e).__name__}: {e})")
+    try:
+        economy.write_pages(con, out, page, updated, set(built))
+    except Exception as e:
+        print(f"economy detail pages skipped ({type(e).__name__}: {e})")
     with open(f"{out}/leaders.html", "w", encoding="utf-8") as f:
         f.write(page("Leaderboard", "leaders", leaders.render(con, board, built), updated))
     # News: the page loads headlines in the browser from the hourly feed
@@ -517,7 +523,7 @@ def selftest():
     ideas = open(f"{out}/ideas.html", encoding="utf-8").read()
     assert "30-second version" in ideas and "AAA" in ideas
     assert "href='s/AAA.html'" in ideas, "idea cards link to their stock page"
-    assert "Coming soon" in open(f"{out}/economy.html", encoding="utf-8").read()
+    assert "Coming soon" not in open(f"{out}/economy.html", encoding="utf-8").read()
     st = open(f"{out}/s/AAA.html", encoding="utf-8").read()
     assert "About this stock" in st and "href=\"../index.html\"" in st
     # home-screen app: files at the site root, every page points at them
@@ -549,6 +555,9 @@ def selftest():
     assert "Earnings calendar" in open(f"{out}/calendar.html", encoding="utf-8").read()
     assert "hl-feed" in open(f"{out}/news.html", encoding="utf-8").read()
     assert "Latest headlines" in st and "AAA" in [r["tkr"] for r in json.load(open(f"{out}/tracked.json"))]
+    assert "Recession warning lights" in open(f"{out}/economy.html", encoding="utf-8").read() \
+        or "next daily update" in open(f"{out}/economy.html", encoding="utf-8").read()
+    assert os.path.exists(f"{out}/e/gold.html") and "href='../economy.html" in open(f"{out}/e/cpi.html").read()
     mv = open(f"{out}/moves.html", encoding="utf-8").read()
     assert "Market moves" in mv and 'class="nav on">Moves' in mv
     print("dashboard selftest ok")
