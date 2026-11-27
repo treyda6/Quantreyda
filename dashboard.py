@@ -71,7 +71,9 @@ header{position:sticky;top:0;z-index:20;backdrop-filter:blur(12px);
 background:color-mix(in srgb,var(--bg) 82%,transparent);border-bottom:1px solid var(--line)}
 .bar{max-width:1180px;margin:0 auto;padding:12px 20px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .logo{font-weight:800;font-size:18px;letter-spacing:-.3px;margin-right:14px;display:flex;align-items:center;gap:8px;color:var(--fg);text-decoration:none;white-space:nowrap}
-.logo i{width:10px;height:10px;border-radius:50%;background:var(--acc);box-shadow:0 0 12px var(--acc)}
+.logo svg{width:30px;height:30px;flex:none;overflow:visible}.logo .lt{stroke:var(--acc);filter:drop-shadow(0 0 4px color-mix(in srgb,var(--acc) 55%,transparent))}
+.logo .wm{display:flex;flex-direction:column;line-height:1}.logo .wm b{font-size:14px;font-weight:800;letter-spacing:4px;text-transform:uppercase}
+.logo .wm small{font:600 8.5px ui-monospace,"JetBrains Mono",Menlo,monospace;letter-spacing:2.6px;text-transform:uppercase;color:var(--mut);margin-top:4px}
 .bar a.nav{color:var(--mut);text-decoration:none;font-weight:600;font-size:14px;padding:7px 9px;border-radius:999px}
 .bar a.nav:hover{color:var(--fg)}.bar a.nav.on{background:var(--chip);color:var(--fg)}
 .bar .sp{flex:1}.upd{color:var(--mut);font-size:12px}
@@ -105,7 +107,7 @@ box-shadow:none;background:none;min-width:0}.nv .menu:before{display:none}
 .tabs{display:none}
 @media(max-width:700px){
 .bar{gap:6px;padding:10px 12px}.upd{display:none}
-.logo{font-size:16px;gap:6px}.toggle .tl,.nvb .tl{display:none}.toggle,.nvb{padding:7px 10px}
+.logo{gap:7px}.logo svg{width:28px;height:28px}.logo .wm b{font-size:12px;letter-spacing:2px}.logo .wm small{display:none}.toggle .tl,.nvb .tl{display:none}.toggle,.nvb{padding:7px 10px}
 .tabs{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:30;justify-content:space-around;
 padding:8px 4px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--line);
 background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px)}
@@ -224,6 +226,14 @@ def app_head(root=""):
             f"navigator.serviceWorker.register('{root}sw.js').catch(()=>{{}}))</script>")
 
 
+# The mark: a Q whose tail is a breakout line, rising out of the ring.
+LOGO = ("<svg viewBox='0 0 32 32' aria-hidden='true' fill='none' stroke-linecap='round' stroke-linejoin='round'>"
+        "<path d='M17.76 24.84A11 11 0 1 1 23.97 19.15' stroke='currentColor' stroke-width='2.8'/>"
+        "<path class='lt' d='M14.6 16.4l7.6 7.4 5.6-10.6' stroke-width='2.9'/>"
+        "<circle cx='28.2' cy='11.4' r='2.5' fill='var(--acc)'/></svg>"
+        "<span class='wm'><b>Quantreyda</b><small>Market · Intel</small></span>")
+
+
 def page(title, active, body, updated, root=""):
     nav = nav_html(active, root)
     tabs = "".join(
@@ -234,7 +244,7 @@ def page(title, active, body, updated, root=""):
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
             f"<title>{html.escape(title)} · Quantreyda</title>{THEME_HEAD}{app_head(root)}"
             f"<style>{CSS}{front.CSS}{home.CSS}{stockpage.CSS}{business.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}{calendars.CSS}{moves.CSS}{economy.CSS}{readiness.CSS}{lookup.CSS}</style></head><body>"
-            f"<header><div class='bar'><a class='logo' href='{root}index.html' aria-label='Quantreyda home'><i></i><span>Quantreyda</span></a>{lookup.search_html(root)}{nav}"
+            "<header><div class='bar'>" + f"<a class='logo' href='{root}index.html' aria-label='Quantreyda home'>{LOGO}</a>{lookup.search_html(root)}{nav}"
             f"<span class='sp'></span>"
             f"<button class='toggle' id='theme' type='button'>☀ Light</button></div></header>"
             f"<main>{body}</main><footer>Updated {updated}. Free public data: market prices, prediction markets, SEC "
