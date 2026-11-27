@@ -12,6 +12,7 @@ Pages:
   backtest.html  the latest "did it beat SPY?" report, if backtest.py has run
   leaders.html   politicians and insiders ranked by how their buys did
   moves.html     sector heatmap, analyst rating changes, unusual options bets
+  readiness.html DEFCON-style threat and preparedness levels (readiness.py)
   s/<TKR>.html   one page per stock: chart with the buys, health, news,
                  and a plain-English explainer
 
@@ -40,6 +41,7 @@ import markets
 import mine
 import moves
 import pictures
+import readiness
 import screener
 import sections
 import leaders
@@ -142,7 +144,7 @@ ICONS = {  # simple 24px line icons for the phone tab bar
 NAV = (("home", "index.html", "Home"),
        ("economy", "economy.html", "Markets & economy"), ("calendar", "calendar.html", "Calendar"),
        ("odds", "markets.html", "Odds"), ("moves", "moves.html", "Moves"),
-       ("news", "news.html", "News"),
+       ("news", "news.html", "News"), ("readiness", "readiness.html", "Readiness"),
        ("ideas", "ideas.html", "Ideas"), ("screener", "screener.html", "Small caps"),
        ("themes", "themes.html", "Future themes"),
        ("funds", "funds.html", "Funds"), ("congress", "congress.html", "Congress"),
@@ -204,7 +206,7 @@ def page(title, active, body, updated, root=""):
     return (f"<!DOCTYPE html><html lang='en' data-theme='dark'><head><meta charset='utf-8'>"
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
             f"<title>{html.escape(title)} · Quantreyda</title>{THEME_HEAD}{app_head(root)}"
-            f"<style>{CSS}{front.CSS}{home.CSS}{stockpage.CSS}{business.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}{calendars.CSS}{moves.CSS}{economy.CSS}</style></head><body>"
+            f"<style>{CSS}{front.CSS}{home.CSS}{stockpage.CSS}{business.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}{calendars.CSS}{moves.CSS}{economy.CSS}{readiness.CSS}</style></head><body>"
             f"<header><div class='bar'><span class='logo'><i></i>Quantreyda</span>{nav}"
             f"<span class='sp'></span>"
             f"<button class='toggle' id='theme' type='button'>☀ Light</button></div></header>"
@@ -480,7 +482,8 @@ def build(con, today, out=OUT):
                               ("markets", "Odds", lambda: markets.page(con)),
                               ("moves", "Market moves", lambda: moves.page(con, today, set(built))),
                               ("calendar", "Calendar", lambda: calendars.page(con, today, set(built))),
-                              ("economy", "Markets & economy", lambda: economy.page(con, set(built)))):
+                              ("economy", "Markets & economy", lambda: economy.page(con, set(built))),
+                              ("readiness", "Readiness levels", lambda: readiness.page(con, set(built)))):
         try:
             body = make()
         except Exception as e:  # one section failing shouldn't take the site down
@@ -505,6 +508,13 @@ def build(con, today, out=OUT):
         economy.write_pages(con, out, page, updated, set(built))
     except Exception as e:
         print(f"economy detail pages skipped ({type(e).__name__}: {e})")
+    try:  # the hourly job (news.yml) reuses this file's stock links and moves
+        rd = readiness.site_json(con, set(built))
+        if rd:
+            with open(f"{out}/readiness.json", "w", encoding="utf-8") as f:
+                json.dump(rd, f, separators=(",", ":"))
+    except Exception as e:
+        print(f"readiness.json skipped ({type(e).__name__}: {e})")
     with open(f"{out}/leaders.html", "w", encoding="utf-8") as f:
         f.write(page("Leaderboard", "leaders", leaders.render(con, board, built), updated))
     # News: the page loads headlines in the browser from the hourly feed
@@ -577,6 +587,8 @@ def selftest():
     assert os.path.exists(f"{out}/e/gold.html") and "href='../economy.html" in open(f"{out}/e/cpi.html").read()
     mv = open(f"{out}/moves.html", encoding="utf-8").read()
     assert "Market moves" in mv and 'class="nav on">Moves' in mv
+    rp = open(f"{out}/readiness.html", encoding="utf-8").read()
+    assert "Readiness levels" in rp and "How the levels work" in rp and 'href="readiness.html" class="nav on"' in rp
     print("dashboard selftest ok")
 
 

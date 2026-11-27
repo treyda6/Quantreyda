@@ -6,7 +6,8 @@ economy, the news, research ideas, prediction-market odds, and what insiders,
 Congress and proven funds are buying. It's meant for finding long-term ideas
 (for example for a Roth IRA), not for day trading.
 
-Sections: **Home** (the briefing), **Markets** (stocks, rates, commodities,
+Sections: **Home** (the briefing), **Readiness** (DEFCON-style threat and
+preparedness levels), **Markets** (stocks, rates, commodities,
 crypto, economic numbers), **News**, **Ideas**, **Small caps** and **Future**
 themes, **Funds**, **Odds**, and the who's-buying pages (**Congress**,
 **Insiders**, **All trades**, **Leaderboard**, **Did it work?**). A section
@@ -51,6 +52,21 @@ Everything comes free from government websites. No paid data.
 > buying has a better record, but it's not a sure thing either. Use the digest
 > as a research list, keep the backtest honest, and keep the core of a Roth in
 > index funds unless the numbers clearly say otherwise.
+
+## Readiness levels
+
+`readiness.html` gives one overall level and seven area levels, numbered like
+DEFCON (5 calm, 1 most serious; our own yardstick, not an official level):
+markets & money, cyber, geopolitics, grid & infrastructure, weather &
+disasters, supply chain & prices, and health. Each area shows the signals
+behind it with their calm and severe marks, the latest events (for example
+CISA's newly exploited flaws and companies that filed an SEC 8-K Item 1.05
+cyber-incident report), what it means for investors, practical preparedness
+notes, and the stocks and funds tied to it. Sources are all free: FRED, CISA,
+SEC EDGAR, GDELT, the State Department, NOAA, NWS, USGS, FEMA, the NY Fed,
+CDC and WHO. The daily run stores a snapshot; the hourly news job rechecks
+every source and the page picks up the newer reading. Other code can read the
+levels with `readiness.levels(con)`.
 
 ## The website (runs itself on GitHub)
 

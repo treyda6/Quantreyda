@@ -11,7 +11,7 @@ January, so the prior year stays live for a few weeks after New Year's.
 Older years never gain filings after publication.
 
 Usage:
-    py daily.py            # senate + house + tickers + insiders (7 days) + contracts + 13Fs + committees + White House + activists + calendars + digest + alerts + news
+    py daily.py            # senate + house + tickers + insiders (7 days) + contracts + 13Fs + committees + White House + activists + calendars + readiness + digest + alerts + news
     py daily.py --selftest # offline check of the year window, no network
 
 Meant to run under Windows Task Scheduler once a day; stdout/stderr redirect
@@ -46,6 +46,7 @@ import funds
 import health
 import news
 import prices
+import readiness
 import screener
 import stockpage
 import themes
@@ -143,7 +144,9 @@ def main():
                         ("Bills moving in Congress", lambda: bills.refresh(_con())),
                         ("Prediction markets (Polymarket, Kalshi)", lambda: markets.refresh(_con())),
                         ("Earnings, economic and IPO calendars", lambda: calendars.refresh(_con())),
-                        ("Commodities, crypto and the economy (Yahoo, FRED)", lambda: economy.refresh(_con()))):
+                        ("Commodities, crypto and the economy (Yahoo, FRED)", lambda: economy.refresh(_con())),
+                        ("Readiness levels (cyber, geopolitics, grid, weather, supply, health)",
+                         lambda: readiness.refresh(_con()))):
         section(f"{label}")
         try:
             step()
