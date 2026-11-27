@@ -88,6 +88,37 @@ current even on a day the run runs out of time.
 ticker, in case you need to paste it). You sign in and place the order on
 Fidelity's own site or app; this site never places trades or sees your login.
 
+## What it's worth, and is it a good business? (value.py)
+
+Every stock and lookup page opens its financials with four scorecards, the
+questions long-term investors (Buffett, Munger, Graham, Burry, Lynch) ask
+before price or news. Each shows its assumptions in plain English:
+
+- **Value**: owner earnings (operating cash flow − capital spending − stock
+  pay, averaged over 3 years), grown at the company's own recent rate for
+  5 years and fading to 2.5% by year 10, discounted at 10% a year, plus cash
+  minus debt. You get an estimated value a share with a no-growth to
+  faster-growth range, the **margin of safety** against today's price, the
+  growth rate today's price already assumes, and the owner-earnings yield.
+- **Business quality** (0–100): return on invested capital over up to 10
+  years, free cash flow, debt next to free cash flow, the share-count trend
+  and gross-margin stability.
+- **Red flags** (the short-seller lens): profits running ahead of cash
+  (accruals), receivables or inventory outrunning sales, heavy stock pay,
+  goodwill, thin interest cover and dilution for every company; for stocks
+  with research pages also short interest, auditor changes (8-K 4.01),
+  restatements (8-K 4.02), late-filing notices and new 10-K risk warnings.
+- **Run by owners?** (0–100): free cash flow per share growth, the return on
+  money reinvested, whether buybacks actually shrank the share count, big
+  acquisitions, and CEO pay against shareholder returns (the proxy's
+  pay-versus-performance table).
+
+The **Value screen** (`value.html`, under Ideas) puts every scored company in
+one sortable table with ready-made lists: Cheap and good, Best businesses,
+Owner-minded and Red flags. Banks and insurers are valued on net income and
+judged on return on equity, and are hidden from the screen unless you tick the
+box. Scores refresh with the weekly SEC financials.
+
 ## Readiness levels
 
 `readiness.html` gives one overall level and seven area levels, numbered like
