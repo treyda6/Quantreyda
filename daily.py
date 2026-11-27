@@ -44,7 +44,9 @@ import funds
 import health
 import news
 import prices
+import screener
 import stockpage
+import themes
 import whitehouse
 import entities
 import scrape_house
@@ -190,8 +192,36 @@ def main():
         except Exception as e:
             print(f"{label} skipped ({type(e).__name__}: {e}{_where(e)})")
         print(f"    ({label}: {(time.monotonic() - t0) / 60:.1f} min)")
+    small_caps_and_themes(con, today, set(pages))
     con.close()
     section(None)
+
+
+def small_caps_and_themes(con, today, done=()):
+    """Prices, size and health for the small-cap screener's best names and
+    every future-theme stock, plus the themes' Wikipedia attention numbers."""
+    section("Small-cap screener and future themes")
+    picks = [t for t in screener.tickers(con, today) + themes.tickers() if t not in done]
+    try:  # checked before company size was stored: check again now
+        health.ensure_table(con)
+        unsized = [t for t, in con.execute(
+            "SELECT tkr FROM health WHERE shares IS NULL AND verdict <> 'Unknown' "
+            "AND tkr IN (SELECT unnest(?))", [picks]).fetchall()]
+    except Exception:
+        unsized = []
+    for label, step in (("prices", lambda: prices.fetch(con, picks, start=today - datetime.timedelta(days=740),
+                                                        minutes=10)),
+                        ("industry codes", lambda: committees.refresh_companies(con, picks)),
+                        ("health and size", lambda: health.refresh(con, picks)),
+                        ("size for older checks", lambda: health.refresh(con, unsized[:150], force=True)),
+                        ("logos", lambda: pictures.refresh(con, picks)),
+                        ("theme attention (Wikipedia)", lambda: themes.refresh(con, today))):
+        try:
+            step()
+        except SystemExit as e:
+            print(f"{label} skipped: {e}")
+        except Exception as e:
+            print(f"{label} skipped ({type(e).__name__}: {e}{_where(e)})")
 
 
 def selftest():

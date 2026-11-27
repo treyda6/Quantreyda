@@ -63,7 +63,7 @@ def ensure_table(con):
         net_income DOUBLE, debt DOUBLE, equity DOUBLE, cash DOUBLE,
         share_growth DOUBLE, pe DOUBLE, verdict VARCHAR, reasons VARCHAR)""")
     # added later; older databases get the columns on first use
-    for col in ("buybacks", "dividends", "ceo_pay", "ceo_paid", "split_ratio"):
+    for col in ("buybacks", "dividends", "ceo_pay", "ceo_paid", "split_ratio", "shares"):
         con.execute(f"ALTER TABLE health ADD COLUMN IF NOT EXISTS {col} DOUBLE")
     for col in ("ceo_pay_year", "split_date"):
         con.execute(f"ALTER TABLE health ADD COLUMN IF NOT EXISTS {col} VARCHAR")
@@ -181,6 +181,7 @@ def analyze(facts, price=None):
     s_end, shares = latest_instant(facts, SHARES, unit="shares")
     prev = instant_year_ago(facts, SHARES, s_end, unit="shares")
     m["share_growth"] = shares / prev - 1 if shares and prev else None
+    m["shares"] = shares  # shares outstanding: x price = company size (market cap)
     bb, dv = annual_series(facts, BUYBACKS), annual_series(facts, DIVIDENDS)
     m["buybacks"] = bb[sorted(bb)[-1]] if bb and sorted(bb)[-1] >= (m["fiscal_year_end"] or "") else None
     m["dividends"] = dv[sorted(dv)[-1]] if dv and sorted(dv)[-1] >= (m["fiscal_year_end"] or "") else None
@@ -289,7 +290,7 @@ def refresh(con, tickers, force=False):
             cols = ["company", "fiscal_year_end", "revenue", "revenue_growth", "net_income",
                     "debt", "equity", "cash", "share_growth", "pe", "verdict", "reasons",
                     "buybacks", "dividends", "ceo_pay", "ceo_paid", "ceo_pay_year",
-                    "split_ratio", "split_date"]
+                    "split_ratio", "split_date", "shares"]
             con.execute(f"INSERT OR REPLACE INTO health (tkr, checked_on, {', '.join(cols)}) "
                         f"VALUES (?, ?, {', '.join('?' * len(cols))})",
                         [t, today] + [m.get(c) for c in cols])
