@@ -2,7 +2,12 @@
 #
 #   every day ~7am US Central   scrape new filings, email watchlist alerts, rebuild the site
 #   Sundays                     also run the backtest and send the weekly email
-#   "Run workflow" button       same as daily; tick "backfill" to fill history
+#   "Run workflow" button       pick how much to do (default "quick"):
+#       quick         rebuild the site from the saved data, ~10 min. Use it to
+#                     see a code change live. Doesn't wait for a running update.
+#       new-filings   also pull new Congress and insider trades, digest and alerts, ~20 min
+#       full          everything the morning run does, 1.5h+
+#     tick "backfill" to fill history
 #
 # Settings it needs (repo Settings > Secrets and variables > Actions):
 #   SEC_CONTACT_EMAIL   required by sec.gov (any email you read)
@@ -20,6 +25,11 @@ on:
     - cron: "0 13 * * *"
   workflow_dispatch:
     inputs:
+      run:
+        description: "How much to do"
+        type: choice
+        options: [quick, new-filings, full]
+        default: quick
       backfill:
         description: "Fill history (first run; slow, resumable)"
         type: boolean
@@ -34,9 +44,12 @@ permissions:
   pages: write
   id-token: write
 
+# Runs that update the database take turns (they share one saved copy).
+# A quick run only reads it, so it has its own lane: it doesn't queue behind
+# a 1.5h update, and a newer quick run replaces an older one.
 concurrency:
-  group: tracker
-  cancel-in-progress: false
+  group: ${{ (inputs.run == 'quick' && !inputs.backfill && !inputs.weekly) && 'tracker-site' || 'tracker' }}
+  cancel-in-progress: ${{ inputs.run == 'quick' && !inputs.backfill && !inputs.weekly }}
 
 jobs:
   run:
@@ -71,15 +84,18 @@ jobs:
         # stop after ~4.5h so the database still gets saved; the next run resumes
         run: timeout 270m python backfill.py || echo "backfill paused; resumes next run"
 
+      # The scheduled run has no inputs, so inputs.run is empty there: full.
       - name: Daily update
+        if: inputs.run != 'quick'
         continue-on-error: true  # one government site being down shouldn't skip the dashboard
-        run: timeout 60m python daily.py
+        run: timeout 60m python daily.py ${{ inputs.run == 'new-filings' && '--quick' || '' }}
 
       - name: Lookup data for any stock, ETF or mutual fund
         # symbols daily, SEC financials weekly, then Yahoo prices until the
         # budget runs out (the first fill takes a few days, then it's a top-up).
         # Skipped on backfill runs, which already use most of the job's time.
-        if: ${{ !inputs.backfill && steps.db.outputs.cache-matched-key != '' }}
+        # Morning run and "full" only.
+        if: ${{ inputs.run != 'quick' && inputs.run != 'new-filings' && !inputs.backfill && steps.db.outputs.cache-matched-key != '' }}
         continue-on-error: true
         run: timeout 50m python lookup.py --minutes 40
 
@@ -87,7 +103,9 @@ jobs:
         id: day
         run: echo "sunday=$([ "$(date -u +%u)" = 7 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - name: Weekly backtest and email
-        if: steps.day.outputs.sunday == 'true' || inputs.weekly
+        # the Sunday morning run, or when ticked (a manual run on a Sunday
+        # doesn't resend the weekly email)
+        if: (steps.day.outputs.sunday == 'true' && github.event_name == 'schedule') || inputs.weekly
         continue-on-error: true  # a failed email mustn't stop the site from rebuilding
         run: |
           timeout 60m python backtest.py || echo "backtest failed; keeping last week's"
@@ -105,7 +123,8 @@ jobs:
         run: mkdir -p site/course && cp course/* site/course/
 
       - name: Save database
-        if: always()
+        # a quick run didn't change it (and may overlap an update that will save)
+        if: always() && (inputs.run != 'quick' || inputs.backfill || inputs.weekly || steps.db.outputs.cache-matched-key == '')
         uses: actions/cache/save@v4
         with:
           path: congress_trades.duckdb

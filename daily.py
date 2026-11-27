@@ -12,6 +12,8 @@ Older years never gain filings after publication.
 
 Usage:
     py daily.py            # senate + house + tickers + insiders (7 days) + contracts + 13Fs + committees + White House + activists + calendars + readiness + digest + alerts + news
+    py daily.py --quick    # new filings only: senate + house + insiders + digest + alerts
+                           # (the "new-filings" choice of a manual run; skips the slow extras)
     py daily.py --selftest # offline check of the year window, no network
 
 Meant to run under Windows Task Scheduler once a day; stdout/stderr redirect
@@ -114,11 +116,11 @@ def section(label):
         print(f"\n--- {label} ---")
 
 
-def main():
-    print(f"=== Quantreyda daily run: {datetime.datetime.now()} ===")
+def main(quick=False):
+    print(f"=== Quantreyda daily run{' (quick)' if quick else ''}: {datetime.datetime.now()} ===")
 
     section("Senate")
-    scrape_senate.main(max_minutes=20)
+    scrape_senate.main(max_minutes=8 if quick else 20)
 
     years = house_years()
     section(f"House {years}")
@@ -134,6 +136,14 @@ def main():
         scrape_insiders.main_live(days=7)
     except SystemExit as e:
         print(f"skipped: {e}")
+
+    if quick:  # new filings, digest and alerts; the morning run does the rest
+        section("Digest")
+        digest.main(days=7)
+        section("Watchlist alerts")
+        alerts.main()
+        section(None)
+        return
 
     # Each extra source is optional: a failure there shouldn't cost you the digest.
     for label, step in (("Big government contracts", lambda: contracts.main(days=14)),
@@ -245,4 +255,4 @@ if __name__ == "__main__":
     if "--selftest" in sys.argv:
         selftest()
     else:
-        main()
+        main(quick="--quick" in sys.argv)
