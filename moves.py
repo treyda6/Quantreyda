@@ -47,6 +47,31 @@ def page(con, today, pages):
             + optionsflow.section(con, pages))
 
 
+def home_teaser(con, today=None):
+    """Two or three lines for the home page's Market moves tile."""
+    import html
+    today = today or datetime.date.today()
+    out = []
+    rets = heatmap.sector_returns(con, today)
+    names = dict(heatmap.SECTOR_ETFS)
+    day = sorted(((r.get("1d"), t) for t, r in rets.items() if t in names and r.get("1d") is not None))
+    if day:
+        (lo, lt), (hi, ht) = day[0], day[-1]
+        out.append(f"<li>Best sector: <b>{html.escape(names[ht])}</b> {heatmap._pct(hi)}; "
+                   f"worst: <b>{html.escape(names[lt])}</b> {heatmap._pct(lo)}</li>")
+    calls = analysts.recent(con, today, 7)
+    up = sum(r[3] == "Upgrade" for r in calls)
+    down = sum(r[3] == "Downgrade" for r in calls)
+    if up or down:
+        out.append(f"<li><b>{up}</b> analyst upgrades and <b>{down}</b> downgrades this week</li>")
+    _, bets = optionsflow.latest(con, 1)
+    if bets:
+        b = bets[0]
+        out.append(f"<li>Biggest options bet: <b>{html.escape(b[1])}</b> ${b[5]:,.0f} {b[4]}s, "
+                   f"{optionsflow._money(b[10])}</li>")
+    return "<ul class='teaser'>" + "".join(out) + "</ul>" if out else ""
+
+
 def stock_panel(con, tkr):
     return analysts.stock_panel(con, tkr) + optionsflow.stock_panel(con, tkr)
 
@@ -58,7 +83,7 @@ def selftest():
     con = duckdb.connect()
     pg = page(con, datetime.date(2026, 11, 27), set())
     assert "Market moves" in pg and "fills in on the next daily update" in pg and "<script" not in pg
-    assert stock_panel(con, "AAA") == ""
+    assert stock_panel(con, "AAA") == "" and home_teaser(con) == ""
     print("moves selftest ok")
 
 
