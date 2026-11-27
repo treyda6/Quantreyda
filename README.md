@@ -212,6 +212,25 @@ schtasks /create /tn "Quantreyda Weekly" /sc weekly /d SUN /st 08:00 ^
 
 Mac/Linux: `0 8 * * 0 cd ~/Quantreyda && .venv/bin/python weekly.py >> weekly.log 2>&1`
 
+## Focus mode
+
+On by default. It trims what long-term investors (Buffett, Munger, Lynch)
+would call noise: hourly headlines, the live 1-day chart, unusual options bets,
+prediction-market odds, analyst calls, Congress and White House trades, and
+trending tickers and buzz. Insider buying, fund holdings, the economy, small
+caps and company fundamentals stay. The **Focus** button at the top of every
+page turns it off (or back on); Mine → Customize lists what it hides. The
+choice is saved in your browser only.
+
+## Decision journal
+
+Mine → **Journal**: for each buy, write down why you bought it, what would make
+you sell, and when to look again (3, 6 or 12 months). When a review comes due
+it shows on the Journal tab, in Alerts, on the Mine badge and as a notification
+if those are on. Each review records whether the reason still holds, has
+changed or is broken, or that you sold. Like everything on Mine, it's saved
+only on your device and goes into the (optionally encrypted) backup file.
+
 ## Your watchlist
 
 Edit `watchlist.txt`, one ticker per line:
