@@ -815,7 +815,7 @@ def selftest():
            "BRK.B|Berkshire Hathaway Inc. Class B|N|BRK.B|N|100|N|BRK=B\n"
            "SPY|SPDR S&P 500 ETF Trust|P|SPY|Y|100|N|SPY\nABR$D|Arbor pref|N|ABRpD|N|100|N|ABR-D\n")
     mf = ("Fund Symbol|Fund Name|Fund Family Name|Type|Category|Pricing Agent\n"
-          "FXAIX|Fidelity 500 Index Fund|Fidelity|MF|O|x\nSPAXX|Fidelity Government Money Market|Fidelity|$$|G|x\n"
+          "FXAIX|Fidelity 500 Index Fund|Fidelity|MF|O|x\nMMKTX|Example Government Money Market|Example Funds|$$|G|x\n"
           "ANNUX|Some annuity|Ins Co|AN|M|x\n")
     sec = {"fields": ["cik", "name", "ticker", "exchange"],
            "data": [[320193, "Apple Inc.", "AAPL", "Nasdaq"], [1067983, "BERKSHIRE HATHAWAY INC", "BRK-B", "NYSE"]]}
@@ -824,7 +824,7 @@ def selftest():
     assert listed["QQQ"][1] == "etf" and listed["SPY"][2] == "NYSE Arca"
     funds = parse_funds(mf)
     assert funds == {"FXAIX": ("Fidelity 500 Index Fund", "fund", "Fidelity"),
-                     "SPAXX": ("Fidelity Government Money Market", "money", "Fidelity")}
+                     "MMKTX": ("Example Government Money Market", "money", "Example Funds")}
     assert _nice_name("Apple Inc. - Common Stock") == "Apple Inc."
     con = duckdb.connect()
     files = {NASDAQ_LISTED: nas, OTHER_LISTED: oth, FUNDS_LISTED: mf, SEC_TICKERS: json.dumps(sec)}
@@ -868,11 +868,11 @@ def selftest():
         calls.append((tuple(symbols), period))
         start = today - datetime.timedelta(days=365 * 8) if period == "max" else today - datetime.timedelta(days=14)
         n = 365 * 8 * 5 // 7 if period == "max" else 9
-        return {s: frame(start, n) for s in symbols if s not in ("ANNUX", "SPAXX")}
+        return {s: frame(start, n) for s in symbols if s not in ("ANNUX", "MMKTX")}
     st = refresh_prices(con, minutes=1, download=dl, batch=2, priority={"FXAIX"})
-    assert st["new"] >= 5 and st["missing"] == 1, st  # SPAXX unknown in this fake
+    assert st["new"] >= 5 and st["missing"] == 1, st  # MMKTX unknown in this fake
     assert calls[0] == (("FXAIX", "AAPL"), "max"), "universe.txt names first, then stocks, then funds"
-    assert calls[-1][0][-1] == "SPAXX", "money market funds last"
+    assert calls[-1][0][-1] == "MMKTX", "money market funds last"
     blob = json.loads(con.execute("SELECT js FROM lk_px WHERE tkr = 'AAPL'").fetchone()[0])
     assert blob["m"] and blob["d"] and blob["div"], "monthly + daily + dividends"
     assert blob["d"][0][0] >= (today - datetime.timedelta(days=365 * 5 + 1)).isoformat()
@@ -899,7 +899,7 @@ def selftest():
     assert doc["px"]["m"]["c"] and doc["n"] == "Apple Inc."
     t = doc["px"]["d"]["t"]
     assert t[0] > 19000 and all(1 <= g <= 5 for g in t[1:]), "delta-encoded trading days"
-    assert os.path.exists(f"{out}/look/d/BRK-B.json") and not os.path.exists(f"{out}/look/d/SPAXX.json")
+    assert os.path.exists(f"{out}/look/d/BRK-B.json") and not os.path.exists(f"{out}/look/d/MMKTX.json")
     os.path.getsize(f"{out}/look/d/AAPL.json") < 20000 or print("note: big file")
     body = inject("<div class='sh'></div><section class='panel'>c</section><section class='panel qa'>q",
                   "AAPL")
