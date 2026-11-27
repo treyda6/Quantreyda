@@ -151,7 +151,7 @@
       });
       h += "</tbody></table></div>";
       if (t.missing && !ed) h += "<p class='mi-note'>" + t.missing + " holding" + (t.missing > 1 ? "s have" : " has") +
-        " no public price here yet. Tap Edit to type one in, or add the ticker to universe.txt so the site prices it daily.</p>";
+        " no public price here yet. Its history may still be filling in, or it may be an OTC or private holding. Tap Edit to type a price in.</p>";
     }
     h += "<form class='mi-form' data-act='add'><label>Ticker<input name='t' placeholder='VTI' autocapitalize='characters' required size='7'></label>" +
       "<label>Shares<input name='sh' inputmode='decimal' required size='7'></label>" +
@@ -237,7 +237,10 @@
         var t = QT.norm(add.t.value);
         if (!addHolding(a, t, num(add.sh.value), num(add.cost.value))) return flash("Enter a ticker and a number of shares.", true);
         save(); draw();
-        if (!D.quotes[t]) flash(t + " added, but there's no public price for it here yet. Tap Edit to type one in.", true);
+        QT.fillQuotes(D, [t]).then(function () {
+          draw();
+          if (!D.quotes[t]) flash(t + " added, but there's no public price for it here yet. Tap Edit to type one in.", true);
+        });
       };
       var paste = card.querySelector("form[data-act=paste]");
       if (paste) paste.onsubmit = function (ev) {
@@ -247,7 +250,8 @@
           var p = line.trim().split(/[\s,;\t]+/);
           if (p.length >= 2 && addHolding(a, p[0], num(p[1]), num(p[2]), true)) n++;
         });
-        save(); draw(); flash(n ? "Added " + n + " holding" + (n > 1 ? "s" : "") + "." : "Nothing recognized. Use: ticker shares cost", !n);
+        save(); QT.fillQuotes(D, a.holdings.map(function (h) { return h.t; })).then(draw);
+        draw(); flash(n ? "Added " + n + " holding" + (n > 1 ? "s" : "") + "." : "Nothing recognized. Use: ticker shares cost", !n);
       };
       card.querySelectorAll("[data-f]").forEach(function (inp) {
         inp.onchange = function () {
@@ -303,8 +307,11 @@
         if (!have[t]) { S.watch.push({ t: t, note: f.note.value.trim(), mute: false }); have[t] = 1; added.push(t); }
       });
       save(); draw();
-      var none = added.filter(function (t) { return !D.quotes[t] && !recent(t, 45).length; });
-      if (none.length) flash("Added. No recent price or activity on file for " + none.join(", ") + " yet; alerts still work when something happens.");
+      QT.fillQuotes(D, added).then(function () {
+        draw();
+        var none = added.filter(function (t) { return !D.quotes[t] && !recent(t, 45).length; });
+        if (none.length) flash("Added. No recent price or activity on file for " + none.join(", ") + " yet; alerts still work when something happens.");
+      });
     };
     view.querySelectorAll("tr[data-w]").forEach(function (tr) {
       var w = S.watch[+tr.dataset.w];

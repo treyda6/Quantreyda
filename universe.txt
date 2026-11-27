@@ -1,6 +1,9 @@
-# Popular funds and stocks the site prices every day, so the "Mine" page can
-# value your portfolios without the site knowing what you own. Everyone gets
-# the same price file; your holdings stay in your own browser.
+# The names priced first. Every US-listed stock and ETF and every mutual and
+# money market fund gets prices from the whole-market lookup (lookup.py), and
+# the Mine page reads those for anything you hold that isn't here. This list
+# just goes first in line: it's in mine.json (instant prices, no extra
+# requests), and the daily price run fills and refreshes it before the long
+# tail, so it stays current even on a day the run runs out of time.
 #
 # This list is public and is NOT anyone's holdings. Add any ticker you like;
 # stocks that Congress or insiders traded lately are priced anyway.
