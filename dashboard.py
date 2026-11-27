@@ -21,6 +21,7 @@ import datetime
 import html
 import json
 import os
+import shutil
 import sys
 
 import duckdb
@@ -118,6 +119,23 @@ NAV = (("digest", "index.html", "Ideas"), ("congress", "congress.html", "Congres
        ("backtest", "backtest.html", "Did it work?"))
 
 
+APP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app")
+
+
+def app_head(root=""):
+    """Tags that let phones add the site to the home screen as an app."""
+    return (f"<link rel='manifest' href='{root}manifest.webmanifest'>"
+            f"<link rel='apple-touch-icon' href='{root}icon-180.png'>"
+            f"<link rel='icon' type='image/png' href='{root}icon-192.png'>"
+            "<meta name='theme-color' content='#0a0c10'>"
+            "<meta name='mobile-web-app-capable' content='yes'>"
+            "<meta name='apple-mobile-web-app-capable' content='yes'>"
+            "<meta name='apple-mobile-web-app-title' content='Quantreyda'>"
+            "<meta name='apple-mobile-web-app-status-bar-style' content='black'>"
+            "<script>if('serviceWorker' in navigator)addEventListener('load',()=>"
+            f"navigator.serviceWorker.register('{root}sw.js').catch(()=>{{}}))</script>")
+
+
 def page(title, active, body, updated, root=""):
     nav = "".join(f'<a href="{root}{href}" class="nav{" on" if key == active else ""}">{label}</a>'
                   for key, href, label in NAV)
@@ -127,7 +145,7 @@ def page(title, active, body, updated, root=""):
         for key, href, label in NAV if key in ICONS)
     return (f"<!DOCTYPE html><html lang='en' data-theme='dark'><head><meta charset='utf-8'>"
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
-            f"<title>{html.escape(title)} · Quantreyda</title>{THEME_HEAD}"
+            f"<title>{html.escape(title)} · Quantreyda</title>{THEME_HEAD}{app_head(root)}"
             f"<style>{CSS}{front.CSS}{stockpage.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}</style></head><body>"
             f"<header><div class='bar'><span class='logo'><i></i>Quantreyda</span>{nav}"
             f"<span class='sp'></span><span class='upd'>updated {updated}</span>"
@@ -332,6 +350,8 @@ def trades_page(rows, updated, built=()):
 
 def build(con, today, out=OUT):
     os.makedirs(out, exist_ok=True)
+    for name in os.listdir(APP_DIR):  # manifest, icons, service worker: the site root
+        shutil.copy(os.path.join(APP_DIR, name), out)
     pictures.write(con, out)
     updated = datetime.datetime.now().strftime("%b %d, %Y %H:%M UTC") \
         if os.environ.get("GITHUB_ACTIONS") else f"{today:%b %d, %Y}"
@@ -411,6 +431,11 @@ def selftest():
     assert "href='s/AAA.html'" in idx, "idea cards link to their stock page"
     st = open(f"{out}/s/AAA.html", encoding="utf-8").read()
     assert "About this stock" in st and "href=\"../leaders.html\"" in st
+    # home-screen app: files at the site root, every page points at them
+    assert all(os.path.exists(f"{out}/{f}") for f in ("manifest.webmanifest", "sw.js", "icon-180.png"))
+    assert json.load(open(f"{out}/manifest.webmanifest"))["start_url"] == "./index.html"
+    assert "href='manifest.webmanifest'" in idx and "register('sw.js')" in idx
+    assert "href='../manifest.webmanifest'" in st and "register('../sw.js')" in st
     assert "Whose buys beat the market?" in open(f"{out}/leaders.html", encoding="utf-8").read()
     tr = open(f"{out}/trades.html", encoding="utf-8").read()
     rows = trade_rows(con, datetime.date(2025, 3, 31))
