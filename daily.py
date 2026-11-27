@@ -11,7 +11,7 @@ January, so the prior year stays live for a few weeks after New Year's.
 Older years never gain filings after publication.
 
 Usage:
-    py daily.py            # senate + house + tickers + insiders (7 days) + contracts + 13Fs + committees + White House + activists + digest + alerts + news
+    py daily.py            # senate + house + tickers + insiders (7 days) + contracts + 13Fs + committees + White House + activists + calendars + digest + alerts + news
     py daily.py --selftest # offline check of the year window, no network
 
 Meant to run under Windows Task Scheduler once a day; stdout/stderr redirect
@@ -29,6 +29,7 @@ import sys
 import activists
 import alerts
 import bills
+import calendars
 import committees
 import companyintel
 import contracts
@@ -135,7 +136,8 @@ def main():
                         ("White House and cabinet (OGE 278-T)", lambda: whitehouse.main()),
                         ("Activist 5%+ stakes (13D/13G)", lambda: activists.refresh(_con())),
                         ("Bills moving in Congress", lambda: bills.refresh(_con())),
-                        ("Prediction markets (Polymarket, Kalshi)", lambda: markets.refresh(_con()))):
+                        ("Prediction markets (Polymarket, Kalshi)", lambda: markets.refresh(_con())),
+                        ("Earnings, economic and IPO calendars", lambda: calendars.refresh(_con()))):
         section(f"{label}")
         try:
             step()
@@ -170,6 +172,8 @@ def main():
                          lambda: companyintel.refresh(con, company_names(con, pages))),
                         ("election money (FEC)",
                          lambda: fec.refresh(con, company_names(con, pages))),
+                        ("earnings dates and beats/misses",
+                         lambda: calendars.refresh_tickers(con, pages, minutes=8)),
                         ("short interest (FINRA)", lambda: secextras.refresh_short(con, pages)),
                         ("new risk factors (10-K)", lambda: secextras.refresh_risks(con, pages)),
                         ("heatmap, analyst ratings, options", lambda: moves.refresh(con, pages)),
