@@ -1,10 +1,18 @@
 # Quantreyda
 
-A personal tracker for what members of Congress and company insiders are buying.
-It's meant for finding long-term ideas (for example for a Roth IRA), not for
-day trading.
+A personal market-intel app: one place to stay current with the market each
+morning. The home page is a short briefing that pulls together markets and the
+economy, the news, research ideas, prediction-market odds, and what insiders,
+Congress and proven funds are buying. It's meant for finding long-term ideas
+(for example for a Roth IRA), not for day trading.
 
-It does six things:
+Sections: **Home** (the briefing), **Markets** (stocks, rates, commodities,
+crypto, economic numbers), **News**, **Ideas**, **Small caps** and **Future**
+themes, **Funds**, **Odds**, and the who's-buying pages (**Congress**,
+**Insiders**, **All trades**, **Leaderboard**, **Did it work?**). A section
+that's still being built shows a "coming soon" page until it lands.
+
+Under the hood, the who's-buying side does six things:
 
 1. **Collects public filings** every day: stock trades that members of Congress
    must disclose (STOCK Act), and SEC Form 4 filings that company executives and
@@ -17,8 +25,9 @@ It does six things:
 4. **Watches your stocks**: put tickers in `watchlist.txt` and get an email
    when a member of Congress or an insider buys or sells one. A **Sunday email**
    sums up the week.
-5. **Adds context**: big new government contracts, what a few proven
-   long-term funds (Berkshire and others in `funds.txt`) bought last quarter,
+5. **Adds context**: big new government contracts, what about 70 well-known
+   funds (Berkshire, Pershing Square, Baupost and others in `funds.txt`) own and
+   bought last quarter, each with its own page listing every holding,
    a ⚑ when a member of Congress trades in an industry their committee
    oversees, and a "where signals agree" list of stocks with several kinds of
    support at once.
@@ -41,8 +50,8 @@ Everything comes free from government websites. No paid data.
 
 A GitHub Actions workflow ([`tracker.yml`](.github/workflows/tracker.yml))
 runs everything on GitHub's computers each morning and publishes a dashboard
-at **https://treyda6.github.io/Quantreyda/** with three pages: today's digest,
-a searchable list of every trade from the last 180 days, and the backtest.
+at **https://treyda6.github.io/Quantreyda/**: the home briefing plus every
+section listed above.
 Nothing needs to run on your computer.
 
 The site also hosts **The Advisor Track**, a self-study investing course, at
@@ -207,6 +216,25 @@ them" portfolio from the weekly backtest charted against the S&P 500. The
 Funds page shows what the managers in `funds.txt` bought last quarter and
 the latest 13F filings from SEC's daily index. Add it to your home screen
 from the browser's share menu.
+
+## Hourly news
+
+The **News** page (`news.html`) shows headlines about the stocks the site
+tracks, the market and the economy, refreshed every hour. A second, small
+workflow ([`news.yml`](.github/workflows/news.yml)) runs `headlines.py` at
+17 minutes past each hour: it reads the list of tracked stocks from the live
+site, pulls free RSS feeds (Google News searches for those companies, CNBC,
+MarketWatch, Yahoo Finance, the Federal Reserve, the Bureau of Labor
+Statistics) plus brand-new SEC 8-K filings from tracked companies, tags each
+headline with the tickers it names, and pushes `news.json` to the
+`news-feed` branch. The pages load it in the browser, so news stays fresh
+without rebuilding the whole site. Each full stock page also gets a
+"Latest headlines" box with the ones that name it.
+
+No setup beyond what the daily run already needs; it starts working once the
+daily run has published the site once. Your private `WATCHLIST` is never
+searched for, only stocks already public on the site. To refresh by hand:
+**Actions** tab → *news* → **Run workflow**.
 
 ## What bettors expect
 

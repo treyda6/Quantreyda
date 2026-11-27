@@ -1,9 +1,84 @@
-# Funds to follow: SEC CIK number, then a short label. Anything after # is ignored.
+# Funds to follow: SEC CIK number, then a short label. Anything after # is ignored,
+# except: the firm's name comes first in the note, and the first name in
+# parentheses is the person (used for the photo). A "## Heading" line starts a
+# group; the Funds page lets you filter by group.
+#
 # Find a fund's CIK by searching its name at https://www.sec.gov/edgar/search/
-# (it's the number in the URL). funds.py prints each filer's official SEC name
-# so you can check you've got the right one.
-1067983 Berkshire     # Berkshire Hathaway (Warren Buffett / successors)
-1336528 Pershing      # Pershing Square (Bill Ackman)
-1112520 Akre          # Akre Capital Management (Chuck Akre)
-1709323 Himalaya      # Himalaya Capital (Li Lu)
-1166559 Gates         # Bill & Melinda Gates Foundation Trust (Bill Gates)
+# (it's the number in the URL). funds.py checks each number against SEC's
+# official filer name and skips it (with a message in the log) if the name
+# doesn't match the firm in the note, so a typo can't show the wrong fund.
+
+## Value investors
+1067983 Berkshire        # Berkshire Hathaway (Warren Buffett / successors)
+783412  Daily-Journal    # Daily Journal (Charlie Munger / his old portfolio)
+1709323 Himalaya         # Himalaya Capital (Li Lu)
+1112520 Akre             # Akre Capital Management (Chuck Akre)
+1061768 Baupost          # Baupost Group (Seth Klarman)
+1096343 Markel           # Markel Group (Tom Gayner)
+915191  Fairfax          # Fairfax Financial (Prem Watsa)
+1549575 Pabrai           # Dalal Street (Mohnish Pabrai)
+1720792 Ruane            # Ruane Cunniff & Goldfarb, the Sequoia Fund
+1056831 Fairholme        # Fairholme Capital (Bruce Berkowitz)
+1641864 Giverny          # Giverny Capital (François Rochon)
+1115373 Semper-Augustus  # Semper Augustus (Chris Bloomstran)
+807985  Southeastern     # Southeastern Asset Management (Mason Hawkins)
+1553733 Brave-Warrior    # Brave Warrior Advisors (Glenn Greenberg)
+883965  Weitz            # Weitz Investment Management (Wally Weitz)
+846222  Greenhaven       # Greenhaven Associates (Edgar Wachenheim)
+905567  Yacktman         # Yacktman Asset Management (Donald Yacktman)
+813917  Oakmark          # Harris Associates, the Oakmark funds (Bill Nygren)
+732905  Tweedy-Browne    # Tweedy Browne
+1325447 First-Eagle      # First Eagle Investment Management
+200217  Dodge-Cox        # Dodge & Cox
+1036325 Davis            # Davis Selected Advisers (Chris Davis)
+860643  Gardner-Russo    # Gardner Russo & Quinn (Tom Russo)
+1697591 Valley-Forge     # Valley Forge Capital (Dev Kantesaria)
+1135778 Miller-Value     # Miller Value Partners (Bill Miller)
+1060349 Gabelli          # GAMCO Investors (Mario Gabelli)
+936753  Ariel            # Ariel Investments (John W. Rogers Jr.)
+1039565 Kahn-Brothers    # Kahn Brothers (Thomas Kahn)
+949509  Oaktree          # Oaktree Capital Management (Howard Marks)
+
+## Quality and growth
+1569205 Fundsmith        # Fundsmith (Terry Smith)
+1484148 Lindsell-Train   # Lindsell Train (Nick Train)
+1034524 Polen            # Polen Capital
+1088875 Baillie-Gifford  # Baillie Gifford
+1671657 Dorsey           # Dorsey Asset Management (Pat Dorsey)
+859804  Wedgewood        # Wedgewood Partners (David Rolfe)
+1766596 Greenlea         # Greenlea Lane (Josh Tarasoff)
+1798849 Durable          # Durable Capital Partners (Henry Ellenbogen)
+1697748 ARK              # ARK Investment Management (Cathie Wood)
+1166559 Gates            # Gates Foundation Trust (Bill Gates)
+
+## Activists
+1336528 Pershing         # Pershing Square (Bill Ackman)
+921669  Icahn            # Icahn (Carl Icahn)
+1040273 Third-Point      # Third Point (Daniel Loeb)
+1345471 Trian            # Trian Fund Management (Nelson Peltz)
+1791786 Elliott          # Elliott Investment Management (Paul Singer)
+1418814 ValueAct         # ValueAct (Mason Morfit)
+1517137 Starboard        # Starboard Value (Jeff Smith)
+1159159 Jana             # Jana Partners (Barry Rosenstein)
+1582090 Sachem-Head      # Sachem Head (Scott Ferguson)
+1535472 Corvex           # Corvex Management (Keith Meister)
+1559771 Engaged          # Engaged Capital (Glenn Welling)
+1647251 TCI              # TCI Fund Management (Christopher Hohn)
+1079114 Greenlight       # Greenlight Capital (David Einhorn)
+
+## Hedge funds and tech
+1649339 Scion            # Scion Asset Management (Michael Burry)
+1656456 Appaloosa        # Appaloosa (David Tepper)
+1536411 Duquesne         # Duquesne Family Office (Stanley Druckenmiller)
+1029160 Soros            # Soros Fund Management (George Soros)
+1350694 Bridgewater      # Bridgewater Associates (Ray Dalio)
+1167483 Tiger-Global     # Tiger Global Management (Chase Coleman III)
+1061165 Lone-Pine        # Lone Pine Capital (Stephen Mandel)
+1135730 Coatue           # Coatue Management (Philippe Laffont)
+1103804 Viking           # Viking Global Investors (Andreas Halvorsen)
+1747057 D1               # D1 Capital Partners (Daniel Sundheim)
+1541617 Altimeter        # Altimeter Capital Management (Brad Gerstner)
+1358706 Abrams           # Abrams Capital Management (David Abrams)
+1138995 Glenview         # Glenview Capital Management (Larry Robbins)
+1603466 Point72          # Point72 Asset Management (Steve Cohen)
+850529  Fisher           # Fisher Asset Management (Ken Fisher)

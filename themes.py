@@ -313,11 +313,11 @@ CSS = """
 .th-tbl td{vertical-align:middle}.th-tbl .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
 .th-tbl a{color:var(--fg);font-weight:700;text-decoration:none}.th-tbl a:hover{color:var(--acc)}
 @media(max-width:700px){.th-tbl .c-b,.th-tbl .c-a{display:none}}
-.th{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px;margin:18px 0;
+.thm{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px;margin:18px 0;
 box-shadow:var(--shadow);scroll-margin-top:70px}
 .th-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
-.th-h h2{margin:0}.th>summary{list-style:none;cursor:pointer;font-weight:inherit;font-size:inherit}.th>summary:before{display:none}.th>summary::-webkit-details-marker{display:none}
-.th-h h2:after{content:' ▾';color:var(--mut);font-size:15px}.th:not([open]) .th-h h2:after{content:' ▸'}.th-nums{display:flex;gap:8px;flex-wrap:wrap}
+.th-h h2{margin:0}.thm>summary{list-style:none;cursor:pointer;font-weight:inherit;font-size:inherit}.thm>summary:before{display:none}.thm>summary::-webkit-details-marker{display:none}
+.th-h h2:after{content:' ▾';color:var(--mut);font-size:15px}.thm:not([open]) .th-h h2:after{content:' ▸'}.th-nums{display:flex;gap:8px;flex-wrap:wrap}
 .th-nums div{background:var(--card2);border-radius:12px;padding:6px 12px;font-size:12px;color:var(--mut)}
 .th-nums b{display:block;font-size:16px;color:var(--fg);font-variant-numeric:tabular-nums}
 .th-notes{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0}
@@ -402,7 +402,7 @@ def _theme(con, ev, pages, is_open=False):
                   + "".join(f"<li><a href='{E(u or 'markets.html')}' target='_blank' rel='noopener'>"
                             f"{E(q[:110])}</a> <b>{'' if p is None else f'{p:.0%}'}</b></li>"
                             for q, p, u in ev["odds"]) + "</ul>")
-    return (f"<details class='th' id='{ev['key']}'{' open' if is_open else ''}><summary class='th-h'>"
+    return (f"<details class='thm' id='{ev['key']}'{' open' if is_open else ''}><summary class='th-h'>"
             f"<h2>{E(ev['name'])}</h2>{nums}</summary>"
             f"{notes}<div class='th-sub'>Leaders</div><div class='th-co'>{leaders}</div>"
             f"<div class='th-sub'>Smaller and riskier</div><div class='th-co'>{smaller}</div>"
@@ -461,7 +461,8 @@ def home_teaser(con, today, n=3, root=""):
     items = "".join(f"<li><a href='{root}themes.html#{e['key']}'>{E(e['name'])}</a> {_heat(e['heat'])}"
                     f"<small style='display:block;color:var(--mut)'>past year vs S&amp;P "
                     f"{_pct(e['vs_spy'])}</small></li>" for e in evs)
-    return (f"<style>{CSS}.th-tz{{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;"
+    heat_css = CSS[CSS.index(".th-heat"):CSS.index("\n", CSS.index(".th-heat i.on"))]
+    return (f"<style>{heat_css}.th-tz{{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;"
             f"gap:8px}}</style><div class='th-teaser'><ul class='th-tz'>{items}</ul>"
             f"<a href='{root}themes.html'>All future themes →</a></div>")
 
