@@ -211,8 +211,9 @@
     var out = [], cur = null, kids = Array.prototype.slice.call(main.children);
     kids.forEach(function (el) {
       if (el.matches(".qt-home,.qt-custombar,script,style")) return;
-      if (el.tagName === "H2") {
-        cur = { id: "h-" + slug(textOf(el)), label: textOf(el), head: el, els: [el] };
+      var h2 = el.tagName === "H2" ? el : el.matches(".hh") ? el.querySelector("h2") : null;
+      if (h2) {  // a heading, or a heading row (heading + "see all" link)
+        cur = { id: "h-" + slug(textOf(h2)), label: textOf(h2), head: h2, els: [el] };
         out.push(cur);
       } else if (el.tagName === "DETAILS" && el.querySelector("summary")) {
         var sm = el.querySelector("summary");
@@ -224,10 +225,10 @@
         cur.els.push(el);
       }
     });
-    // pages built from <section> blocks (stock pages, Congress, Insiders...)
-    main.querySelectorAll("section").forEach(function (sec) {
-      var h = sec.querySelector(":scope > h2");
-      if (!h || (sec.parentElement && sec.parentElement.closest("section"))) return;
+    // pages built from <section> blocks or cards (stock pages, Congress, home...)
+    main.querySelectorAll("section, .blk").forEach(function (sec) {
+      var h = sec.querySelector(":scope > h2, :scope > .hh > h2");
+      if (!h || (sec.parentElement && sec.parentElement.closest("section, .blk"))) return;
       out.push({ id: "s-" + slug(textOf(h)), label: textOf(h), head: h, els: [sec] });
     });
     return out;

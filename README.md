@@ -1,10 +1,18 @@
 # Quantreyda
 
-A personal tracker for what members of Congress and company insiders are buying.
-It's meant for finding long-term ideas (for example for a Roth IRA), not for
-day trading.
+A personal market-intel app: one place to stay current with the market each
+morning. The home page is a short briefing that pulls together markets and the
+economy, the news, research ideas, prediction-market odds, and what insiders,
+Congress and proven funds are buying. It's meant for finding long-term ideas
+(for example for a Roth IRA), not for day trading.
 
-It does six things:
+Sections: **Home** (the briefing), **Markets** (stocks, rates, commodities,
+crypto, economic numbers), **News**, **Ideas**, **Small caps** and **Future**
+themes, **Funds**, **Odds**, and the who's-buying pages (**Congress**,
+**Insiders**, **All trades**, **Leaderboard**, **Did it work?**). A section
+that's still being built shows a "coming soon" page until it lands.
+
+Under the hood, the who's-buying side does six things:
 
 1. **Collects public filings** every day: stock trades that members of Congress
    must disclose (STOCK Act), and SEC Form 4 filings that company executives and
@@ -17,8 +25,9 @@ It does six things:
 4. **Watches your stocks**: put tickers in `watchlist.txt` and get an email
    when a member of Congress or an insider buys or sells one. A **Sunday email**
    sums up the week.
-5. **Adds context**: big new government contracts, what a few proven
-   long-term funds (Berkshire and others in `funds.txt`) bought last quarter,
+5. **Adds context**: big new government contracts, what about 70 well-known
+   funds (Berkshire, Pershing Square, Baupost and others in `funds.txt`) own and
+   bought last quarter, each with its own page listing every holding,
    a ⚑ when a member of Congress trades in an industry their committee
    oversees, and a "where signals agree" list of stocks with several kinds of
    support at once.
@@ -41,8 +50,8 @@ Everything comes free from government websites. No paid data.
 
 A GitHub Actions workflow ([`tracker.yml`](.github/workflows/tracker.yml))
 runs everything on GitHub's computers each morning and publishes a dashboard
-at **https://treyda6.github.io/Quantreyda/** with three pages: today's digest,
-a searchable list of every trade from the last 180 days, and the backtest.
+at **https://treyda6.github.io/Quantreyda/**: the home briefing plus every
+section listed above.
 Nothing needs to run on your computer.
 
 The site also hosts **The Advisor Track**, a self-study investing course, at
@@ -208,6 +217,25 @@ Funds page shows what the managers in `funds.txt` bought last quarter and
 the latest 13F filings from SEC's daily index. Add it to your home screen
 from the browser's share menu.
 
+## Hourly news
+
+The **News** page (`news.html`) shows headlines about the stocks the site
+tracks, the market and the economy, refreshed every hour. A second, small
+workflow ([`news.yml`](.github/workflows/news.yml)) runs `headlines.py` at
+17 minutes past each hour: it reads the list of tracked stocks from the live
+site, pulls free RSS feeds (Google News searches for those companies, CNBC,
+MarketWatch, Yahoo Finance, the Federal Reserve, the Bureau of Labor
+Statistics) plus brand-new SEC 8-K filings from tracked companies, tags each
+headline with the tickers it names, and pushes `news.json` to the
+`news-feed` branch. The pages load it in the browser, so news stays fresh
+without rebuilding the whole site. Each full stock page also gets a
+"Latest headlines" box with the ones that name it.
+
+No setup beyond what the daily run already needs; it starts working once the
+daily run has published the site once. Your private `WATCHLIST` is never
+searched for, only stocks already public on the site. To refresh by hand:
+**Actions** tab → *news* → **Run workflow**.
+
 ## What bettors expect
 
 `python markets.py` pulls the most-traded open questions on Polymarket and
@@ -215,6 +243,28 @@ Kalshi about the Fed, inflation, tariffs, shutdowns, elections, laws and big
 companies (free public data, no keys), plus recent $10k+ bets. They're on the
 "Odds" page, and a stock page shows any open question that names its company.
 Sports and crypto are left out.
+
+## Markets and the economy
+
+`economy.html` on the site (built by [`economy.py`](economy.py), refreshed in
+the daily run) has two halves, and every card opens its own page under `e/`:
+
+- **Prices** for oil, natural gas, gasoline, diesel, gold, silver, platinum,
+  palladium, copper, corn, wheat, soybeans, coffee, cocoa, cattle, bitcoin,
+  ether and solana (Yahoo Finance, the same free source as the stock charts).
+  Each page has a 1-year and 5-year chart, the trend (above or below its 50-
+  and 200-day averages), what moves the price, the stocks and funds tied to
+  it with how closely they actually moved together over the last year, and
+  which parts of the market (sector funds, bonds, the dollar) move with it.
+- **The economy**: about 30 numbers from FRED, the St. Louis Fed's free
+  database (no key): growth, jobs, inflation, interest rates and the yield
+  curve, market stress, housing and household finances. Each one gets a
+  rough Good / Watch / Weak reading in plain English, a long chart, and what
+  it's related to. The top of the page sums it up and shows six "recession
+  warning lights".
+
+Stock pages also show a "Commodities it's tied to" panel when a stock is on
+one of those lists (Exxon and oil, Newmont and gold, Coinbase and bitcoin...).
 
 ## Extra context (runs inside daily.py)
 
@@ -268,6 +318,31 @@ Sports and crypto are left out.
 
 `backtest.py` also tests "Congress buys in their committee's industry" as its
 own signal, so you can see whether that ⚑ means anything.
+
+## Small companies that could grow big
+
+`screener.html` ("Small caps") lists every company worth under $2 billion
+that got a signal in the last 90 days: insiders buying, Congress or the
+White House buying, a followed fund adding, a 5%+ activist stake, or a big
+federal contract. Each gets points for how many signals line up and for the
+business itself (sales growth, profits, buybacks), and loses points for
+warning signs (insiders selling, new shares being printed, savings-bank IPOs
+that only look like insider clusters). The points table is on the page.
+Company size is shares outstanding from the SEC cover page times the last
+price; `daily.py` sizes and health-checks the best-scoring names each day.
+`python screener.py` prints the top of the list.
+
+## Future themes
+
+`themes.html` ("Future themes") is a study guide to 13 long-running changes
+(AI and data centers, the power grid, nuclear, robots, space, defense tech,
+cybersecurity, quantum, obesity drugs, gene editing, batteries, critical
+minerals, chipmaking at home). Each has why it could matter, what could go
+wrong, what to watch, the leaders, smaller and riskier names, and ETFs, plus
+live evidence: the stocks' past year against the S&P 500, Wikipedia
+attention against a year ago, Congress/insider/fund buys, and bills and
+prediction-market questions on the theme. The lists are hand-written in
+`THEMES` in [`themes.py`](themes.py); edit them freely.
 
 ## What the signals are
 

@@ -63,7 +63,7 @@
   function chips(t) {
     var ev = recent(t, 30), out = [], n = {};
     ev.forEach(function (e) { var k = e.k + ":" + (e.s || ""); n[k] = (n[k] || 0) + 1; });
-    if (D.ideas[t]) out.push("<span class='mi-chip idea' title='On the Today page ideas list'>Idea #" + D.ideas[t] + "</span>");
+    if (D.ideas[t]) out.push("<span class='mi-chip idea' title='On the Ideas page list'>Idea #" + D.ideas[t] + "</span>");
     [["ins:buy", "Insider buy", "buy"], ["pol:buy", "Congress / officials buy", "buy"],
      ["ins:sell", "Insider sell", "sell"], ["pol:sell", "Congress / officials sell", "sell"]].forEach(function (c) {
       if (n[c[0]]) {
@@ -355,8 +355,14 @@
   }
 
   // ---------------------------------------------------------------- customize
-  var PAGES = [["index.html", "Today"], ["congress.html", "Congress"], ["insiders.html", "Insiders"], ["funds.html", "Funds"],
-    ["trades.html", "All trades"], ["markets.html", "Odds"], ["leaders.html", "Leaderboard"], ["backtest.html", "Did it work?"]];
+  function sitePages() {  // whatever the menu links to, so new pages show up by themselves
+    var seen = {}, out = [];
+    document.querySelectorAll("header .bar a.nav").forEach(function (a) {
+      var f = a.getAttribute("href").split("/").pop();
+      if (f && f !== "mine.html" && !seen[f]) { seen[f] = 1; out.push([f, a.textContent.trim()]); }
+    });
+    return out;
+  }
 
   function renderSettings() {
     var r = S.rules, p = S.prefs;
@@ -382,7 +388,7 @@
         return "<label class='row'><input type='checkbox' data-nav='" + esc(f) + "'" + (p.navHidden.indexOf(f) < 0 ? " checked" : "") + "> " + esc(a.textContent) + "</label>";
       }).join("") + "</div></div>";
     var stock = Object.keys(D.pages)[0];
-    var list = PAGES.slice();
+    var list = sitePages();
     if (stock) list.push(["s/" + D.pages[stock] + ".html", "Stock pages (one layout for all)", "s/stock"]);
     h += "<div class='mi-card mi-set'><h3>Pages</h3><p class='mi-note'>Open a page in customize mode and hide the sections you skip.</p>" +
       list.map(function (pg) {
@@ -392,7 +398,7 @@
           "<a class='mi-btn sm' style='text-decoration:none' href='" + esc(pg[0]) + "?customize'>Customize</a></div>";
       }).join("") + "</div>";
     h += "<div class='mi-card mi-set'><h3>Display</h3>" +
-      box("prefs.homeCard", p.homeCard, "Show my accounts and alerts at the top of Today") +
+      box("prefs.homeCard", p.homeCard, "Show my accounts and alerts at the top of Home") +
       box("prefs.privacy", p.privacy, "Blur dollar amounts (handy when showing someone your screen)") + "</div>";
     return h;
   }

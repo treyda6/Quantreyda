@@ -11,7 +11,7 @@ January, so the prior year stays live for a few weeks after New Year's.
 Older years never gain filings after publication.
 
 Usage:
-    py daily.py            # senate + house + tickers + insiders (7 days) + contracts + 13Fs + committees + White House + activists + digest + alerts + news
+    py daily.py            # senate + house + tickers + insiders (7 days) + contracts + 13Fs + committees + White House + activists + calendars + digest + alerts + news
     py daily.py --selftest # offline check of the year window, no network
 
 Meant to run under Windows Task Scheduler once a day; stdout/stderr redirect
@@ -29,20 +29,25 @@ import sys
 import activists
 import alerts
 import bills
+import calendars
 import committees
 import companyintel
 import contracts
 import fec
 import markets
 import mine
+import moves
 import pictures
 import secextras
 import digest
+import economy
 import funds
 import health
 import news
 import prices
+import screener
 import stockpage
+import themes
 import whitehouse
 import entities
 import scrape_house
@@ -135,7 +140,9 @@ def main():
                         ("White House and cabinet (OGE 278-T)", lambda: whitehouse.main()),
                         ("Activist 5%+ stakes (13D/13G)", lambda: activists.refresh(_con())),
                         ("Bills moving in Congress", lambda: bills.refresh(_con())),
-                        ("Prediction markets (Polymarket, Kalshi)", lambda: markets.refresh(_con()))):
+                        ("Prediction markets (Polymarket, Kalshi)", lambda: markets.refresh(_con())),
+                        ("Earnings, economic and IPO calendars", lambda: calendars.refresh(_con())),
+                        ("Commodities, crypto and the economy (Yahoo, FRED)", lambda: economy.refresh(_con()))):
         section(f"{label}")
         try:
             step()
@@ -160,7 +167,8 @@ def main():
     for label, step in (("prices", lambda: prices.fetch(con, set(pages) | {prices.BENCHMARK},
                                                          start=today - datetime.timedelta(days=740))),
                         ("prices for the other traded stocks",  # charts on the basic pages
-                         lambda: prices.fetch(con, set(recent_tickers(con, today)) - set(pages),
+                         lambda: prices.fetch(con, set(recent_tickers(con, today) + funds.page_tickers(con))
+                                              - set(pages),
                                               start=today - datetime.timedelta(days=740), minutes=10)),
                         ("prices for popular funds and stocks (Mine page)",  # public list, not your holdings
                          lambda: prices.fetch(con, mine.universe(), start=today - datetime.timedelta(days=400),
@@ -172,10 +180,14 @@ def main():
                          lambda: companyintel.refresh(con, company_names(con, pages))),
                         ("election money (FEC)",
                          lambda: fec.refresh(con, company_names(con, pages))),
+                        ("earnings dates and beats/misses",
+                         lambda: calendars.refresh_tickers(con, pages, minutes=8)),
                         ("short interest (FINRA)", lambda: secextras.refresh_short(con, pages)),
                         ("new risk factors (10-K)", lambda: secextras.refresh_risks(con, pages)),
+                        ("heatmap, analyst ratings, options", lambda: moves.refresh(con, pages)),
                         ("logos and portraits",
-                         lambda: pictures.refresh(con, list(pages) + recent_tickers(con, today)))):
+                         lambda: pictures.refresh(con, list(pages) + recent_tickers(con, today)
+                                                 + funds.page_tickers(con)))):
         t0 = time.monotonic()
         try:
             step()
@@ -184,8 +196,36 @@ def main():
         except Exception as e:
             print(f"{label} skipped ({type(e).__name__}: {e}{_where(e)})")
         print(f"    ({label}: {(time.monotonic() - t0) / 60:.1f} min)")
+    small_caps_and_themes(con, today, set(pages))
     con.close()
     section(None)
+
+
+def small_caps_and_themes(con, today, done=()):
+    """Prices, size and health for the small-cap screener's best names and
+    every future-theme stock, plus the themes' Wikipedia attention numbers."""
+    section("Small-cap screener and future themes")
+    picks = [t for t in screener.tickers(con, today) + themes.tickers() if t not in done]
+    try:  # checked before company size was stored: check again now
+        health.ensure_table(con)
+        unsized = [t for t, in con.execute(
+            "SELECT tkr FROM health WHERE shares IS NULL AND verdict <> 'Unknown' "
+            "AND tkr IN (SELECT unnest(?))", [picks]).fetchall()]
+    except Exception:
+        unsized = []
+    for label, step in (("prices", lambda: prices.fetch(con, picks, start=today - datetime.timedelta(days=740),
+                                                        minutes=10)),
+                        ("industry codes", lambda: committees.refresh_companies(con, picks)),
+                        ("health and size", lambda: health.refresh(con, picks)),
+                        ("size for older checks", lambda: health.refresh(con, unsized[:150], force=True)),
+                        ("logos", lambda: pictures.refresh(con, picks)),
+                        ("theme attention (Wikipedia)", lambda: themes.refresh(con, today))):
+        try:
+            step()
+        except SystemExit as e:
+            print(f"{label} skipped: {e}")
+        except Exception as e:
+            print(f"{label} skipped ({type(e).__name__}: {e}{_where(e)})")
 
 
 def selftest():
