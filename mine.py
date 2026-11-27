@@ -180,6 +180,11 @@ border-radius:10px;background:var(--bg);color:var(--fg)}
 .mi-imp{border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin:12px 0;background:var(--card2)}
 .mi-imp select.need{border-color:var(--warn);box-shadow:0 0 0 2px color-mix(in srgb,var(--warn) 30%,transparent)}
 #mi-import summary{cursor:pointer;font-size:15px}
+.mi-form label{position:relative}
+.mi-ac{min-width:min(360px,86vw)}.mi-ac em{font-style:normal;font-size:12px;color:var(--mut)}
+.mi-unk{margin:10px 0 0;padding:10px 12px;border-radius:12px;font-size:13.5px;line-height:1.5;
+background:color-mix(in srgb,var(--warn) 12%,var(--card));border:1px solid color-mix(in srgb,var(--warn) 35%,var(--line))}
+.mi-unk .mi-btn{margin-left:4px}
 .mi-stock{display:flex;align-items:center;gap:10px}.mi-stock small{display:block;color:var(--mut);font-size:12px;max-width:180px;
 overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mi-chip.add{color:var(--mut);background:none;border:1px dashed var(--line)}

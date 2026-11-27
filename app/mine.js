@@ -6,7 +6,7 @@
   var QT = window.QT, view = document.getElementById("mi-view");
   if (!QT || !view) return;
   var esc = QT.esc, money = QT.money, pct = QT.pct, KINDS = QT.KINDS;
-  var S = QT.state, D = null, editing = {}, pending = null, IMP = null;
+  var S = QT.state, D = null, editing = {}, pending = null, IMP = null, watchOdd = null;
   var TABS = ["accounts", "watch", "journal", "alerts", "settings", "backup"];
   var IRA = { roth: 1, trad: 1, custodial_roth: 1 };
 
@@ -174,6 +174,118 @@
     return h + "</div>";
   }
 
+  // ---------------------------------------------------------------- ticker check
+  // look/index.json is the site's public list of every US stock, ETF, mutual
+  // and money market fund (lookup.py). It's fetched whole, so what you type
+  // is matched here and never sent anywhere.
+  var IDX = null, idxP = null;
+  var KIND_NAME = { stock: "Stock", etf: "ETF", fund: "Mutual fund", money: "Money market" };
+  function symIndex() {
+    if (!idxP) idxP = fetch(QT.ROOT + "look/index.json").then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j || !j.s || !j.s.length) { idxP = null; return null; }
+        var kinds = j.kinds || ["stock", "etf", "fund", "money"], map = {};
+        var rows = j.s.map(function (r) {
+          var o = { t: QT.norm(r[0]), n: r[1] || "", k: kinds[r[2]] || "stock", page: !!r[3], has: !!r[4] };
+          o.nl = (o.t + " " + o.n).toLowerCase();
+          map[o.t] = o;
+          return o;
+        });
+        IDX = { rows: rows, map: map };
+        return IDX;
+      }).catch(function () { idxP = null; return null; });
+    return idxP;
+  }
+  // Without the list (offline, or a site build that hasn't made it yet) nothing is blocked.
+  function knownTicker(t) { return !IDX || !!IDX.map[t] || !!(D && D.quotes[t]); }
+  function suggest(q, n) {
+    if (!IDX || !String(q || "").trim()) return [];
+    if (window.QTLook && QTLook.search) return QTLook.search(IDX.rows, q).slice(0, n || 6);
+    var up = QT.norm(q), lo = String(q).trim().toLowerCase();
+    return IDX.rows.filter(function (r) { return r.t.indexOf(up) === 0 || r.nl.indexOf(" " + lo) >= 0; }).slice(0, n || 6);
+  }
+  function nameOf(t) { return (IDX && IDX.map[t] && IDX.map[t].n) || D.names[t] || ""; }
+
+  // Suggestions under a ticker box as you type. multi: comma-separated list.
+  function autocomplete(input, multi, picked) {
+    if (!input || input.dataset.ac) return;
+    input.dataset.ac = "1";
+    input.setAttribute("autocomplete", "off");
+    var box = document.createElement("div");
+    box.className = "lk-sugg mi-ac"; box.hidden = true;
+    input.parentNode.appendChild(box);
+    var hits = [], on = -1;
+    function token() { return multi ? input.value.split(/[\s,;]+/).pop() : input.value; }
+    function paint() {
+      box.innerHTML = hits.map(function (r, i) {
+        return "<a href='#' data-i='" + i + "' class='" + (i === on ? "on" : "") + "'><b>" + esc(r.t) + "</b><span>" + esc(r.n) +
+          "</span><em>" + esc(KIND_NAME[r.k] || "") + "</em></a>";
+      }).join("");
+      box.hidden = !hits.length;
+    }
+    function pick(r) {
+      if (multi) {
+        var parts = input.value.split(/([\s,;]+)/); parts[parts.length - 1] = r.t;
+        input.value = parts.join("") + ", ";
+      } else input.value = r.t;
+      hits = []; on = -1; paint();
+      if (picked) picked(r); else input.focus();
+    }
+    function update() {
+      symIndex().then(function () { hits = suggest(token()); on = -1; paint(); });
+    }
+    input.addEventListener("focus", function () { symIndex(); });
+    input.addEventListener("input", update);
+    input.addEventListener("blur", function () { setTimeout(function () { box.hidden = true; }, 150); });
+    input.addEventListener("keydown", function (e) {
+      if (box.hidden || !hits.length) return;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault(); on = (on + (e.key === "ArrowDown" ? 1 : hits.length - 1) + (on < 0 && e.key === "ArrowUp" ? 1 : 0)) % hits.length; paint();
+      } else if (e.key === "Enter" && on >= 0) { e.preventDefault(); pick(hits[on]); }
+      else if (e.key === "Escape") { box.hidden = true; }
+    });
+    box.addEventListener("mousedown", function (e) {
+      var a = e.target.closest("a[data-i]");
+      if (a) { e.preventDefault(); pick(hits[+a.dataset.i]); }
+    });
+  }
+
+  // "We don't know that ticker": suggestions, and a way to add it anyway
+  // (funds only sold inside a 401(k) or 529 plan have no public ticker).
+  function nearMiss(t) {  // "VTII" -> VTI, VTV...: shorten until something matches
+    for (var k = t.length - 1; k >= 1; k--) {
+      var hits = suggest(t.slice(0, k), 4).filter(function (r) { return r.t !== t; });
+      if (hits.length) return hits;
+    }
+    return [];
+  }
+
+  function unknownNote(form, list, anyway, input, onFix) {
+    var old = form.parentNode.querySelector(".mi-unk");
+    if (old) old.remove();
+    if (!list.length) return;
+    var el = document.createElement("div");
+    el.className = "mi-unk";
+    var alt = list.length === 1 ? nearMiss(list[0]) : [];
+    el.innerHTML = "<b>" + esc(list.join(", ")) + "</b> " + (list.length === 1 ? "isn't a ticker" : "aren't tickers") +
+      " we can find among US stocks, ETFs and mutual funds. Check the spelling" +
+      (alt.length ? ", or did you mean " + alt.map(function (r) {
+        return "<a href='#' data-t='" + esc(r.t) + "' title='" + esc(r.n) + "'>" + esc(r.t) + "</a>"; }).join(", ") + "?" : ".") +
+      " <span class='mut'>A fund that's only sold inside a 401(k) or 529 plan won't be listed; add it anyway and type its price.</span> " +
+      "<button type='button' class='mi-btn sm'>Add " + (list.length === 1 ? "it" : "them") + " anyway</button>";
+    form.parentNode.insertBefore(el, form.nextSibling);
+    el.querySelectorAll("a[data-t]").forEach(function (a) {
+      a.onclick = function (e) {
+        e.preventDefault();
+        if (input) input.value = input.value.replace(new RegExp("\\b" + list[0].replace(/\./g, "\\.") + "\\b", "i"), a.dataset.t);
+        el.remove();
+        if (onFix) onFix();
+        if (input) input.focus();
+      };
+    });
+    el.querySelector("button").onclick = function () { el.remove(); anyway(); };
+  }
+
   // ---------------------------------------------------------------- broker import
   // The file is parsed here by brokerimport.js and never leaves this device.
   var HOWTO = [
@@ -226,6 +338,7 @@
     });
     if (!list.length) return flash(notes[0] || "Nothing to import in that file.", true);
     IMP = { accounts: list, notes: notes };
+    symIndex().then(function () { if (IMP) draw(); });  // mark tickers we can't find
     go("accounts"); draw(); scrollTo(0, 0);
   }
 
@@ -269,7 +382,9 @@
       h += "<div class='mi-imp' data-i='" + i + "'><div class='mi-head'><label class='row'><input type='checkbox' data-k='include'" +
         (pa.include ? " checked" : "") + "> <b>" + esc(pa.broker) + " · " + esc(pa.name) + "</b></label>" +
         (pa.last4 ? "<span class='mut'>…" + esc(pa.last4) + "</span>" : "") + "<span class='sp'></span><span class='mut'>" +
-        pa.holdings.length + " holding" + (pa.holdings.length === 1 ? "" : "s") + (pa.cash ? " · cash <span class='qt-money'>" + money(pa.cash) + "</span>" : "") +
+        pa.holdings.length + " holding" + (pa.holdings.length === 1 ? "" : "s") +
+        (function (k) { return k ? " · <span class='down'>" + k + " ticker" + (k === 1 ? "" : "s") + " not found</span>" : ""; })(
+          pa.holdings.filter(function (x) { return !knownTicker(x.t); }).length) + (pa.cash ? " · cash <span class='qt-money'>" + money(pa.cash) + "</span>" : "") +
         (pa.value ? " · <span class='qt-money'>" + money(pa.value) + "</span> in the file" : "") + "</span></div>";
       if (pa.include) {
         h += "<div class='mi-form'><label>Save as<select data-k='target'>" + opts + "</select></label>" +
@@ -281,7 +396,8 @@
         h += "<details><summary class='mut'>See the holdings</summary><div class='wrap'><table class='mi-t'><thead><tr><th>Stock</th>" +
           "<th class='num'>Shares</th><th class='num'>Cost / share</th><th class='num'>Price in file</th></tr></thead><tbody>" +
           pa.holdings.map(function (x) {
-            return "<tr><td><b>" + esc(x.t) + "</b><small class='mut' style='display:block'>" + esc(x.desc) + "</small></td><td class='num'>" +
+            return "<tr><td><b>" + esc(x.t) + "</b>" + (knownTicker(x.t) ? "" : " <span class='mi-chip sell' title='Not found among US stocks, ETFs and mutual funds. Fine for a plan-only fund: the price from the file is used.'>not found</span>") +
+              "<small class='mut' style='display:block'>" + esc(x.desc) + "</small></td><td class='num'>" +
               x.sh.toLocaleString("en-US", { maximumFractionDigits: 4 }) + "</td><td class='num'>" + (x.cost ? money(x.cost, true) : "—") +
               "</td><td class='num'>" + (x.price ? money(x.price, true) : "—") + "</td></tr>";
           }).join("") + "</tbody></table></div>" +
@@ -432,16 +548,24 @@
       if (!a) return;
       card.querySelector("[data-act=edit]").onclick = function () { editing[a.id] = !editing[a.id]; draw(); };
       var add = card.querySelector("form[data-act=add]");
+      autocomplete(add.t, false, function () { add.sh.focus(); });
       add.onsubmit = function (ev) {
         ev.preventDefault();
-        var t = QT.norm(add.t.value);
-        if (!addHolding(a, t, num(add.sh.value), num(add.cost.value))) return flash("Enter a ticker and a number of shares.", true);
-        save(); draw();
-        var bought = { t: t, px: num(add.cost.value) };
-        QT.fillQuotes(D, [t]).then(function () {
-          draw();
-          if (!D.quotes[t]) flash(t + " added, but there's no public price for it here yet. Tap Edit to type one in.", true);
-          else if (!openEntry(t)) flash(t + " added. Write down why you bought it while it's fresh: Journal tab.", false, function () { newEntry(bought); });
+        var t = QT.norm(add.t.value), sh = num(add.sh.value), cost = num(add.cost.value);
+        if (!t || !(sh > 0)) return flash("Enter a ticker and a number of shares.", true);
+        symIndex().then(function () {
+          if (!knownTicker(t)) return unknownNote(add, [t], function () {
+            addHolding(a, t, sh, cost); editing[a.id] = true; save(); draw();
+            flash(t + " added. Type its price in the Price (manual) box so it counts toward your totals.");
+          }, add.t);
+          addHolding(a, t, sh, cost);
+          save(); draw();
+          var bought = { t: t, px: cost };
+          QT.fillQuotes(D, [t]).then(function () {
+            draw();
+            if (!D.quotes[t]) flash(t + " added, but there's no price for it here yet. Tap Edit to type one in.", true);
+            else if (!openEntry(t)) flash(t + " added. Write down why you bought it while it's fresh: Journal tab.", false, function () { newEntry(bought); });
+          });
         });
       };
       var paste = card.querySelector("form[data-act=paste]");
@@ -454,6 +578,11 @@
         });
         save(); QT.fillQuotes(D, a.holdings.map(function (h) { return h.t; })).then(draw);
         draw(); flash(n ? "Added " + n + " holding" + (n > 1 ? "s" : "") + "." : "Nothing recognized. Use: ticker shares cost", !n);
+        if (n) symIndex().then(function () {
+          var odd = a.holdings.map(function (h) { return h.t; }).filter(function (t) { return !knownTicker(t); });
+          if (odd.length) flash("Added " + n + ". Not found among US stocks, ETFs and funds: " + odd.join(", ") +
+            ". Fix a typo by removing it, or type a price for a plan-only fund.", true);
+        });
       };
       card.querySelectorAll("[data-f]").forEach(function (inp) {
         inp.onchange = function () {
@@ -501,20 +630,37 @@
 
   function wireWatch() {
     var f = view.querySelector("form[data-act=watch]");
+    autocomplete(f.t, true);
     f.onsubmit = function (ev) {
       ev.preventDefault();
+      var want = f.t.value.split(/[\s,;]+/).map(QT.norm).filter(Boolean), note = f.note.value.trim();
+      symIndex().then(function () {
+        var odd = want.filter(function (t) { return !knownTicker(t); });
+        watchOdd = odd.length ? { list: odd, note: note } : null;
+        if (!addWatch(want.filter(function (t) { return knownTicker(t); }), note)) draw();
+      });
+    };
+    if (watchOdd) {  // kept across redraws until fixed or added anyway
+      f.t.value = watchOdd.list.join(", ");
+      unknownNote(f, watchOdd.list, function () {
+        var o = watchOdd; watchOdd = null; f.t.value = ""; addWatch(o.list, o.note);
+      }, f.t, function () { watchOdd = null; });
+    }
+    function addWatch(list, note) {
       var have = {}, added = [];
       S.watch.forEach(function (w) { have[w.t] = 1; });
-      f.t.value.split(/[\s,;]+/).map(QT.norm).filter(Boolean).forEach(function (t) {
-        if (!have[t]) { S.watch.push({ t: t, note: f.note.value.trim(), mute: false }); have[t] = 1; added.push(t); }
+      list.forEach(function (t) {
+        if (!have[t]) { S.watch.push({ t: t, note: note, mute: false }); have[t] = 1; added.push(t); }
       });
+      if (!added.length) return false;
       save(); draw();
       QT.fillQuotes(D, added).then(function () {
         draw();
         var none = added.filter(function (t) { return !D.quotes[t] && !recent(t, 45).length; });
         if (none.length) flash("Added. No recent price or activity on file for " + none.join(", ") + " yet; alerts still work when something happens.");
       });
-    };
+      return true;
+    }
     view.querySelectorAll("tr[data-w]").forEach(function (tr) {
       var w = S.watch[+tr.dataset.w];
       tr.querySelector("[data-act=mute]").onchange = function (ev) { w.mute = !ev.target.checked; save(); };
