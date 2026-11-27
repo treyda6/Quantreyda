@@ -6,7 +6,8 @@ economy, the news, research ideas, prediction-market odds, and what insiders,
 Congress and proven funds are buying. It's meant for finding long-term ideas
 (for example for a Roth IRA), not for day trading.
 
-Sections: **Home** (the briefing), **Readiness** (DEFCON-style threat and
+Sections: **Home** (an ops-center briefing: search, readiness levels, trending
+tickers and a live feed), **Readiness** (DEFCON-style threat and
 preparedness levels), **Markets** (stocks, rates, commodities,
 crypto, economic numbers), **News**, **Ideas**, **Small caps** and **Future**
 themes, **Funds**, **Odds**, and the who's-buying pages (**Congress**,

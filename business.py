@@ -675,7 +675,7 @@ def _bars(items, total, n=6):
         top.append(("Everything else", other, other / (total or sum(v for _, v in items) or 1)))
     overlap = sum(p for _, _, p in sh) > 1.05
     rows = "".join(
-        f"<div class='bzbar'><span class='n'>{E(name)}</span><span class='track'>"
+        f"<div class='bar'><span class='n'>{E(name)}</span><span class='track'>"
         f"<i style='width:{max(2, min(100, p * 100)):.0f}%'></i></span>"
         f"<b>{p:.0%}</b><span class='v'>{E(_money(v))}</span></div>" for name, v, p in top)
     return rows + ("<p class='hint'>Some of these overlap (one is part of another).</p>" if overlap else "")
@@ -790,14 +790,14 @@ CSS = """
 .biz .quote{border-left:3px solid var(--line);padding-left:12px;color:var(--mut);margin:0}
 .biz .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:4px 18px}
 .biz .chips{display:flex;flex-wrap:wrap;gap:6px}
-.bzbar{display:grid;grid-template-columns:minmax(110px,1.7fr) 1.6fr 44px 60px;gap:8px;align-items:center;font-size:14px;padding:3px 0}
-.bzbar .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bzbar .track{background:var(--card2);border-radius:6px;height:10px;overflow:hidden}
-.bzbar .track i{display:block;height:100%;background:var(--acc);border-radius:6px}
-.bzbar b{text-align:right;font-variant-numeric:tabular-nums}.bzbar .v{color:var(--mut);font-size:12px;text-align:right}
+.biz .bar{display:grid;grid-template-columns:minmax(110px,1.7fr) 1.6fr 44px 60px;gap:8px;align-items:center;font-size:14px;padding:3px 0}
+.biz .bar .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.biz .bar .track{background:var(--card2);border-radius:6px;height:10px;overflow:hidden}
+.biz .bar .track i{display:block;height:100%;background:var(--acc);border-radius:6px}
+.biz .bar b{text-align:right;font-variant-numeric:tabular-nums}.biz .bar .v{color:var(--mut);font-size:12px;text-align:right}
 .what{font-size:14px;margin:8px 0 2px;line-height:1.4}.what+.hint{margin:0 0 6px;font-size:13px}
 @media (max-width:640px){.biz .facts{grid-template-columns:repeat(2,1fr)}
-.bzbar{grid-template-columns:minmax(80px,1fr) 1.3fr 40px}.bzbar .v{display:none}}
+.biz .bar{grid-template-columns:minmax(80px,1fr) 1.3fr 40px}.biz .bar .v{display:none}}
 """
 
 
