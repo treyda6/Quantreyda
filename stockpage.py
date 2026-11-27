@@ -1,5 +1,5 @@
-"""One page per stock: price chart with the buys marked, health, news, and a
-plain-English "About this stock" explainer.
+"""One page per stock: what the company does (business.py), price chart with
+the buys marked, health, news, and a plain-English "About this stock" explainer.
 
 The explainer is written from the data the tracker already has (filings,
 financials, prices, the leaderboard), so it costs nothing to run and never
@@ -7,7 +7,7 @@ makes up facts it doesn't have.
 
   href(tkr)                       site-relative link to a stock page
   pick(con, today, idea_tickers)  which tickers get a page
-  render(con, tkr, today, records=None) -> HTML body
+  render(con, tkr, today, records=None, known=None) -> HTML body
 """
 
 import bisect
@@ -17,6 +17,7 @@ import re
 
 import activists
 import bills
+import business
 import calendars
 import committees
 import companyintel
@@ -208,13 +209,17 @@ def _people(n, one, many):
     return f"{n} {one if n == 1 else many}"
 
 
-def explain(tkr, pr, h, marks, sells, records, flags, news_rows, stakes=(), ci=None):
+def explain(tkr, pr, h, marks, sells, records, flags, news_rows, stakes=(), ci=None, biz=None):
     """[(question, answer html)] written from the data, in plain English."""
     qa = []
     name = pr.get("name") or (h or {}).get("company") or tkr
     sector = (pr.get("sector") or "").lower()
     s = f"<b>{E(name)}</b> ({E(tkr)})" if name != tkr else f"<b>{E(tkr)}</b>"
-    s += f" is in the <b>{E(sector)}</b> business." if sector else " is a publicly traded company."
+    one = business.oneliner(biz or {})
+    if one:
+        s += f": {E(one[0].lower() + one[1:] if one[:2] in ('A ', 'An') else one)}"
+    else:
+        s += f" is in the <b>{E(sector)}</b> business." if sector else " is a publicly traded company."
     size = _size(pr.get("revenue"))
     if size:
         s += (f" It brought in {E(profiles.money(pr['revenue']))} in sales last year, "
@@ -365,7 +370,8 @@ def explain(tkr, pr, h, marks, sells, records, flags, news_rows, stakes=(), ci=N
 
 # ---------------------------------------------------------------- page
 
-def render(con, tkr, today, records=None):
+def render(con, tkr, today, records=None, known=None):
+    """known: tickers that have a page (for links); None links every peer."""
     since = today - datetime.timedelta(days=730)
     pr = profiles.company(con, tkr)
     h = health.lookup(con, [tkr]).get(tkr)
@@ -400,7 +406,8 @@ def render(con, tkr, today, records=None):
     ci = companyintel.intel(con, tkr)
     ci.update(secextras.intel(con, tkr))
     qa = explain(tkr, pr, h, marks, _sells(con, tkr, since), records, flags, news_rows,
-                 activists.for_ticker(con, tkr), ci)
+                 activists.for_ticker(con, tkr), ci, business.snapshot(con, tkr))
+    biz_panel = business.panel(con, tkr, dict(pr, name=name or tkr), "../", known)
     about = ("<section class='panel qa'><h2>About this stock, in plain English</h2>"
              + "".join(f"<h3>{E(q)}</h3>{a}" for q, a in qa)
              + "<p class='hint' style='margin-top:12px'>Written automatically from public filings and "
@@ -494,7 +501,7 @@ def render(con, tkr, today, records=None):
     buys_panel = (f"<section class='panel'><h2>Who bought</h2><ul class='list'>"
                   + ("".join(rows) or "<li class='hint'>No buys in the last two years.</li>")
                   + "</ul></section>")
-    return (head + chart_panel + about + f"<div class='two'>{health_panel}{news_panel}</div>"
+    return (head + biz_panel + chart_panel + about + f"<div class='two'>{health_panel}{news_panel}</div>"
             + calendars.stock_panel(con, tkr, today) + intel_panel + risks_panel + markets.stock_panel(con, tkr, name)
             + moves.stock_panel(con, tkr) + economy.stock_panel(con, tkr) + bills_panel + buys_panel
             + funds.owners_panel(con, tkr))
@@ -549,6 +556,13 @@ def selftest():
         'Armed Forces and National Security','defense','A1','Sen. Alpha',current_date,
         'Passed Senate','https://congress.gov/x',NULL)""")
     assert "Bills moving in its industry" in render(con, "AAA", today)
+    assert "What it does" not in body
+    companyintel._save(con, "AAA", "wiki", 1, '{"extract": "Aaa Inc. is an American maker of missiles. '
+                       'It was founded in 1950.", "founded": 1950, "wiki": "Aaa Inc."}')
+    body = render(con, "AAA", today, known=set())
+    assert body.index("What it does") < body.index("<svg class='chart'"), "business snapshot comes first"
+    assert "An American maker of missiles." in body and "It was founded in 1950." in body
+    assert "<b>Aaa</b> (AAA): an American maker of missiles." in body, body[body.find("What is this"):][:300]
     assert "<script" not in body.lower()
     assert "AAA" in pick(con, today, ["ZZZ"]) and pick(con, today, ["ZZZ"])[0] == "ZZZ"
     empty = render(duckdb.connect(), "QQQQ", today)

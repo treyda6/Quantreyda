@@ -6,7 +6,7 @@ import importlib
 
 MODULES = ["entities", "scrape_senate", "scrape_house", "scrape_insiders",
            "daily", "signals", "health", "committees", "funds", "contracts", "digest", "backtest",
-           "mailer", "alerts", "weekly", "profiles", "news", "headlines", "whitehouse", "activists", "companyintel", "bills", "fec", "pictures", "secextras", "sections", "markets", "calendars", "moves", "economy", "readiness", "leaders", "today", "stockpage", "fundpage", "screener", "themes",
+           "mailer", "alerts", "weekly", "profiles", "news", "headlines", "whitehouse", "activists", "companyintel", "bills", "fec", "pictures", "secextras", "business", "sections", "markets", "calendars", "moves", "economy", "readiness", "leaders", "today", "stockpage", "fundpage", "screener", "themes",
            "home", "mine", "dashboard"]
 
 for name in MODULES:

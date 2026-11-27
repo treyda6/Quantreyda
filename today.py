@@ -19,6 +19,7 @@ import datetime
 import html
 
 import committees
+import business
 import companyintel
 import contracts
 import digest
@@ -362,6 +363,7 @@ def collect(con, today, days=7, records=None):
         i["score"] += 3 * len(i["kinds"]) + {"Solid": 2, "Shaky": -3}.get(i["health"], 0)
         i["profile"] = profiles.company(con, t)
         i["intel"] = companyintel.intel(con, t)
+        i["biz"] = business.snapshot(con, t)
         i["company"] = i["company"] or i["profile"].get("name")
         i["track"] = max((leaders.record_points(records.get(k)) for k in i["buyers"]),
                          key=lambda p: p[0], default=(0, None))
@@ -433,6 +435,10 @@ def _card(i):
              ("Profit", profiles.money(pr.get("net_income")) or "—"),
              ("P/E", f"{pr['pe']:.0f}" if pr.get("pe") else "—")]
     stat_html = "".join(f"<div><span>{k}</span><b>{E(v)}</b></div>" for k, v in stats)
+    b = i.get("biz") or {}
+    one, ml = business.oneliner(b, 120), business.money_line(b)
+    what = (f"<p class='what'>{E(one)}</p>" if one else "") + \
+        (f"<p class='hint'>{E(ml.split('. ')[0].rstrip('.'))}.</p>" if ml else "")
     sc = i["conviction"]
     lvl = conviction_label(sc)
     tip = "".join(f"<span class='bl'>{E(x)}</span>" for x in i["conviction_why"])
@@ -440,7 +446,7 @@ def _card(i):
             f"<div class='top'><div class='pic'>{pictures.logo_html(i['tkr'])}<div class='t'>"
             f"<a class='tkr' href='{E(_stock_href(i['tkr']))}'>{E(i['tkr'])}</a>"
             f"<div class='co'>{E(i['company'] or '')}"
-            f"{' · ' + E(pr['sector']) if pr.get('sector') else ''}</div></div></div>{price}</div>"
+            f"{' · ' + E(pr['sector']) if pr.get('sector') else ''}</div></div></div>{price}</div>{what}"
             f"{_spark(pr.get('spark'), (pr.get('chg_1y') or 0) >= 0)}"
             f"<div class='conv c-{lvl}'><span class='who' tabindex='0'>Conviction "
             f"<b>{sc}</b>/100 · {lvl}<span class='bio' role='tooltip'><b>How this score adds up</b>"
@@ -730,6 +736,13 @@ def selftest():
     companyintel._save(con, "AAA", "contracts", 4.2e9, None)
     p3 = render(collect(con, today, days=90), today, 90)
     assert "Buzz 3.2×" in p3 and "Gov't customer" in p3, p3[:300]
+    companyintel._save(con, "AAA", "wiki", 1, '{"extract": "Aaa Inc. is an American maker of missiles '
+                       'and radar systems. It is big.", "desc": "defense company"}')
+    companyintel._save(con, "AAA", "tenk", 1, '{"split": {"total": 100, "products": '
+                       '[["Missiles", 70], ["Radar", 30]]}}')
+    p3 = render(collect(con, today, days=90), today, 90)
+    assert "<p class='what'>An American maker of missiles and radar systems.</p>" in p3, p3[:2000]
+    assert "Most of its sales come from Missiles (70%), then Radar (30%)." in p3
     bills.ensure_table(con)
     con.execute("""INSERT INTO bills VALUES (119,'S','77','Better Missiles Act',
         'Armed Forces and National Security','defense','A1','Sen. Alpha',current_date,

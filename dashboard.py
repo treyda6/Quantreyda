@@ -47,6 +47,7 @@ import sections
 import leaders
 import signals
 import stockpage
+import business
 import themes
 import whitehouse
 import today as front
@@ -205,7 +206,7 @@ def page(title, active, body, updated, root=""):
     return (f"<!DOCTYPE html><html lang='en' data-theme='dark'><head><meta charset='utf-8'>"
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
             f"<title>{html.escape(title)} · Quantreyda</title>{THEME_HEAD}{app_head(root)}"
-            f"<style>{CSS}{front.CSS}{home.CSS}{stockpage.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}{calendars.CSS}{moves.CSS}{economy.CSS}{readiness.CSS}</style></head><body>"
+            f"<style>{CSS}{front.CSS}{home.CSS}{stockpage.CSS}{business.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}{calendars.CSS}{moves.CSS}{economy.CSS}{readiness.CSS}</style></head><body>"
             f"<header><div class='bar'><span class='logo'><i></i>Quantreyda</span>{nav}"
             f"<span class='sp'></span>"
             f"<button class='toggle' id='theme' type='button'>☀ Light</button></div></header>"
@@ -460,9 +461,10 @@ def build(con, today, out=OUT):
     pages += [t for t in funds.page_tickers(con) if t not in have and stockpage.VALID.fullmatch(t)]
     os.makedirs(f"{out}/s", exist_ok=True)
     built = []
+    known = set(pages)
     for t in pages:
         try:
-            body = stockpage.render(con, t, today, records)
+            body = stockpage.render(con, t, today, records, known)
             if t in picked:
                 body += headlines.stock_panel(t)
         except Exception as e:  # one odd ticker shouldn't stop the rest

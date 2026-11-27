@@ -31,6 +31,7 @@ import alerts
 import bills
 import calendars
 import committees
+import business
 import companyintel
 import contracts
 import fec
@@ -187,6 +188,8 @@ def main():
                          lambda: calendars.refresh_tickers(con, pages, minutes=8)),
                         ("short interest (FINRA)", lambda: secextras.refresh_short(con, pages)),
                         ("new risk factors (10-K)", lambda: secextras.refresh_risks(con, pages)),
+                        ("what each company does (Wikipedia, annual reports)",
+                         lambda: business.refresh(con, pages)),
                         ("heatmap, analyst ratings, options", lambda: moves.refresh(con, pages)),
                         ("logos and portraits",
                          lambda: pictures.refresh(con, list(pages) + recent_tickers(con, today)
@@ -222,6 +225,7 @@ def small_caps_and_themes(con, today, done=()):
                         ("health and size", lambda: health.refresh(con, picks)),
                         ("size for older checks", lambda: health.refresh(con, unsized[:150], force=True)),
                         ("logos", lambda: pictures.refresh(con, picks)),
+                        ("what they do", lambda: business.refresh(con, picks, wiki=60, tenk=8)),
                         ("theme attention (Wikipedia)", lambda: themes.refresh(con, today))):
         try:
             step()
