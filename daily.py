@@ -34,6 +34,7 @@ import companyintel
 import contracts
 import fec
 import markets
+import moves
 import pictures
 import secextras
 import digest
@@ -170,6 +171,7 @@ def main():
                          lambda: fec.refresh(con, company_names(con, pages))),
                         ("short interest (FINRA)", lambda: secextras.refresh_short(con, pages)),
                         ("new risk factors (10-K)", lambda: secextras.refresh_risks(con, pages)),
+                        ("heatmap, analyst ratings, options", lambda: moves.refresh(con, pages)),
                         ("logos and portraits",
                          lambda: pictures.refresh(con, list(pages) + recent_tickers(con, today)))):
         t0 = time.monotonic()
