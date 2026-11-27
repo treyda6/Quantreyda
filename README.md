@@ -269,6 +269,31 @@ Sports and crypto are left out.
 `backtest.py` also tests "Congress buys in their committee's industry" as its
 own signal, so you can see whether that ⚑ means anything.
 
+## Small companies that could grow big
+
+`screener.html` ("Small caps") lists every company worth under $2 billion
+that got a signal in the last 90 days: insiders buying, Congress or the
+White House buying, a followed fund adding, a 5%+ activist stake, or a big
+federal contract. Each gets points for how many signals line up and for the
+business itself (sales growth, profits, buybacks), and loses points for
+warning signs (insiders selling, new shares being printed, savings-bank IPOs
+that only look like insider clusters). The points table is on the page.
+Company size is shares outstanding from the SEC cover page times the last
+price; `daily.py` sizes and health-checks the best-scoring names each day.
+`python screener.py` prints the top of the list.
+
+## Future themes
+
+`themes.html` ("Future themes") is a study guide to 13 long-running changes
+(AI and data centers, the power grid, nuclear, robots, space, defense tech,
+cybersecurity, quantum, obesity drugs, gene editing, batteries, critical
+minerals, chipmaking at home). Each has why it could matter, what could go
+wrong, what to watch, the leaders, smaller and riskier names, and ETFs, plus
+live evidence: the stocks' past year against the S&P 500, Wikipedia
+attention against a year ago, Congress/insider/fund buys, and bills and
+prediction-market questions on the theme. The lists are hand-written in
+`THEMES` in [`themes.py`](themes.py); edit them freely.
+
 ## What the signals are
 
 - **Congress buys**: a member, spouse or dependent disclosed buying a stock or

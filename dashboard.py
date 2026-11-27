@@ -30,10 +30,12 @@ import committees
 import digest
 import markets
 import pictures
+import screener
 import sections
 import leaders
 import signals
 import stockpage
+import themes
 import whitehouse
 import today as front
 from schema import DB_PATH, ensure_schema, load_report
@@ -390,6 +392,12 @@ def build(con, today, out=OUT):
     picked = set(pages)
     pages += [t for t in dict.fromkeys(r.get("tkr") for r in rows)
               if t and t not in picked and stockpage.VALID.fullmatch(t)]
+    try:  # small-cap screener and future-theme stocks get pages too, so every name is clickable
+        listed = set(pages)
+        pages += [t for t in dict.fromkeys(screener.tickers(con, today, 400) + themes.tickers())
+                  if t not in listed and stockpage.VALID.fullmatch(t)]
+    except Exception as e:
+        print(f"screener/theme stock pages skipped ({type(e).__name__}: {e})")
     os.makedirs(f"{out}/s", exist_ok=True)
     built = []
     for t in pages:
@@ -415,6 +423,15 @@ def build(con, today, out=OUT):
             body = f"<h1>{title}</h1><p>This page couldn't be built this run.</p>"
         with open(f"{out}/{name}.html", "w", encoding="utf-8") as f:
             f.write(page(title, "odds" if name == "markets" else name, body, updated))
+    for name, title, make in (("screener", "Small caps", lambda: screener.page(con, today, set(built))),
+                              ("themes", "Future themes", lambda: themes.page(con, today, set(built)))):
+        try:
+            body = make()
+        except Exception as e:  # one section failing shouldn't take the site down
+            print(f"{name} page skipped ({type(e).__name__}: {e})")
+            body = f"<h1>{title}</h1><p>This page couldn't be built this run.</p>"
+        with open(f"{out}/{name}.html", "w", encoding="utf-8") as f:
+            f.write(page(title, name, body, updated))
     with open(f"{out}/leaders.html", "w", encoding="utf-8") as f:
         f.write(page("Leaderboard", "leaders", leaders.render(con, board, built), updated))
     open(f"{out}/.nojekyll", "w").close()
@@ -452,6 +469,9 @@ def selftest():
     assert "Insider trading" in open(f"{out}/insiders.html", encoding="utf-8").read()
     assert "Funds" in open(f"{out}/funds.html", encoding="utf-8").read()
     assert "What bettors expect" in open(f"{out}/markets.html", encoding="utf-8").read()
+    assert "Small companies people in the know are buying" in open(f"{out}/screener.html", encoding="utf-8").read()
+    th = open(f"{out}/themes.html", encoding="utf-8").read()
+    assert "What could the next decade be built on?" in th and "s/NVDA.html" in th, "theme stocks get pages"
     print("dashboard selftest ok")
 
 
