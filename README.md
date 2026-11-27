@@ -12,7 +12,7 @@ themes, **Funds**, **Odds**, and the who's-buying pages (**Congress**,
 **Insiders**, **All trades**, **Leaderboard**, **Did it work?**). A section
 that's still being built shows a "coming soon" page until it lands.
 
-Under the hood, the who's-buying side does six things:
+Under the hood, the who's-buying side does seven things:
 
 1. **Collects public filings** every day: stock trades that members of Congress
    must disclose (STOCK Act), and SEC Form 4 filings that company executives and
@@ -31,7 +31,13 @@ Under the hood, the who's-buying side does six things:
    a ⚑ when a member of Congress trades in an industry their committee
    oversees, and a "where signals agree" list of stocks with several kinds of
    support at once.
-6. **Checks whether any of it has ever worked** (`reports/backtest.md`): if you'd
+6. **Explains what each company does**: every stock page opens with a
+   "What it does" snapshot (a plain-English one-liner, the Wikipedia summary,
+   founded / HQ / CEO / employees, sales by business, product and region read
+   from the latest annual report's tagged numbers, the report's own business
+   overview, competition and big customers, and similar companies). The Ideas
+   cards show the one-liner and where the money comes from.
+7. **Checks whether any of it has ever worked** (`reports/backtest.md`): if you'd
    bought every signal and held it for 3, 6 or 12 months, would you have beaten
    just owning SPY (an S&P 500 index fund)? The "If you had copied them" section
    on the site answers it year by year for every Congress buy, politicians who
