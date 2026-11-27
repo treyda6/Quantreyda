@@ -16,6 +16,10 @@
   var KIND_LABEL = { stock: "Stock", etf: "ETF", fund: "Mutual fund", money: "Money market fund" };
   var RANGES = [["5D", 7], ["1M", 31], ["6M", 183], ["YTD", 0], ["1Y", 366], ["5Y", 1827], ["Max", 1e9]];
   var DAY = 864e5;
+  // 1D: TradingView's free chart widget (no key). It loads from tradingview.com
+  // in the browser, so it's live (or a few minutes delayed for some exchanges).
+  var TV_JS = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+  var TV_EXCH = { "Nasdaq": "NASDAQ", "NYSE": "NYSE", "NYSE Arca": "AMEX", "NYSE American": "AMEX", "Cboe BZX": "CBOE" };
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -240,6 +244,28 @@
     svg.addEventListener("mousemove", move); svg.addEventListener("touchmove", move, { passive: true });
     svg.addEventListener("touchstart", move, { passive: true });
     svg.addEventListener("mouseleave", leave); svg.addEventListener("touchend", leave);
+  }
+
+  function tvSymbol(t, exch) {
+    var x = TV_EXCH[exch];
+    return (x ? x + ":" : "") + norm(t);
+  }
+  function theme() { return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark"; }
+  function tvChart(box, t, exch) {
+    var th = theme();
+    if (box.dataset.tv === th) return;  // already showing, same theme
+    box.dataset.tv = th;
+    box.innerHTML = "<div class='tradingview-widget-container' style='height:100%;width:100%'>" +
+      "<div class='tradingview-widget-container__widget' style='height:100%;width:100%'></div></div>";
+    var sc = document.createElement("script");
+    sc.src = TV_JS; sc.async = true; sc.type = "text/javascript";
+    sc.text = JSON.stringify({
+      autosize: true, symbol: tvSymbol(t, exch), interval: "5", range: "1D", timezone: "America/New_York",
+      theme: th, style: "1", locale: "en", allow_symbol_change: false, hide_side_toolbar: true,
+      save_image: false, calendar: false, support_host: "https://www.tradingview.com",
+      backgroundColor: th === "light" ? "#ffffff" : "#12151b", gridColor: th === "light" ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.06)"
+    });
+    box.firstChild.appendChild(sc);
   }
 
   // ------------------------------------------------------------ stats
@@ -513,10 +539,11 @@
       return;
     }
     if (all.length > 1) {
-      html += "<div class='lk-ranges' role='tablist'>" + RANGES.map(function (r) {
+      var live = kind === "stock" || kind === "etf";  // funds price once a day: nothing intraday to show
+      html += "<div class='lk-ranges' role='tablist'>" + (live ? "<button type='button' data-r='1D'>1D</button>" : "") + RANGES.map(function (r) {
         return "<button type='button' data-r='" + r[0] + "'>" + r[0] + "</button>";
-      }).join("") + "<label class='lk-cmp'><input type='checkbox'> vs S&amp;P 500</label><span class='lk-chg'></span></div><div class='lk-plot'></div>" +
-        "<div class='legend'><span><i style='background:var(--ins)'></i>Dividend</span><span><i style='background:var(--warn)'></i>Split</span><span class='lk-cmpkey' hidden>- - - S&amp;P 500, same start</span><span>Daily closes, as of " + fmtDate(last[0]) + "</span></div>";
+      }).join("") + "<label class='lk-cmp'><input type='checkbox'> vs S&amp;P 500</label><span class='lk-chg'></span></div><div class='lk-plot'></div><div class='lk-tv' hidden></div>" +
+        "<div class='legend lk-leg'><span><i style='background:var(--ins)'></i>Dividend</span><span><i style='background:var(--warn)'></i>Split</span><span class='lk-cmpkey' hidden>- - - S&amp;P 500, same start</span><span>Daily closes, as of " + fmtDate(last[0]) + "</span></div>";
     } else {
       html += "<p class='hint'>No price history yet; it fills in on the next daily runs.</p>";
     }
@@ -544,7 +571,7 @@
         "The returns above are price only" + (kind === "money" ? "; a money market fund holds near $1 and pays you through its yield" : "; payouts are listed below") + ".</p></section>";
     }
     body += dividends(doc);
-    body += "<p class='hint'>Prices: Yahoo Finance daily closes (free, unofficial). Financials: SEC EDGAR. Updated each morning; no intraday prices. Research, not advice.</p>";
+    body += "<p class='hint'>Prices: Yahoo Finance daily closes (free, unofficial). Financials: SEC EDGAR. Updated each morning. The 1D chart is TradingView's, loaded live. Research, not advice.</p>";
     html = head + "<section class='panel'>" + html + "</section>";
     el.innerHTML = html + body;
     if (mode === "panel") el.classList.add("lk-done");
@@ -557,9 +584,18 @@
         .concat((doc.px.spl || []).map(function (s) { return [iso2t(s[0]), "S", splitText(s[1]) + " split · " + s[0]]; }));
       var spy = null, cur = all.length > 260 ? "1Y" : "Max";
       if (t === "SPY") cmpBox.parentNode.hidden = true;
+      var tv = el.querySelector(".lk-tv"), leg = el.querySelector(".lk-leg");
       var show = function (key) {
-        cur = key;
         el.querySelectorAll(".lk-ranges button").forEach(function (b) { b.classList.toggle("on", b.dataset.r === key); });
+        var intraday = key === "1D";
+        tv.hidden = !intraday; plot.hidden = intraday; leg.style.display = intraday ? "none" : "";
+        cmpBox.parentNode.style.visibility = intraday ? "hidden" : "";
+        if (intraday) {
+          chg.innerHTML = "Live chart from TradingView <span class='mut'>(some exchanges a few minutes delayed)</span>";
+          tvChart(tv, t, doc.x);
+          return;
+        }
+        cur = key;
         var pts = slice(all, key), ch = pts[pts.length - 1][1] / pts[0][1] - 1;
         var spyTxt = "";
         if (cmpBox.checked && spy && spy.length) {
@@ -575,6 +611,8 @@
         if (cmpBox.checked && !spy) loadDoc("SPY").then(function (d) { spy = d ? series(d) : []; show(cur); });
         else show(cur);
       });
+      if (window.MutationObserver) new MutationObserver(function () { if (!tv.hidden) tvChart(tv, t, doc.x); })
+        .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
       show(cur);
     }
     // statements

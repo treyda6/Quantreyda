@@ -682,6 +682,7 @@ border:0;background:transparent;color:var(--mut);cursor:pointer}
 .lk-cmp{font-size:13px;color:var(--mut);margin-left:8px;display:flex;gap:5px;align-items:center}
 .lk-chg{margin-left:auto;font-size:14px;color:var(--mut)}
 .lk-plot{position:relative;touch-action:pan-y}
+.lk-tv{height:420px;border-radius:12px;overflow:hidden;border:1px solid var(--line)}
 .chart.lk-chart text{font-size:11px}.lk-chart .lk-x{stroke:var(--mut);stroke-width:1;stroke-dasharray:3 3}
 .chart text.ev{fill:#000;font-size:9px;font-weight:800}
 .lk-tip{position:absolute;top:0;width:130px;background:var(--card2);border:1px solid var(--line);border-radius:10px;
@@ -696,7 +697,7 @@ position:sticky;left:0;background:var(--card)}
 .lk-toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,30px);opacity:0;transition:.25s;z-index:60;
 background:var(--fg);color:var(--bg);padding:12px 16px;border-radius:14px;max-width:min(520px,calc(100vw - 32px));
 font-size:14px;box-shadow:var(--shadow);pointer-events:none}.lk-toast.on{opacity:1;transform:translate(-50%,0)}
-@media(max-width:700px){.lk-kv{grid-template-columns:repeat(2,1fr)}.lk-toast{bottom:84px}.lk-chg{margin-left:0;width:100%}
+@media(max-width:700px){.lk-tv{height:340px}.lk-kv{grid-template-columns:repeat(2,1fr)}.lk-toast{bottom:84px}.lk-chg{margin-left:0;width:100%}
 .lk-btn{flex:1}.lk-btn.ghost{flex:0 0 auto}}
 """
 
@@ -719,7 +720,7 @@ def lookup_page():
             "same symbol at Fidelity.</p>"
             "<div class='lk-big'><input id='lk-q2' type='search' autocomplete='off' "
             "placeholder='e.g. AAPL, Vanguard 500, FXAIX' aria-label='Ticker or name'></div>"
-            "<p class='hint'>Prices are daily closes, updated every morning; no intraday quotes. "
+            "<p class='hint'>Charts use daily closes, updated every morning, plus a live 1D chart from TradingView for stocks and ETFs. "
             "Financials come from each company's SEC filings.</p></div>")
 
 
