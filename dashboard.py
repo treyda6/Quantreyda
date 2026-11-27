@@ -61,7 +61,15 @@ background:color-mix(in srgb,var(--bg) 82%,transparent);border-bottom:1px solid 
 .bar a.nav{color:var(--mut);text-decoration:none;font-weight:600;font-size:14px;padding:7px 9px;border-radius:999px}
 .bar a.nav:hover{color:var(--fg)}.bar a.nav.on{background:var(--chip);color:var(--fg)}
 .bar .sp{flex:1}.upd{color:var(--mut);font-size:12px}
-@media(max-width:1130px){.bar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.bar a.nav{white-space:nowrap}}
+.grp{position:relative}.gl{display:flex;align-items:center;gap:4px;color:var(--mut);font-weight:600;font-size:14px;
+padding:7px 9px;border-radius:999px;cursor:pointer;white-space:nowrap;outline:none}.gl b{font-size:10px;opacity:.7}
+.gl:hover,.grp:focus-within .gl{color:var(--fg)}.gl.on{background:var(--chip);color:var(--fg)}
+.menu{display:none;position:absolute;top:100%;left:0;z-index:40;min-width:190px;padding:6px;margin-top:4px;
+flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+.menu:before{content:'';position:absolute;left:0;right:0;top:-8px;height:8px}
+.grp:hover .menu,.grp:focus-within .menu{display:flex}.menu a.nav{border-radius:10px;white-space:nowrap}
+@media(max-width:1000px){.bar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.bar a.nav{white-space:nowrap}
+.gl{display:none}.grp,.grp .menu,.grp:hover .menu,.grp:focus-within .menu{display:contents}}
 .tabs{display:none}
 @media(max-width:700px){
 .bar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:4px;padding:10px 14px}.bar::-webkit-scrollbar{display:none}
@@ -116,15 +124,43 @@ ICONS = {  # simple 24px line icons for the phone tab bar
     "trades": "<circle cx='11' cy='11' r='6.5'/><path d='M16 16l5 5'/>",
 }
 # Market intel first; who's-buying sections after. Planned pages (economy,
-# news, screener, themes) get a "coming soon" page from home.py until built.
-NAV = (("home", "index.html", "Home"), ("economy", "economy.html", "Markets"),
-       ("news", "news.html", "News"), ("ideas", "ideas.html", "Ideas"),
-       ("screener", "screener.html", "Small caps"), ("themes", "themes.html", "Future"),
-       ("funds", "funds.html", "Funds"), ("odds", "markets.html", "Odds"),
-       ("congress", "congress.html", "Congress"), ("insiders", "insiders.html", "Insiders"),
-       ("trades", "trades.html", "All trades"))
-# Leaderboard and "Did it work?" are tiles on the home page (the Ideas guide
-# links the backtest too), which keeps the bar on one line.
+# news, screener, themes, calendar) get a "coming soon" page from home.py
+# until built. A new section adds one line here; give it a GROUP below to put
+# it in a dropdown instead of on the bar itself.
+NAV = (("home", "index.html", "Home"),
+       ("economy", "economy.html", "Markets & economy"), ("calendar", "calendar.html", "Calendar"),
+       ("odds", "markets.html", "Odds"),
+       ("news", "news.html", "News"),
+       ("ideas", "ideas.html", "Ideas"), ("screener", "screener.html", "Small caps"),
+       ("themes", "themes.html", "Future themes"),
+       ("funds", "funds.html", "Funds"), ("congress", "congress.html", "Congress"),
+       ("insiders", "insiders.html", "Insiders"), ("trades", "trades.html", "All trades"),
+       ("leaders", "leaders.html", "Leaderboard"), ("backtest", "backtest.html", "Did it work?"))
+# key -> dropdown it lives in on desktop. Phones and tablets show every link
+# in one scrolling row instead. Keys left out sit on the bar directly.
+GROUP = {"economy": "Markets", "calendar": "Markets", "odds": "Markets",
+         "ideas": "Ideas", "screener": "Ideas", "themes": "Ideas",
+         "funds": "Who's buying", "congress": "Who's buying", "insiders": "Who's buying",
+         "trades": "Who's buying", "leaders": "Who's buying", "backtest": "Who's buying"}
+TAB_LABEL = {"economy": "Markets", "trades": "Search"}
+
+
+def nav_html(active, root=""):
+    """The header links: top-level pages plus a hover/tap dropdown per GROUP."""
+    def link(key, href, label):
+        return f'<a href="{root}{href}" class="nav{" on" if key == active else ""}">{label}</a>'
+    out, done = [], set()
+    for key, href, label in NAV:
+        g = GROUP.get(key)
+        if not g:
+            out.append(link(key, href, label))
+        elif g not in done:
+            done.add(g)
+            items = [n for n in NAV if GROUP.get(n[0]) == g]
+            on = " on" if any(n[0] == active for n in items) else ""
+            out.append(f"<div class='grp'><span class='gl{on}' tabindex='0'>{g}<b>▾</b></span>"
+                       f"<div class='menu'>{''.join(link(*n) for n in items)}</div></div>")
+    return "".join(out)
 
 
 APP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app")
@@ -145,11 +181,10 @@ def app_head(root=""):
 
 
 def page(title, active, body, updated, root=""):
-    nav = "".join(f'<a href="{root}{href}" class="nav{" on" if key == active else ""}">{label}</a>'
-                  for key, href, label in NAV)
+    nav = nav_html(active, root)
     tabs = "".join(
         f"<a href='{root}{href}' class='{'on' if key == active else ''}'><svg viewBox='0 0 24 24' "
-        f"aria-hidden='true'>{ICONS[key]}</svg><span>{'Search' if key == 'trades' else label}</span></a>"
+        f"aria-hidden='true'>{ICONS[key]}</svg><span>{TAB_LABEL.get(key, label)}</span></a>"
         for key, href, label in NAV if key in ICONS)
     return (f"<!DOCTYPE html><html lang='en' data-theme='dark'><head><meta charset='utf-8'>"
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"

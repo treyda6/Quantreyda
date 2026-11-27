@@ -33,6 +33,8 @@ E = html.escape
 SECTIONS = (
     ("economy", "economy.html", "Markets & economy",
      "Stocks, rates, oil, gold, crypto and the economic numbers that move them.", ("economy",), True),
+    ("calendar", "calendar.html", "Calendar", "Earnings, economic releases and IPOs coming up.",
+     ("calendars",), True),
     ("news", "news.html", "News", "The market headlines worth knowing, updated hourly.",
      ("headlines",), True),
     ("ideas", "ideas.html", "Ideas", "Stocks with several kinds of smart money behind them, "
