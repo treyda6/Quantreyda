@@ -70,24 +70,42 @@ font:15px/1.5 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-seri
 header{position:sticky;top:0;z-index:20;backdrop-filter:blur(12px);
 background:color-mix(in srgb,var(--bg) 82%,transparent);border-bottom:1px solid var(--line)}
 .bar{max-width:1180px;margin:0 auto;padding:12px 20px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.logo{font-weight:800;font-size:18px;letter-spacing:-.3px;margin-right:14px;display:flex;align-items:center;gap:8px}
+.logo{font-weight:800;font-size:18px;letter-spacing:-.3px;margin-right:14px;display:flex;align-items:center;gap:8px;color:var(--fg);text-decoration:none;white-space:nowrap}
 .logo i{width:10px;height:10px;border-radius:50%;background:var(--acc);box-shadow:0 0 12px var(--acc)}
 .bar a.nav{color:var(--mut);text-decoration:none;font-weight:600;font-size:14px;padding:7px 9px;border-radius:999px}
 .bar a.nav:hover{color:var(--fg)}.bar a.nav.on{background:var(--chip);color:var(--fg)}
 .bar .sp{flex:1}.upd{color:var(--mut);font-size:12px}
+.nv{display:contents}.nvb,.nvbr{display:none}
 .grp{position:relative}.gl{display:flex;align-items:center;gap:4px;color:var(--mut);font-weight:600;font-size:14px;
 padding:7px 9px;border-radius:999px;cursor:pointer;white-space:nowrap;outline:none}.gl b{font-size:10px;opacity:.7}
 .gl:hover,.grp:focus-within .gl{color:var(--fg)}.gl.on{background:var(--chip);color:var(--fg)}
-.menu{display:none;position:absolute;top:100%;left:0;z-index:40;min-width:190px;padding:6px;margin-top:4px;
+.menu{display:none;position:absolute;top:100%;left:0;z-index:40;min-width:200px;padding:6px;margin-top:4px;
 flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
 .menu:before{content:'';position:absolute;left:0;right:0;top:-8px;height:8px}
 .grp:hover .menu,.grp:focus-within .menu{display:flex}.menu a.nav{border-radius:10px;white-space:nowrap}
-@media(max-width:1000px){.bar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.bar a.nav{white-space:nowrap}
-.gl{display:none}.grp,.grp .menu,.grp:hover .menu,.grp:focus-within .menu{display:contents}}
+/* tablets and phones: one Menu button that opens every section, grouped */
+@media(max-width:1000px){.bar{position:relative;flex-wrap:nowrap}.bar .lk-search{flex:1 1 auto;min-width:0;max-width:420px}
+.bar .sp{display:none}.logo{margin-right:4px}
+.nvb{display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);color:var(--fg);
+border-radius:999px;padding:6px 12px;font:600 13px/1.2 inherit;cursor:pointer;white-space:nowrap;margin-left:auto}
+.nvb svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.nv{display:none;position:absolute;left:12px;right:12px;top:calc(100% + 6px);z-index:45;flex-wrap:wrap;gap:6px 18px;
+padding:14px 16px 16px;background:var(--card);border:1px solid var(--line);border-radius:16px;
+box-shadow:0 18px 50px rgba(0,0,0,.35);max-height:calc(100vh - 90px);overflow-y:auto}
+#nvt:checked~.nv{display:flex}
+@media(max-width:700px){.nv{max-height:calc(100vh - 160px)}.nv .menu a.nav{padding:7px 9px}}#nvt:checked~.nvb{background:var(--chip)}
+.nv{align-items:flex-start}.nv>a.nav{order:-2;background:var(--chip);color:var(--fg);padding:8px 16px}
+.nvbr{display:block;order:-1;flex-basis:100%;height:4px}.nv>a.nav.on{outline:2px solid var(--acc)}
+.nv .grp{flex:1 1 150px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.nv .gl{padding:8px 9px 4px;font-size:11px;letter-spacing:.8px;text-transform:uppercase;cursor:default;background:none;color:var(--mut)}
+.nv .gl b{display:none}.nv .gl.on{color:var(--acc)}
+.nv .menu,.nv .grp:hover .menu,.nv .grp:focus-within .menu{display:flex;position:static;margin:0;padding:0;border:0;
+box-shadow:none;background:none;min-width:0}.nv .menu:before{display:none}
+.nv .menu a.nav{padding:8px 9px;font-size:15px}.nv .menu a.nav.on{background:var(--chip);color:var(--fg)}}
 .tabs{display:none}
 @media(max-width:700px){
-.bar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:4px;padding:10px 14px}.bar::-webkit-scrollbar{display:none}
-.bar a.nav{white-space:nowrap}.upd{display:none}
+.bar{gap:6px;padding:10px 12px}.upd{display:none}
+.logo{font-size:16px;gap:6px}.toggle .tl,.nvb .tl{display:none}.toggle,.nvb{padding:7px 10px}
 .tabs{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:30;justify-content:space-around;
 padding:8px 4px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--line);
 background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px)}
@@ -125,9 +143,12 @@ THEME_HEAD = """<script>(function(){var t=localStorage.getItem('qt-theme')||
 document.documentElement.setAttribute('data-theme',t)})()</script>"""
 
 THEME_JS = """<script>(function(){var b=document.getElementById('theme');
-function label(){b.textContent=document.documentElement.getAttribute('data-theme')==='dark'?'☀ Light':'☾ Dark'}
+function label(){b.innerHTML=document.documentElement.getAttribute('data-theme')==='dark'?'☀<span class=tl> Light</span>':'☾<span class=tl> Dark</span>'}
 label();b.onclick=function(){var t=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
-document.documentElement.setAttribute('data-theme',t);localStorage.setItem('qt-theme',t);label()}})()</script>"""
+document.documentElement.setAttribute('data-theme',t);localStorage.setItem('qt-theme',t);label()};
+var m=document.getElementById('nvt');if(m){document.addEventListener('click',function(e){
+if(m.checked&&!e.target.closest('.nv,.nvb,#nvt'))m.checked=false});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')m.checked=false})}})()</script>"""
 
 
 ICONS = {  # simple 24px line icons for the phone tab bar
@@ -143,20 +164,22 @@ ICONS = {  # simple 24px line icons for the phone tab bar
 # until built. A new section adds one line here; give it a GROUP below to put
 # it in a dropdown instead of on the bar itself.
 NAV = (("home", "index.html", "Home"),
-       ("economy", "economy.html", "Markets & economy"), ("calendar", "calendar.html", "Calendar"),
-       ("odds", "markets.html", "Odds"), ("moves", "moves.html", "Moves"),
+       ("economy", "economy.html", "Markets & economy"), ("moves", "moves.html", "Market moves"),
+       ("calendar", "calendar.html", "Calendar"), ("odds", "markets.html", "Odds"),
        ("news", "news.html", "News"), ("readiness", "readiness.html", "Readiness"),
        ("ideas", "ideas.html", "Ideas"), ("screener", "screener.html", "Small caps"),
        ("themes", "themes.html", "Future themes"),
-       ("funds", "funds.html", "Funds"), ("congress", "congress.html", "Congress"),
-       ("insiders", "insiders.html", "Insiders"), ("trades", "trades.html", "All trades"),
+       ("congress", "congress.html", "Congress"), ("insiders", "insiders.html", "Insiders"),
+       ("funds", "funds.html", "Funds"), ("trades", "trades.html", "All trades"),
        ("leaders", "leaders.html", "Leaderboard"), ("backtest", "backtest.html", "Did it work?"),
        ("mine", "mine.html", "Mine"))  # private, on-device: see mine.py
-# key -> dropdown it lives in on desktop. Phones and tablets show every link
-# in one scrolling row instead. Keys left out sit on the bar directly.
-GROUP = {"economy": "Markets", "calendar": "Markets", "odds": "Markets", "moves": "Markets",
+# key -> the dropdown it lives in. Keys left out (Home, Mine) sit on the bar
+# directly. Desktop shows the groups as dropdowns; tablets and phones get one
+# Menu button that opens every group as a labeled column.
+GROUP = {"economy": "Markets", "moves": "Markets", "calendar": "Markets", "odds": "Markets",
+         "news": "Markets", "readiness": "Markets",
          "ideas": "Ideas", "screener": "Ideas", "themes": "Ideas",
-         "funds": "Who's buying", "congress": "Who's buying", "insiders": "Who's buying",
+         "congress": "Who's buying", "insiders": "Who's buying", "funds": "Who's buying",
          "trades": "Who's buying", "leaders": "Who's buying", "backtest": "Who's buying"}
 TAB_LABEL = {"economy": "Markets", "trades": "Search"}
 
@@ -176,7 +199,10 @@ def nav_html(active, root=""):
             on = " on" if any(n[0] == active for n in items) else ""
             out.append(f"<div class='grp'><span class='gl{on}' tabindex='0'>{g}<b>▾</b></span>"
                        f"<div class='menu'>{''.join(link(*n) for n in items)}</div></div>")
-    return "".join(out)
+    return ("<input type='checkbox' id='nvt' hidden>"
+            "<label for='nvt' class='nvb' aria-label='Menu'><svg viewBox='0 0 24 24' aria-hidden='true'>"
+            "<path d='M4 7h16M4 12h16M4 17h16'/></svg><span class='tl'>Menu</span></label>"
+            f"<nav class='nv' aria-label='Sections'>{''.join(out)}<i class='nvbr'></i></nav>")
 
 
 APP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app")
@@ -208,7 +234,7 @@ def page(title, active, body, updated, root=""):
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
             f"<title>{html.escape(title)} · Quantreyda</title>{THEME_HEAD}{app_head(root)}"
             f"<style>{CSS}{front.CSS}{home.CSS}{stockpage.CSS}{business.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}{calendars.CSS}{moves.CSS}{economy.CSS}{readiness.CSS}{lookup.CSS}</style></head><body>"
-            f"<header><div class='bar'><span class='logo'><i></i>Quantreyda</span>{lookup.search_html(root)}{nav}"
+            f"<header><div class='bar'><a class='logo' href='{root}index.html' aria-label='Quantreyda home'><i></i><span>Quantreyda</span></a>{lookup.search_html(root)}{nav}"
             f"<span class='sp'></span>"
             f"<button class='toggle' id='theme' type='button'>☀ Light</button></div></header>"
             f"<main>{body}</main><footer>Updated {updated}. Free public data: market prices, prediction markets, SEC "
@@ -600,7 +626,12 @@ def selftest():
     assert st.index("lk-panel") < st.index("panel qa"), "history panel sits under the first chart"
     assert os.path.exists(f"{out}/look/index.json")
     mv = open(f"{out}/moves.html", encoding="utf-8").read()
-    assert "Market moves" in mv and 'class="nav on">Moves' in mv
+    assert "Market moves" in mv and 'class="nav on">Market moves' in mv
+    # the menu: Home and Mine on the bar, everything else in three groups
+    tops = [k for k, *_ in NAV if k not in GROUP]
+    assert tops == ["home", "mine"] and sorted(set(GROUP.values())) == ["Ideas", "Markets", "Who's buying"]
+    assert idx.count("class='grp'") == 3 and "id='nvt'" in idx and "class='nvb'" in idx
+    assert "<span class='gl on' tabindex='0'>Markets" in mv, "the open section's group is highlighted"
     rp = open(f"{out}/readiness.html", encoding="utf-8").read()
     assert "Readiness levels" in rp and "How the levels work" in rp and 'href="readiness.html" class="nav on"' in rp
     print("dashboard selftest ok")
