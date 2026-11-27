@@ -530,7 +530,7 @@ def selftest():
     signals.make_fixture(con)
     out = build(con, datetime.date(2025, 3, 15), tempfile.mkdtemp())
     idx = open(f"{out}/index.html", encoding="utf-8").read()
-    assert "Your market briefing" in idx and "href='s/AAA.html'" in idx, "home shows top ideas"
+    assert "Live feed" in idx and "href='s/AAA.html'" in idx, "home shows top ideas"
     assert "href='index.html' class='on'" in idx and "href=\"ideas.html\"" in idx
     ideas = open(f"{out}/ideas.html", encoding="utf-8").read()
     assert "30-second version" in ideas and "AAA" in ideas

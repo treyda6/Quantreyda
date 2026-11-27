@@ -6,7 +6,7 @@ economy, the news, research ideas, prediction-market odds, and what insiders,
 Congress and proven funds are buying. It's meant for finding long-term ideas
 (for example for a Roth IRA), not for day trading.
 
-Sections: **Home** (the briefing), **Markets** (stocks, rates, commodities,
+Sections: **Home** (an ops-center briefing: search, readiness levels, trending tickers and a live feed), **Markets** (stocks, rates, commodities,
 crypto, economic numbers), **News**, **Ideas**, **Small caps** and **Future**
 themes, **Funds**, **Odds**, and the who's-buying pages (**Congress**,
 **Insiders**, **All trades**, **Leaderboard**, **Did it work?**). A section
