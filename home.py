@@ -37,6 +37,8 @@ SECTIONS = (
      ("calendars",), True),
     ("news", "news.html", "News", "The market headlines worth knowing, updated hourly.",
      ("headlines",), True),
+    ("mine", "mine.html", "Mine", "Your accounts, watchlist and alerts. Saved only on this device.",
+     (), False),
     ("ideas", "ideas.html", "Ideas", "Stocks with several kinds of smart money behind them, "
      "with a health check on each company.", (), False),
     ("screener", "screener.html", "Small caps", "Small companies with the numbers to grow big.",

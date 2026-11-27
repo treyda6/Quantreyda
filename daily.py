@@ -35,6 +35,7 @@ import companyintel
 import contracts
 import fec
 import markets
+import mine
 import moves
 import pictures
 import secextras
@@ -169,6 +170,9 @@ def main():
                          lambda: prices.fetch(con, set(recent_tickers(con, today) + funds.page_tickers(con))
                                               - set(pages),
                                               start=today - datetime.timedelta(days=740), minutes=10)),
+                        ("prices for popular funds and stocks (Mine page)",  # public list, not your holdings
+                         lambda: prices.fetch(con, mine.universe(), start=today - datetime.timedelta(days=400),
+                                              minutes=8)),
                         ("industry codes", lambda: committees.refresh_companies(con, pages)),
                         ("health", lambda: health.refresh(con, pages)),
                         ("news", lambda: news.refresh(con, pages)),

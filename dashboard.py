@@ -37,6 +37,7 @@ import headlines
 import home
 import economy
 import markets
+import mine
 import moves
 import pictures
 import screener
@@ -131,6 +132,7 @@ ICONS = {  # simple 24px line icons for the phone tab bar
     "news": "<path d='M4 5h13v14H6a2 2 0 0 1-2-2zM17 9h3v8a2 2 0 0 1-2 2M7 9h7M7 13h7M7 16h4'/>",
     "ideas": "<path d='M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z'/>",
     "trades": "<circle cx='11' cy='11' r='6.5'/><path d='M16 16l5 5'/>",
+    "mine": "<rect x='5' y='11' width='14' height='10' rx='2'/><path d='M8 11V7a4 4 0 0 1 8 0v4'/>",
 }
 # Market intel first; who's-buying sections after. Planned pages (economy,
 # news, screener, themes, calendar) get a "coming soon" page from home.py
@@ -144,7 +146,8 @@ NAV = (("home", "index.html", "Home"),
        ("themes", "themes.html", "Future themes"),
        ("funds", "funds.html", "Funds"), ("congress", "congress.html", "Congress"),
        ("insiders", "insiders.html", "Insiders"), ("trades", "trades.html", "All trades"),
-       ("leaders", "leaders.html", "Leaderboard"), ("backtest", "backtest.html", "Did it work?"))
+       ("leaders", "leaders.html", "Leaderboard"), ("backtest", "backtest.html", "Did it work?"),
+       ("mine", "mine.html", "Mine"))  # private, on-device: see mine.py
 # key -> dropdown it lives in on desktop. Phones and tablets show every link
 # in one scrolling row instead. Keys left out sit on the bar directly.
 GROUP = {"economy": "Markets", "calendar": "Markets", "odds": "Markets", "moves": "Markets",
@@ -185,6 +188,8 @@ def app_head(root=""):
             "<meta name='apple-mobile-web-app-capable' content='yes'>"
             "<meta name='apple-mobile-web-app-title' content='Quantreyda'>"
             "<meta name='apple-mobile-web-app-status-bar-style' content='black'>"
+            # your own accounts, watchlist and layout: read from this browser only
+            f"<script src='{root}personal.js'></script>"
             "<script>if('serviceWorker' in navigator)addEventListener('load',()=>"
             f"navigator.serviceWorker.register('{root}sw.js').catch(()=>{{}}))</script>")
 
@@ -507,6 +512,13 @@ def build(con, today, out=OUT):
             {t: stockpage.slug(t) for t in built}), updated))
     with open(f"{out}/tracked.json", "w", encoding="utf-8") as f:
         json.dump(headlines.tracked_list(con, [t for t in built if t in picked]), f)
+    # Mine: the same empty page for everyone; your data stays in your browser
+    try:
+        mine.write(con, rows, today, out, idea_tickers, built)
+    except Exception as e:
+        print(f"mine.json skipped ({type(e).__name__}: {e})")
+    with open(f"{out}/mine.html", "w", encoding="utf-8") as f:
+        f.write(page("Mine", "mine", mine.page(), updated))
     home.write(con, today, out, data, page, updated)  # last: it checks which pages exist
     open(f"{out}/.nojekyll", "w").close()
     return out
@@ -548,6 +560,9 @@ def selftest():
     fp = open(f"{out}/funds.html", encoding="utf-8").read()
     assert "Funds" in fp and "href='f/berkshire.html'" in fp, "every fund opens its own page"
     assert "All funds" in open(f"{out}/f/berkshire.html", encoding="utf-8").read()
+    mn = open(f"{out}/mine.html", encoding="utf-8").read()
+    assert "Private to this device" in mn and "src='personal.js'" in mn
+    assert "src='../personal.js'" in st and os.path.exists(f"{out}/mine.json")
     assert "What bettors expect" in open(f"{out}/markets.html", encoding="utf-8").read()
     assert "Small companies people in the know are buying" in open(f"{out}/screener.html", encoding="utf-8").read()
     th = open(f"{out}/themes.html", encoding="utf-8").read()
