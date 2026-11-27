@@ -39,6 +39,7 @@ import moves
 import pictures
 import secextras
 import digest
+import economy
 import funds
 import health
 import news
@@ -137,7 +138,8 @@ def main():
                         ("Activist 5%+ stakes (13D/13G)", lambda: activists.refresh(_con())),
                         ("Bills moving in Congress", lambda: bills.refresh(_con())),
                         ("Prediction markets (Polymarket, Kalshi)", lambda: markets.refresh(_con())),
-                        ("Earnings, economic and IPO calendars", lambda: calendars.refresh(_con()))):
+                        ("Earnings, economic and IPO calendars", lambda: calendars.refresh(_con())),
+                        ("Commodities, crypto and the economy (Yahoo, FRED)", lambda: economy.refresh(_con()))):
         section(f"{label}")
         try:
             step()
