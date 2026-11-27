@@ -128,8 +128,47 @@
   function getData() {
     if (!dataPromise) dataPromise = fetch(ROOT + "mine.json", { cache: "no-cache" })
       .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-      .catch(function () { return { asof: new Date().toISOString().slice(0, 10), quotes: {}, events: [], ideas: {}, health: {}, names: {}, pages: {} }; });
+      .catch(function () { return { asof: new Date().toISOString().slice(0, 10), quotes: {}, events: [], ideas: {}, health: {}, names: {}, pages: {} }; })
+      .then(function (data) {
+        var ts = state.watch.map(function (w) { return w.t; });
+        state.accounts.forEach(function (a) { a.holdings.forEach(function (h) { ts.push(h.t); }); });
+        return fillQuotes(data, ts);
+      });
     return dataPromise;
+  }
+
+  // mine.json carries quotes for the popular list (universe.txt) and recently
+  // traded stocks. Anything else you hold or watch is priced from the
+  // whole-market lookup files (look/d/<TICKER>.json, written daily by
+  // lookup.py), fetched one by one from this site, so no list of what you own
+  // ever leaves your browser except as ordinary page requests.
+  var lookTried = {};
+  function lookSlug(t) { return norm(t).replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, ""); }
+  function quoteFrom(doc) {
+    var d = doc && doc.px && doc.px.d;
+    if (!d || !d.t || d.t.length < 2) return null;
+    var ts = [], cs = d.c, t = 0;
+    for (var i = 0; i < d.t.length; i++) { t = i ? t + d.t[i] : d.t[i]; ts.push(t); }
+    var n = cs.length, last = ts[n - 1];
+    function ret(k) { return k >= 0 && k < n - 1 && cs[k] ? Math.round((cs[n - 1] / cs[k] - 1) * 1e4) / 1e4 : null; }
+    var iy = -1;
+    for (var j = 0; j < n; j++) if (ts[j] >= last - 365) { iy = j; break; }
+    var tail = cs.slice(Math.max(iy, 0));
+    return [cs[n - 1], ret(n - 2), ret(n - 6), ret(n - 22), ts[0] <= last - 365 ? ret(iy) : null,
+            Math.max.apply(null, tail), Math.min.apply(null, tail), new Date(last * 864e5).toISOString().slice(0, 10)];
+  }
+  function fillQuotes(data, tickers) {
+    data.quotes = data.quotes || {}; data.names = data.names || {};
+    var todo = (tickers || []).map(norm).filter(function (t) { return t && !data.quotes[t] && !lookTried[t]; });
+    return Promise.all(todo.map(function (t) {
+      lookTried[t] = 1;
+      return fetch(ROOT + "look/d/" + lookSlug(t) + ".json").then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (doc) {
+          var q = quoteFrom(doc);
+          if (q) data.quotes[t] = q;
+          if (doc && doc.n && !data.names[t]) data.names[t] = doc.n;
+        }).catch(function () { /* offline or unknown: the page asks for a manual price */ });
+    })).then(function () { return data; });
   }
 
   function priceOf(h, data) {
@@ -344,7 +383,7 @@
     KEY: KEY, ROOT: ROOT, KINDS: KINDS, IRA_LIMIT: IRA_LIMIT,
     load: load, save: save, blank: blank, fill: fill, norm: norm, esc: esc, getData: getData,
     alerts: alerts, alertText: alertText, markSeen: markSeen, badge: badge, notify: notify,
-    priceOf: priceOf, totals: totals, money: money, pct: pct, navStyle: navStyle,
+    priceOf: priceOf, totals: totals, fillQuotes: fillQuotes, quoteFrom: quoteFrom, money: money, pct: pct, navStyle: navStyle,
     saveFailed: function () { return !saveOk; },
     get state() { return state; }, set state(s) { state = fill(s); }
   };
