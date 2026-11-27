@@ -831,6 +831,26 @@ def stock_panel(con, tkr, today):
     return f"<section class='panel'><h2>Earnings</h2>{head}{rec}</section>"
 
 
+def home_teaser(con, today=None):
+    """A few lines for the home page's Calendar tile: next Fed decision, next big release,
+    the biggest companies reporting this week."""
+    today = today or datetime.date.today()
+    bits = []
+    fed = _q(con, "SELECT d FROM econ_events WHERE key = 'fomc' AND d >= ? ORDER BY d LIMIT 1", [today])
+    if fed:
+        bits.append(f"Fed decision {fed[0][0]:%b %d}")
+    big = [k for k, *_, b in ECON if b and k != "fomc"]
+    nxt = _q(con, "SELECT d, key FROM econ_events WHERE d >= ? AND key IN (SELECT unnest(?)) ORDER BY d LIMIT 1",
+             [today, big])
+    if nxt:
+        bits.append(f"{_econ_why(nxt[0][1])[0]} {nxt[0][0]:%b %d}")
+    up = upcoming_earnings(con, today, 7)
+    top = sorted(up, key=lambda r: -(r[4] or 0))[:3]
+    if top:
+        bits.append("Reporting: " + ", ".join(f"{r[1]} {r[0]:%a}" for r in top))
+    return "<br>".join(E(b) for b in bits)
+
+
 CSS = """
 .cal-jump{margin:4px 0 6px}.cal-jump a{color:var(--fg);text-decoration:none}
 .cal-radar{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px;margin:10px 0 14px}
@@ -976,6 +996,9 @@ def selftest():
               "Just listed", "NEWC", "$170M", "Spinoffs in the works", "Spinco Holdings Inc", "1 update"):
         assert s in pg, s
     assert "<script" not in pg
+    ht = home_teaser(con, today)
+    assert "Fed decision Dec 09" in ht and "Jobs report Dec 04" in ht and "Reporting: AAA Wed" in ht, ht
+    assert home_teaser(duckdb.connect(), today) == ""
     empty = duckdb.connect()
     assert "fetched on the daily run" in page(empty, today)  # no tables yet: still renders
     print("calendars selftest ok")
