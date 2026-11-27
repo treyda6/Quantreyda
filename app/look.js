@@ -549,7 +549,7 @@
     }
     var st = stats(doc, all);
     html += "<div class='kv lk-kv'>" + st.map(function (s) { return "<div><span>" + s[0] + "</span><b class='" + (s[2] || "") + "'>" + s[1] + "</b></div>"; }).join("") + "</div>";
-    var body = "";
+    var body = doc.sc && window.QTValue ? window.QTValue.panel(doc.sc) : "";  // value.js: worth, quality, red flags, owners
     if (doc.fin && (doc.fin.fy.length || doc.fin.qe.length)) {
       var fin = doc.fin, n = fin.fy.length;
       var items = fin.fy.map(function (e, i) {

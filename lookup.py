@@ -42,6 +42,7 @@ import zipfile
 import duckdb
 
 import health
+import value
 
 NASDAQ_LISTED = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
 OTHER_LISTED = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
@@ -56,6 +57,7 @@ EXCH = {"Q": "Nasdaq", "N": "NYSE", "A": "NYSE American", "P": "NYSE Arca", "Z":
 KINDS = ("stock", "etf", "fund", "money")  # index.json stores the position
 DAILY_YEARS = 5
 FACTS_DAYS = 7
+FACTS_VERSION = "2"  # bump when financials() keeps new lines: the next run re-reads the zip
 REFETCH_DAYS = 30  # a ticker Yahoo didn't know is asked again after this
 
 
@@ -371,6 +373,9 @@ def financials(facts):
         q[k] = [rnd(_near(s, e, 6)) for e in qe]
     so_d, so = health.latest_instant(facts, health.SHARES, "shares")
     out = {"fy": fy, "a": a, "qe": qe, "q": q, "name": facts.get("entityName") or ""}
+    x = value.extras(facts, fy) if fy else {}
+    if x:  # tax, stock pay, goodwill, total debt...: inputs for the value scores, not shown as rows
+        out["x"] = x
     if so:
         out["so"], out["so_d"] = so, so_d
     # drop all-empty rows so the page doesn't show lines of dashes
@@ -385,7 +390,7 @@ def refresh_financials(con, force=False, download=None):
     ensure_tables(con)
     last = _meta(con, "facts_on")
     today = datetime.date.today()
-    if not force and last and (today - _d(last)).days < FACTS_DAYS:
+    if not force and last and (today - _d(last)).days < FACTS_DAYS and _meta(con, "facts_v") == FACTS_VERSION:
         print(f"lookup: financials fresh (from {last})")
         return 0
     want = {r[0] for r in con.execute("SELECT DISTINCT cik FROM lk_symbols WHERE cik IS NOT NULL").fetchall()}
@@ -412,6 +417,7 @@ def refresh_financials(con, force=False, download=None):
         if download is None:
             os.unlink(path)
     _meta(con, "facts_on", today)
+    _meta(con, "facts_v", FACTS_VERSION)
     print(f"lookup: financials for {n:,} companies")
     return n
 
@@ -637,9 +643,11 @@ def write(con, out, built=(), today=None):
     rows = con.execute("""
         SELECT s.tkr, s.name, s.kind, s.exch, s.family, s.cik, p.js, p.last_d
         FROM lk_symbols s LEFT JOIN lk_px p USING (tkr) ORDER BY s.tkr""").fetchall()
-    index, n = [], 0
+    index, n, screen = [], 0, []
+    tracked = value.tracked_extras(con)
     for tkr, name, kind, exch, fam, cik, js, last_d in rows:
-        px = page_data(json.loads(js), today) if js else None
+        blob = json.loads(js) if js else None
+        px = page_data(blob, today) if blob else None
         fin = None
         if cik:
             if cik not in fins:
@@ -658,12 +666,24 @@ def write(con, out, built=(), today=None):
         if px:
             doc["px"] = px
         if fin:
-            doc["fin"] = fin
+            doc["fin"] = {k: v for k, v in fin.items() if k != "x"}
+            if kind == "stock":
+                last = blob["d"][-1][1] if blob and blob.get("d") else None
+                try:
+                    sc = value.score(fin, last, tracked.get(tkr))
+                except Exception as e:  # odd numbers in one filing shouldn't stop the rest
+                    print(f"lookup: value scores for {tkr} skipped ({type(e).__name__}: {e})")
+                    sc = None
+                if sc:
+                    doc["sc"] = sc
+                    screen.append(value.screen_row(tkr, name or fin.get("name"), sc, last, tkr in built))
         with open(f"{out}/look/d/{slug(tkr)}.json", "w", encoding="utf-8") as f:
             json.dump(doc, f, separators=(",", ":"))
         n += 1
     with open(f"{out}/look/index.json", "w", encoding="utf-8") as f:
         json.dump({"asof": today.isoformat(), "kinds": KINDS, "s": index}, f, separators=(",", ":"))
+    with open(f"{out}/look/screen.json", "w", encoding="utf-8") as f:  # the Value screen page
+        json.dump({"asof": today.isoformat(), "cols": value.SCREEN_COLS, "r": screen}, f, separators=(",", ":"))
     print(f"lookup: index of {len(index):,} symbols, {n:,} with data")
     return n
 
@@ -724,7 +744,8 @@ SEARCH_HTML = ("<div class='lk-search'><svg viewBox='0 0 24 24' aria-hidden='tru
 
 
 def search_html(root=""):
-    return SEARCH_HTML + f"<script src='{root}look.js' defer></script>"
+    # value.js first (deferred scripts run in order): look.js draws its scorecards
+    return SEARCH_HTML + f"<script src='{root}value.js' defer></script><script src='{root}look.js' defer></script>"
 
 
 def lookup_page():
@@ -897,6 +918,11 @@ def selftest():
     doc = json.load(open(f"{out}/look/d/AAPL.json"))
     assert doc["fin"]["fy"][-1] == "2024-12-31" and doc["px"]["d"]["c"] and doc["px"]["w"]["c"]
     assert doc["px"]["m"]["c"] and doc["n"] == "Apple Inc."
+    assert "x" not in doc["fin"] and doc["sc"]["fy"] == "2024-12-31", doc.get("sc")
+    scr = json.load(open(f"{out}/look/screen.json"))
+    srow = dict(zip(scr["cols"], next(r for r in scr["r"] if r[0] == "AAPL")))
+    assert srow["page"] == 1 and srow["p"], srow
+    assert not any(r[0] == "QQQ" for r in scr["r"]), "ETFs aren't scored"
     t = doc["px"]["d"]["t"]
     assert t[0] > 19000 and all(1 <= g <= 5 for g in t[1:]), "delta-encoded trading days"
     assert os.path.exists(f"{out}/look/d/BRK-B.json") and not os.path.exists(f"{out}/look/d/MMKTX.json")

@@ -52,6 +52,7 @@ import readiness
 import screener
 import stockpage
 import themes
+import value
 import whitehouse
 import entities
 import scrape_house
@@ -198,6 +199,8 @@ def main(quick=False):
                          lambda: calendars.refresh_tickers(con, pages, minutes=8)),
                         ("short interest (FINRA)", lambda: secextras.refresh_short(con, pages)),
                         ("new risk factors (10-K)", lambda: secextras.refresh_risks(con, pages)),
+                        ("auditor changes, restatements, late filings",
+                         lambda: value.refresh_filings(con, pages)),
                         ("what each company does (Wikipedia, annual reports)",
                          lambda: business.refresh(con, pages)),
                         ("heatmap, analyst ratings, options", lambda: moves.refresh(con, pages)),
