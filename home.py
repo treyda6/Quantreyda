@@ -508,7 +508,9 @@ def _search_html(pages, names):
 JS = r"""<script>(function(){
 var feed=document.querySelector('.ops .feed');if(!feed)return;
 var box=feed.closest('section'),more=box.querySelector('.feed-more'),none=box.querySelector('.feed-none');
-var f='all',q='',shown=20,STEP=20;
+var f='all',q='',shown=20,STEP=20,skip={};
+// Focus mode (personal.js) lists feed kinds to leave out, so counts and "Show more" skip them too
+(document.documentElement.dataset.feedSkip||'').split(' ').forEach(function(k){if(k)skip[k]=1});
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function t(li){var d=li.dataset.d;return Date.parse(li.hasAttribute('data-day')?d+'T12:00:00Z':d)}
@@ -518,7 +520,7 @@ function ago(li){var d=li.dataset.d;
   var m=Math.max(0,(Date.now()-Date.parse(d))/6e4);
   return m<1?'just now':m<60?Math.round(m)+'m ago':m<1440?Math.round(m/60)+'h ago':Math.round(m/1440)+'d ago'}
 function draw(){var n=0,all=feed.children;
-  for(var i=0;i<all.length;i++){var li=all[i],ok=(f==='all'||li.dataset.k===f)&&(!q||li.textContent.toLowerCase().indexOf(q)>=0);
+  for(var i=0;i<all.length;i++){var li=all[i],ok=(f==='all'||li.dataset.k===f)&&!skip[li.dataset.k]&&(!q||li.textContent.toLowerCase().indexOf(q)>=0);
     li.hidden=!ok||n>=shown;if(ok)n++;var a=li.querySelector('.ago');if(a)a.textContent=ago(li)}
   more.hidden=n<=shown;none.hidden=n>0}
 box.querySelectorAll('.pill').forEach(function(b){b.onclick=function(){f=b.dataset.f;shown=STEP;

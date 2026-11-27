@@ -4,7 +4,8 @@ right now, for investing and for everyday preparedness.
 Seven areas, each scored from free public data (no keys, no paid feeds):
 
   markets         fear gauge, junk-bond premium, Fed stress index, S&P 500
-                  drawdown, yield curve, Sahm rule (FRED)
+                  drawdown, yield curve, Sahm rule, Chicago Fed financial
+                  conditions, Fed net liquidity's 13-week change (FRED)
   cyber           CISA's Known Exploited Vulnerabilities list, SEC 8-K
                   Item 1.05 "material cyber incident" filings, CISA joint
                   advisories
@@ -90,7 +91,7 @@ def level_for(score):
 # (investing, preparedness)
 DOMAINS = [
     ("markets", "Markets & money",
-     "Fear and stress in stocks, bonds and banks, and the classic recession alarms.",
+     "Fear and stress in stocks, bonds and banks, money draining from the system, and the classic recession alarms.",
      [("SPY", "S&P 500 fund"), ("XLP", "Consumer staples: people still buy groceries"),
       ("XLU", "Utilities: steady demand"), ("TLT", "Long Treasuries: often rise when stocks fall"),
       ("GLD", "Gold: a classic hedge"), ("BIL", "T-bills: cash that pays interest")],
@@ -399,6 +400,24 @@ def area_markets(f, now):
         out.append(sig("sahm", "Recession alarm (Sahm rule)", _last(sahm), f"{_last(sahm):.2f}{_asof(sahm)}", .2, .7,
                        "Rise in unemployment from its low. At 0.5 the US has almost always been in a recession.",
                        "FRED SAHMREALTIME", "https://fred.stlouisfed.org/series/SAHMREALTIME"))
+    nf = f.fred("NFCI", start)
+    if nf:
+        out.append(sig("nfci", "Financial conditions (Chicago Fed)", _last(nf), f"{_last(nf):+.2f}{_asof(nf)}", -.3, 1,
+                       "How easy it is to borrow and raise money, from 105 measures. Zero is average; above zero is "
+                       "tighter than normal.", "FRED NFCI", "https://fred.stlouisfed.org/series/NFCI"))
+    walcl, tga, rrp = f.fred("WALCL", start), f.fred("WTREGEN", start), f.fred("RRPONTSYD", start)
+    if walcl and tga:  # same math as cycle.net_liquidity, kept here so the hourly job needs only requests
+        def on(s, d):
+            prior = [v for dd, v in s if dd <= d]
+            return prior[-1] if prior else None
+        nl = [(d, (w - on(tga, d) - (on(rrp, d) or 0) * 1000) / 1e6) for d, w in walcl if on(tga, d) is not None]
+        chg = _pct(_last(nl), _ago(nl, 91))
+        if chg is not None:
+            out.append(sig("liquidity", "Fed net liquidity, 13-week change", chg,
+                           f"{chg:+.1f}% (${_last(nl):.2f}T){_asof(nl)}", 0, -10,
+                           "The Fed's balance sheet minus the Treasury's cash account and reverse repo: the money "
+                           "actually in the system. Fast drains have lined up with market stress.",
+                           "FRED WALCL, WTREGEN, RRPONTSYD", "https://fred.stlouisfed.org/series/WALCL"))
     return out, [], headlines(f, '"stock market" sell-off OR "market turmoil" OR "credit stress" OR recession when:2d')
 
 
@@ -1274,9 +1293,9 @@ def fixture_web(now):
 
     def fred(fid):
         base = {"VIXCLS": 31, "BAMLH0A0HYM2": 3.2, "STLFSI4": -.6, "T10Y3M": .4, "SAHMREALTIME": .1,
-                "OVXCLS": 35, "USEPUINDXD": 120, "DCOILWTICO": 70, "DHHNGSP": 3, "GASREGW": 3.1, "GASDESW": 3.7}
+                "OVXCLS": 35, "NFCI": -.5, "WALCL": 6.6e6, "WTREGEN": 8e5, "RRPONTSYD": 100, "USEPUINDXD": 120, "DCOILWTICO": 70, "DHHNGSP": 3, "GASREGW": 3.1, "GASDESW": 3.7}
         rows = ["observation_date," + fid]
-        for i in range(60, -1, -1):
+        for i in range(120 if fid in ("WALCL", "WTREGEN", "RRPONTSYD") else 60, -1, -1):
             v = base.get(fid, 5000)
             if fid == "SP500":
                 v = 6000 if i > 20 else 5100      # a 15% drop
@@ -1368,6 +1387,8 @@ def selftest():
     S = {d["key"]: {s["key"]: s for s in d["signals"]} for d in snap["domains"]}
     assert all(D[k]["score"] is not None for k in D), {k: v["score"] for k, v in D.items()}
     assert S["markets"]["vix"]["pts"] == points(31, 16, 40)
+    assert S["markets"]["nfci"]["pts"] == 0 and S["markets"]["liquidity"]["pts"] == 0
+    assert "$5.70T" in S["markets"]["liquidity"]["shown"], S["markets"]["liquidity"]
     assert -16 < S["markets"]["drawdown"]["v"] < -14, S["markets"]["drawdown"]
     assert S["cyber"]["kev"]["v"] > 2, S["cyber"]["kev"]          # 12+ this week vs ~4 usual
     assert S["cyber"]["ransom"]["v"] >= 12
