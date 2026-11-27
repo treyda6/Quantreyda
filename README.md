@@ -216,6 +216,25 @@ Funds page shows what the managers in `funds.txt` bought last quarter and
 the latest 13F filings from SEC's daily index. Add it to your home screen
 from the browser's share menu.
 
+## Hourly news
+
+The **News** page (`news.html`) shows headlines about the stocks the site
+tracks, the market and the economy, refreshed every hour. A second, small
+workflow ([`news.yml`](.github/workflows/news.yml)) runs `headlines.py` at
+17 minutes past each hour: it reads the list of tracked stocks from the live
+site, pulls free RSS feeds (Google News searches for those companies, CNBC,
+MarketWatch, Yahoo Finance, the Federal Reserve, the Bureau of Labor
+Statistics) plus brand-new SEC 8-K filings from tracked companies, tags each
+headline with the tickers it names, and pushes `news.json` to the
+`news-feed` branch. The pages load it in the browser, so news stays fresh
+without rebuilding the whole site. Each full stock page also gets a
+"Latest headlines" box with the ones that name it.
+
+No setup beyond what the daily run already needs; it starts working once the
+daily run has published the site once. Your private `WATCHLIST` is never
+searched for, only stocks already public on the site. To refresh by hand:
+**Actions** tab → *news* → **Run workflow**.
+
 ## What bettors expect
 
 `python markets.py` pulls the most-traded open questions on Polymarket and

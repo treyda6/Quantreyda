@@ -29,6 +29,7 @@ import duckdb
 
 import committees
 import digest
+import headlines
 import home
 import markets
 import pictures
@@ -439,6 +440,8 @@ def build(con, today, out=OUT):
     for t in pages:
         try:
             body = stockpage.render(con, t, today, records)
+            if t in picked:
+                body += headlines.stock_panel(t)
         except Exception as e:  # one odd ticker shouldn't stop the rest
             print(f"stock page {t} skipped ({type(e).__name__}: {e})")
             continue
@@ -461,6 +464,13 @@ def build(con, today, out=OUT):
             f.write(page(title, "odds" if name == "markets" else name, body, updated))
     with open(f"{out}/leaders.html", "w", encoding="utf-8") as f:
         f.write(page("Leaderboard", "leaders", leaders.render(con, board, built), updated))
+    # News: the page loads headlines in the browser from the hourly feed
+    # (news.yml); tracked.json tells that job which stocks to look for.
+    with open(f"{out}/news.html", "w", encoding="utf-8") as f:
+        f.write(page("News", "news", headlines.page_body(
+            {t: stockpage.slug(t) for t in built}), updated))
+    with open(f"{out}/tracked.json", "w", encoding="utf-8") as f:
+        json.dump(headlines.tracked_list(con, [t for t in built if t in picked]), f)
     home.write(con, today, out, data, page, updated)  # last: it checks which pages exist
     open(f"{out}/.nojekyll", "w").close()
     return out
@@ -501,6 +511,8 @@ def selftest():
     assert "Insider trading" in open(f"{out}/insiders.html", encoding="utf-8").read()
     assert "Funds" in open(f"{out}/funds.html", encoding="utf-8").read()
     assert "What bettors expect" in open(f"{out}/markets.html", encoding="utf-8").read()
+    assert "hl-feed" in open(f"{out}/news.html", encoding="utf-8").read()
+    assert "Latest headlines" in st and "AAA" in [r["tkr"] for r in json.load(open(f"{out}/tracked.json"))]
     print("dashboard selftest ok")
 
 
