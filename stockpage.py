@@ -20,6 +20,7 @@ import bills
 import calendars
 import committees
 import companyintel
+import funds
 import health
 import leaders
 import news
@@ -492,7 +493,8 @@ def render(con, tkr, today, records=None):
                   + ("".join(rows) or "<li class='hint'>No buys in the last two years.</li>")
                   + "</ul></section>")
     return (head + chart_panel + about + f"<div class='two'>{health_panel}{news_panel}</div>"
-            + calendars.stock_panel(con, tkr, today) + intel_panel + risks_panel + markets.stock_panel(con, tkr, name) + bills_panel + buys_panel)
+            + calendars.stock_panel(con, tkr, today) + intel_panel + risks_panel + markets.stock_panel(con, tkr, name) + bills_panel + buys_panel
+            + funds.owners_panel(con, tkr))
 
 
 def selftest():
