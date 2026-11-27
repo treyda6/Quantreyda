@@ -28,6 +28,7 @@ import duckdb
 
 import committees
 import digest
+import economy
 import markets
 import pictures
 import sections
@@ -146,7 +147,7 @@ def page(title, active, body, updated, root=""):
     return (f"<!DOCTYPE html><html lang='en' data-theme='dark'><head><meta charset='utf-8'>"
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
             f"<title>{html.escape(title)} · Quantreyda</title>{THEME_HEAD}{app_head(root)}"
-            f"<style>{CSS}{front.CSS}{stockpage.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}</style></head><body>"
+            f"<style>{CSS}{front.CSS}{stockpage.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}{economy.CSS}</style></head><body>"
             f"<header><div class='bar'><span class='logo'><i></i>Quantreyda</span>{nav}"
             f"<span class='sp'></span><span class='upd'>updated {updated}</span>"
             f"<button class='toggle' id='theme' type='button'>☀ Light</button></div></header>"
@@ -407,7 +408,8 @@ def build(con, today, out=OUT):
     for name, title, make in (("congress", "Congress", lambda: sections.page_congress(con, rows, today, bt, set(built))),
                               ("insiders", "Insiders", lambda: sections.page_insiders(con, rows, today, bt, set(built))),
                               ("funds", "Funds", lambda: sections.page_funds(con, today, set(built))),
-                              ("markets", "Odds", lambda: markets.page(con))):
+                              ("markets", "Odds", lambda: markets.page(con)),
+                              ("economy", "Markets & economy", lambda: economy.page(con, set(built)))):
         try:
             body = make()
         except Exception as e:  # one section failing shouldn't take the site down
@@ -415,6 +417,10 @@ def build(con, today, out=OUT):
             body = f"<h1>{title}</h1><p>This page couldn't be built this run.</p>"
         with open(f"{out}/{name}.html", "w", encoding="utf-8") as f:
             f.write(page(title, "odds" if name == "markets" else name, body, updated))
+    try:
+        economy.write_pages(con, out, page, updated, set(built))
+    except Exception as e:
+        print(f"economy detail pages skipped ({type(e).__name__}: {e})")
     with open(f"{out}/leaders.html", "w", encoding="utf-8") as f:
         f.write(page("Leaderboard", "leaders", leaders.render(con, board, built), updated))
     open(f"{out}/.nojekyll", "w").close()
@@ -452,6 +458,9 @@ def selftest():
     assert "Insider trading" in open(f"{out}/insiders.html", encoding="utf-8").read()
     assert "Funds" in open(f"{out}/funds.html", encoding="utf-8").read()
     assert "What bettors expect" in open(f"{out}/markets.html", encoding="utf-8").read()
+    assert "Recession warning lights" in open(f"{out}/economy.html", encoding="utf-8").read() \
+        or "next daily update" in open(f"{out}/economy.html", encoding="utf-8").read()
+    assert os.path.exists(f"{out}/e/gold.html") and "href='../economy.html" in open(f"{out}/e/cpi.html").read()
     print("dashboard selftest ok")
 
 

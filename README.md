@@ -216,6 +216,28 @@ companies (free public data, no keys), plus recent $10k+ bets. They're on the
 "Odds" page, and a stock page shows any open question that names its company.
 Sports and crypto are left out.
 
+## Markets and the economy
+
+`economy.html` on the site (built by [`economy.py`](economy.py), refreshed in
+the daily run) has two halves, and every card opens its own page under `e/`:
+
+- **Prices** for oil, natural gas, gasoline, diesel, gold, silver, platinum,
+  palladium, copper, corn, wheat, soybeans, coffee, cocoa, cattle, bitcoin,
+  ether and solana (Yahoo Finance, the same free source as the stock charts).
+  Each page has a 1-year and 5-year chart, the trend (above or below its 50-
+  and 200-day averages), what moves the price, the stocks and funds tied to
+  it with how closely they actually moved together over the last year, and
+  which parts of the market (sector funds, bonds, the dollar) move with it.
+- **The economy**: about 30 numbers from FRED, the St. Louis Fed's free
+  database (no key): growth, jobs, inflation, interest rates and the yield
+  curve, market stress, housing and household finances. Each one gets a
+  rough Good / Watch / Weak reading in plain English, a long chart, and what
+  it's related to. The top of the page sums it up and shows six "recession
+  warning lights".
+
+Stock pages also show a "Commodities it's tied to" panel when a stock is on
+one of those lists (Exxon and oil, Newmont and gold, Coinbase and bitcoin...).
+
 ## Extra context (runs inside daily.py)
 
 - `python contracts.py --days 30`: federal contracts of $50M+ that just started,
