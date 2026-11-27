@@ -18,23 +18,19 @@ Each page has the same building blocks, all plain HTML and CSS (no scripts):
 
 import datetime
 import html
-import math
 
 import links
 import pictures
+import fmt
 
 E = html.escape
 PERIODS = (7, 30, 90)
 
 
-def _money(x):
-    a = abs(x or 0)
-    return (f"${a / 1e9:.1f}B" if a >= 1e9 else f"${a / 1e6:.1f}M" if a >= 1e6
-            else f"${a / 1e3:.0f}k" if a >= 1e3 else f"${a:.0f}")
+_money = fmt.money
 
 
-def _pct(x, plus=True):
-    return "—" if x is None else f"{x * 100:{'+' if plus else ''}.1f}%"
+_pct = fmt.pct
 
 
 def _stock_href(tkr, pages, root=""):

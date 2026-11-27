@@ -33,6 +33,7 @@ import sys
 import links
 import pictures
 import profiles
+import fmt
 
 E = html.escape
 DAYS = 90
@@ -64,10 +65,7 @@ POINTS = [  # (what, points) shown on the page so the score is never a black box
 ]
 
 
-def _money(x):
-    a = abs(x or 0)
-    return (f"${a / 1e9:.1f}B" if a >= 1e9 else f"${a / 1e6:.0f}M" if a >= 1e6
-            else f"${a / 1e3:.0f}k" if a >= 1e3 else f"${a:.0f}")
+_money = fmt.money
 
 
 def tier(cap):

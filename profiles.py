@@ -15,6 +15,7 @@ downloads -- so a profile is only as complete as the data collected so far.
 import datetime
 
 import committees
+import fmt
 
 
 def _one(con, sql, params):
@@ -32,11 +33,8 @@ def _all(con, sql, params):
 
 
 def money(x):
-    if x is None or x != x:
-        return None
-    a = abs(x)
-    s = f"${a / 1e9:.1f}B" if a >= 1e9 else f"${a / 1e6:.1f}M" if a >= 1e6 else f"${a / 1e3:.0f}k"
-    return ("-" if x < 0 else "") + s
+    """None when unknown, so callers can write money(x) or "—"."""
+    return fmt.money(x, None)
 
 
 def company(con, tkr):

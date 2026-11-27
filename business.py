@@ -37,6 +37,7 @@ import urllib.parse
 import requests
 
 import companyintel
+import fmt
 
 E = html.escape
 SPARQL = "https://query.wikidata.org/sparql"
@@ -681,9 +682,7 @@ def _bars(items, total, n=6):
     return rows + ("<p class='hint'>Some of these overlap (one is part of another).</p>" if overlap else "")
 
 
-def _money(v):
-    import profiles
-    return profiles.money(v) or "—"
+_money = fmt.money
 
 
 def _fact(label, value):
@@ -713,7 +712,6 @@ def panel(con, tkr, pr=None, root="../", known=None):
     pr = pr or {}
     b = snapshot(con, tkr)
     w, k = b.get("wiki") or {}, b.get("tenk") or {}
-    name = pr.get("name") or tkr
     one = oneliner(b)
     if not (one or k.get("overview") or w.get("extract")):
         return ""

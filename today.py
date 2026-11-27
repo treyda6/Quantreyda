@@ -214,7 +214,6 @@ def collect(con, today, days=7, records=None):
     records: {buyer key: {n, avg, beat}} from leaders.json, for the track-record points."""
     records = records or {}
     start = today - datetime.timedelta(days=days)
-    month = today - datetime.timedelta(days=30)
     ideas = {}
 
     def idea(t):
@@ -400,8 +399,9 @@ def _spark(vals, up):
             f"vector-effect='non-scaling-stroke' stroke-linejoin='round'/></svg>")
 
 
-def _pct(x):
-    return "—" if x is None else f"{'+' if x >= 0 else ''}{x * 100:.0f}%"
+def _pct_whole(x):
+    # was a second _pct, silently replaced by the one further down
+    return "—" if x is None else f"{x * 100:+.0f}%"
 
 
 def conviction_label(score):
@@ -437,8 +437,8 @@ def _card(i):
     if pr.get("price"):
         up = (pr.get("chg_1y") or 0) >= 0
         price = (f"<div class='px'><b>${pr['price']:,.2f}</b>"
-                 f"<span class='{'up' if up else 'down'}'>{_pct(pr.get('chg_1y'))} 1y</span></div>")
-    stats = [("Sales", profiles.money(pr.get("revenue")) or "—"), ("Growth", _pct(pr.get("growth"))),
+                 f"<span class='{'up' if up else 'down'}'>{_pct_whole(pr.get('chg_1y'))} 1y</span></div>")
+    stats = [("Sales", profiles.money(pr.get("revenue")) or "—"), ("Growth", _pct_whole(pr.get("growth"))),
              ("Profit", profiles.money(pr.get("net_income")) or "—"),
              ("P/E", f"{pr['pe']:.0f}" if pr.get("pe") else "—")]
     stat_html = "".join(f"<div><span>{k}</span><b>{E(v)}</b></div>" for k, v in stats)

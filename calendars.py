@@ -31,6 +31,7 @@ import time
 import requests
 
 import links
+import fmt
 
 E = html.escape
 try:
@@ -138,13 +139,7 @@ def surprise(eps, est):
     return round((eps - est) / abs(est) * 100, 1)
 
 
-def money(x):
-    if x is None:
-        return "—"
-    for div, suf in ((1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "k")):
-        if abs(x) >= div:
-            return f"${x / div:.1f}{suf}".replace(".0" + suf, suf)
-    return f"${x:,.0f}"
+money = fmt.money
 
 
 def eps_s(x):
@@ -514,7 +509,6 @@ def parse_issue_index(text, listed):
         if kind == "ipo" and (cik in listed or NOT_IPO.search(name)):
             continue  # already trades, or a fund/SPAC rather than an operating company
         f = m["file"].rsplit("/", 1)[-1]
-        acc = f.replace(".txt", "")
         dd = m["date"]
         out.append((f, kind, form, datetime.date(int(dd[:4]), int(dd[4:6]), int(dd[6:])), cik, name.title(),
                     f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type={form.split('/')[0]}"))

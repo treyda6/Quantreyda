@@ -40,6 +40,7 @@ import markets
 import pictures
 import stockpage
 import today as front
+import fmt
 
 E = html.escape
 
@@ -347,9 +348,7 @@ KINDS = (  # filter pill key, pill label, tag shown on each item
 TAG = {k: t for k, _, t in KINDS}
 
 
-def _money(x):
-    x = float(x or 0)
-    return f"${x / 1e9:.1f}B" if x >= 1e9 else f"${x / 1e6:.1f}M" if x >= 1e6 else f"${x / 1e3:.0f}K"
+_money = fmt.money
 
 
 def _when(d):
@@ -712,7 +711,7 @@ def selftest():
     assert [e["k"] for e in evs] == ["bets", "insiders", "activists", "congress"], [e["k"] for e in evs]
     assert evs[1]["x"] == ["AAA", "BBB"] and "$2.5M" in evs[1]["h"] and "across 2 companies" in evs[1]["h"]
     assert "&lt;Ddd&gt;" in evs[2]["h"], "company names are escaped"
-    assert "$11K bet" in evs[0]["h"]
+    assert "$11k bet" in evs[0]["h"]
     li = _event_li(evs[0], set(), now)
     assert "1h ago" in li and "Prediction market" in li
     assert "href='s/AAA.html'" in _event_li(evs[1], {"AAA"}, now) and "today" in _event_li(evs[1], set(), now)

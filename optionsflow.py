@@ -23,6 +23,7 @@ import sys
 import time
 
 import requests
+import fmt
 
 CBOE = "https://cdn.cboe.com/api/global/delayed_quotes/options/{sym}.json"
 INDEXES = {"SPX", "NDX", "RUT", "VIX", "XSP"}  # Cboe files these under _SPX etc.
@@ -177,8 +178,7 @@ def leaning(con, n=8):
 
 # ------------------------------------------------------------------- render
 
-def _money(x):
-    return f"${x / 1e6:.1f}M" if x >= 1e6 else f"${x / 1e3:.0f}k"
+_money = fmt.money
 
 
 def mood(kind, side):

@@ -30,7 +30,6 @@ write() turns that into static files the browser reads:
 """
 
 import datetime
-import io
 import json
 import os
 import re

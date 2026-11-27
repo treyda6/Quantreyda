@@ -12,14 +12,13 @@ link there, and other tickers link to a quote page elsewhere.
 
 import datetime
 import html
-import json
 
 import activists
 import funds
 import links
 import pictures
 import sections
-import stockpage
+import fmt
 
 E = html.escape
 CHANGE = {"new": ("New", "up"), "added": ("Added", "up"), "trimmed": ("Trimmed", "down"),
@@ -27,8 +26,7 @@ CHANGE = {"new": ("New", "up"), "added": ("Added", "up"), "trimmed": ("Trimmed",
 NOLOGO = "<span class='lg mono'>?</span>"
 
 
-def _money(x):
-    return f"${x / 1e12:.1f}T" if abs(x or 0) >= 1e12 else sections._money(x)
+_money = fmt.money
 
 
 def stock_link(tkr, issuer, pages, root=""):
