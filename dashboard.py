@@ -46,6 +46,7 @@ import screener
 import sections
 import leaders
 import signals
+import lookup
 import stockpage
 import business
 import themes
@@ -206,8 +207,8 @@ def page(title, active, body, updated, root=""):
     return (f"<!DOCTYPE html><html lang='en' data-theme='dark'><head><meta charset='utf-8'>"
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
             f"<title>{html.escape(title)} · Quantreyda</title>{THEME_HEAD}{app_head(root)}"
-            f"<style>{CSS}{front.CSS}{home.CSS}{stockpage.CSS}{business.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}{calendars.CSS}{moves.CSS}{economy.CSS}{readiness.CSS}</style></head><body>"
-            f"<header><div class='bar'><span class='logo'><i></i>Quantreyda</span>{nav}"
+            f"<style>{CSS}{front.CSS}{home.CSS}{stockpage.CSS}{business.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}{calendars.CSS}{moves.CSS}{economy.CSS}{readiness.CSS}{lookup.CSS}</style></head><body>"
+            f"<header><div class='bar'><span class='logo'><i></i>Quantreyda</span>{lookup.search_html(root)}{nav}"
             f"<span class='sp'></span>"
             f"<button class='toggle' id='theme' type='button'>☀ Light</button></div></header>"
             f"<main>{body}</main><footer>Updated {updated}. Free public data: market prices, prediction markets, SEC "
@@ -467,6 +468,7 @@ def build(con, today, out=OUT):
             body = stockpage.render(con, t, today, records, known)
             if t in picked:
                 body += headlines.stock_panel(t)
+            body = lookup.inject(body, t)  # long-range chart, statements, Buy/Sell at Fidelity
         except Exception as e:  # one odd ticker shouldn't stop the rest
             print(f"stock page {t} skipped ({type(e).__name__}: {e})")
             continue
@@ -475,6 +477,13 @@ def build(con, today, out=OUT):
         built.append(t)
     with open(f"{out}/trades.html", "w", encoding="utf-8") as f:
         f.write(trades_page(rows, updated, built))
+    # Any stock, ETF or mutual fund: static data files the lookup page reads
+    try:
+        lookup.write(con, out, built, today)
+    except Exception as e:  # the lookup is an extra; never block the site
+        print(f"lookup data skipped ({type(e).__name__}: {e})")
+    with open(f"{out}/look.html", "w", encoding="utf-8") as f:
+        f.write(page("Look up", "", lookup.lookup_page(), updated))
     bt = json.loads(bt_json) if bt_json else {}
     for name, title, make in (("congress", "Congress", lambda: sections.page_congress(con, rows, today, bt, set(built))),
                               ("insiders", "Insiders", lambda: sections.page_insiders(con, rows, today, bt, set(built))),
@@ -585,6 +594,11 @@ def selftest():
     assert "Recession warning lights" in open(f"{out}/economy.html", encoding="utf-8").read() \
         or "next daily update" in open(f"{out}/economy.html", encoding="utf-8").read()
     assert os.path.exists(f"{out}/e/gold.html") and "href='../economy.html" in open(f"{out}/e/cpi.html").read()
+    lk = open(f"{out}/look.html", encoding="utf-8").read()
+    assert "id='lk' data-mode='page'" in lk and "src='look.js'" in lk and os.path.exists(f"{out}/look.js")
+    assert "id='lk-q'" in idx and "src='../look.js'" in st and "data-tkr='AAA'" in st
+    assert st.index("lk-panel") < st.index("panel qa"), "history panel sits under the first chart"
+    assert os.path.exists(f"{out}/look/index.json")
     mv = open(f"{out}/moves.html", encoding="utf-8").read()
     assert "Market moves" in mv and 'class="nav on">Moves' in mv
     rp = open(f"{out}/readiness.html", encoding="utf-8").read()

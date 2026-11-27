@@ -54,6 +54,33 @@ Everything comes free from government websites. No paid data.
 > as a research list, keep the backtest honest, and keep the core of a Roth in
 > index funds unless the numbers clearly say otherwise.
 
+## Look up any stock, ETF or mutual fund
+
+The search box at the top of every page finds any US-listed stock or ETF and
+any mutual or money market fund, by ticker or name, and opens
+`look.html?s=TICKER` (or the full research page for a tracked stock). Each one
+gets what you'd look for on Yahoo Finance: an interactive price chart
+(5D, 1M, 6M, YTD, 1Y, 5Y, Max, with an S&P 500 comparison, plus a live 1D
+chart for stocks and ETFs from TradingView's free widget), key stats
+(52-week range, 1/3/5/10-year returns, market cap, P/E, P/S, P/B, dividend
+yield, payout), 10 years and 8 quarters of income statement, balance sheet
+and cash flow, valuation over the years, and dividends and splits. Tracked
+stock pages show the same panel under their two-year chart.
+
+How it works on a static site: free price sites don't let a browser on
+another website read their data, so `lookup.py` does it on the daily run for
+the whole market and writes small JSON files the page reads. Symbols come
+from Nasdaq's symbol directory (all exchanges) and fund list, prices from
+Yahoo (yfinance), and financials from SEC's companyfacts bulk file (weekly).
+The first fill of price history takes a few daily runs; until a ticker's
+prices arrive its page says so. Stored prices are daily closes; the 1D chart loads
+live from TradingView in your browser. Foreign companies that file 20-F reports usually have no
+statements.
+
+**Buy and Sell** open the same symbol at Fidelity in a new tab (and copy the
+ticker, in case you need to paste it). You sign in and place the order on
+Fidelity's own site or app; this site never places trades or sees your login.
+
 ## Readiness levels
 
 `readiness.html` gives one overall level and seven area levels, numbered like
