@@ -322,3 +322,16 @@ congress, Form 4 and ticker-matching scrapers come from
 [Quantgress](https://github.com/DMulajkar/Quantgress) by Dhruv Mulajkar, MIT
 licensed (see [LICENSE](LICENSE)). This repo keeps those, drops the rest
 (public API, sign-ups, extra datasets), and adds the digest and backtest.
+
+## Use it as a phone app
+
+The site can be added to your phone's home screen. It then opens full-screen
+like an app, with its own icon, and shows the pages you've already viewed
+even with no connection.
+
+- **iPhone:** open the site in Safari, tap Share, then **Add to Home Screen**.
+- **Android:** open it in Chrome, tap ⋮, then **Install app** (or **Add to Home screen**).
+
+The files are in `app/` (manifest, icons, `sw.js`); `dashboard.py` copies them
+to the site root on every build. The service worker is network-first, so
+you always get today's data when you're online.
