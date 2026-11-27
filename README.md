@@ -1,10 +1,18 @@
 # Quantreyda
 
-A personal tracker for what members of Congress and company insiders are buying.
-It's meant for finding long-term ideas (for example for a Roth IRA), not for
-day trading.
+A personal market-intel app: one place to stay current with the market each
+morning. The home page is a short briefing that pulls together markets and the
+economy, the news, research ideas, prediction-market odds, and what insiders,
+Congress and proven funds are buying. It's meant for finding long-term ideas
+(for example for a Roth IRA), not for day trading.
 
-It does six things:
+Sections: **Home** (the briefing), **Markets** (stocks, rates, commodities,
+crypto, economic numbers), **News**, **Ideas**, **Small caps** and **Future**
+themes, **Funds**, **Odds**, and the who's-buying pages (**Congress**,
+**Insiders**, **All trades**, **Leaderboard**, **Did it work?**). A section
+that's still being built shows a "coming soon" page until it lands.
+
+Under the hood, the who's-buying side does six things:
 
 1. **Collects public filings** every day: stock trades that members of Congress
    must disclose (STOCK Act), and SEC Form 4 filings that company executives and
@@ -41,8 +49,8 @@ Everything comes free from government websites. No paid data.
 
 A GitHub Actions workflow ([`tracker.yml`](.github/workflows/tracker.yml))
 runs everything on GitHub's computers each morning and publishes a dashboard
-at **https://treyda6.github.io/Quantreyda/** with three pages: today's digest,
-a searchable list of every trade from the last 180 days, and the backtest.
+at **https://treyda6.github.io/Quantreyda/**: the home briefing plus every
+section listed above.
 Nothing needs to run on your computer.
 
 The site also hosts **The Advisor Track**, a self-study investing course, at

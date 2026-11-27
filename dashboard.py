@@ -1,10 +1,11 @@
 """Build the dashboard: a few static pages in site/ that GitHub Pages serves.
 
-    py dashboard.py            # writes site/index.html, trades.html, backtest.html
+    py dashboard.py            # writes site/index.html, ideas.html, trades.html, ...
     py dashboard.py --selftest
 
 Pages:
-  index.html     today's digest (same text as the email)
+  index.html     the home page: a market briefing across every section (home.py)
+  ideas.html     today's digest of research ideas (same text as the email)
   trades.html    every congress buy/sell and insider buy/sell from the last
                  180 days, with a search box and filters -- runs in the
                  browser, no server
@@ -28,6 +29,7 @@ import duckdb
 
 import committees
 import digest
+import home
 import markets
 import pictures
 import sections
@@ -56,9 +58,10 @@ background:color-mix(in srgb,var(--bg) 82%,transparent);border-bottom:1px solid 
 .bar{max-width:1180px;margin:0 auto;padding:12px 20px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .logo{font-weight:800;font-size:18px;letter-spacing:-.3px;margin-right:14px;display:flex;align-items:center;gap:8px}
 .logo i{width:10px;height:10px;border-radius:50%;background:var(--acc);box-shadow:0 0 12px var(--acc)}
-.bar a.nav{color:var(--mut);text-decoration:none;font-weight:600;font-size:14px;padding:7px 12px;border-radius:999px}
+.bar a.nav{color:var(--mut);text-decoration:none;font-weight:600;font-size:14px;padding:7px 9px;border-radius:999px}
 .bar a.nav:hover{color:var(--fg)}.bar a.nav.on{background:var(--chip);color:var(--fg)}
 .bar .sp{flex:1}.upd{color:var(--mut);font-size:12px}
+@media(max-width:1130px){.bar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.bar a.nav{white-space:nowrap}}
 .tabs{display:none}
 @media(max-width:700px){
 .bar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:4px;padding:10px 14px}.bar::-webkit-scrollbar{display:none}
@@ -106,17 +109,22 @@ document.documentElement.setAttribute('data-theme',t);localStorage.setItem('qt-t
 
 
 ICONS = {  # simple 24px line icons for the phone tab bar
-    "digest": "<path d='M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z'/>",
-    "congress": "<path d='M3 10h18M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18M12 3l9 5H3z'/>",
-    "insiders": "<circle cx='12' cy='8' r='4'/><path d='M4 21c1-4.5 4.2-6.5 8-6.5s7 2 8 6.5'/>",
-    "funds": "<path d='M4 20V10M10 20V4M16 20v-7M21 20H3'/>",
+    "home": "<path d='M3 11l9-7 9 7M5 9.5V20h5v-6h4v6h5V9.5'/>",
+    "economy": "<path d='M3 17l5-5 4 4 8-8M15 8h5v5'/>",
+    "news": "<path d='M4 5h13v14H6a2 2 0 0 1-2-2zM17 9h3v8a2 2 0 0 1-2 2M7 9h7M7 13h7M7 16h4'/>",
+    "ideas": "<path d='M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z'/>",
     "trades": "<circle cx='11' cy='11' r='6.5'/><path d='M16 16l5 5'/>",
 }
-NAV = (("digest", "index.html", "Ideas"), ("congress", "congress.html", "Congress"),
-       ("insiders", "insiders.html", "Insiders"), ("funds", "funds.html", "Funds"),
-       ("trades", "trades.html", "All trades"), ("odds", "markets.html", "Odds"),
-       ("leaders", "leaders.html", "Leaderboard"),
-       ("backtest", "backtest.html", "Did it work?"))
+# Market intel first; who's-buying sections after. Planned pages (economy,
+# news, screener, themes) get a "coming soon" page from home.py until built.
+NAV = (("home", "index.html", "Home"), ("economy", "economy.html", "Markets"),
+       ("news", "news.html", "News"), ("ideas", "ideas.html", "Ideas"),
+       ("screener", "screener.html", "Small caps"), ("themes", "themes.html", "Future"),
+       ("funds", "funds.html", "Funds"), ("odds", "markets.html", "Odds"),
+       ("congress", "congress.html", "Congress"), ("insiders", "insiders.html", "Insiders"),
+       ("trades", "trades.html", "All trades"))
+# Leaderboard and "Did it work?" are tiles on the home page (the Ideas guide
+# links the backtest too), which keeps the bar on one line.
 
 
 APP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app")
@@ -146,12 +154,13 @@ def page(title, active, body, updated, root=""):
     return (f"<!DOCTYPE html><html lang='en' data-theme='dark'><head><meta charset='utf-8'>"
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
             f"<title>{html.escape(title)} · Quantreyda</title>{THEME_HEAD}{app_head(root)}"
-            f"<style>{CSS}{front.CSS}{stockpage.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}</style></head><body>"
+            f"<style>{CSS}{front.CSS}{home.CSS}{stockpage.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}</style></head><body>"
             f"<header><div class='bar'><span class='logo'><i></i>Quantreyda</span>{nav}"
-            f"<span class='sp'></span><span class='upd'>updated {updated}</span>"
+            f"<span class='sp'></span>"
             f"<button class='toggle' id='theme' type='button'>☀ Light</button></div></header>"
-            f"<main>{body}</main><footer>Public filings only (STOCK Act disclosures, SEC Form 4 and "
-            f"13F, USAspending). Research, not investment advice. Member portraits: public domain "
+            f"<main>{body}</main><footer>Updated {updated}. Free public data: market prices, prediction markets, SEC "
+            f"filings (Form 4, 8-K, 13F), STOCK Act disclosures, USAspending. Research, not "
+            f"investment advice. Member portraits: public domain "
             f"(@unitedstates); other photos: Wikimedia Commons.</footer>"
             f"<nav class='tabs'>{tabs}</nav>{THEME_JS}</body></html>")
 
@@ -357,7 +366,7 @@ def build(con, today, out=OUT):
         if os.environ.get("GITHUB_ACTIONS") else f"{today:%b %d, %Y}"
     board = leaders.load(con)
     records = (board or {}).get("records") or {}
-    idea_tickers = []
+    idea_tickers, data = [], None
     try:
         # two weeks: enough to fill the page, still fresh (Congress files up to 45 days late anyway)
         data = front.collect(con, today, 14, records=records)
@@ -368,8 +377,8 @@ def build(con, today, out=OUT):
         traceback.print_exc()
         body = (f"<h1>Today</h1><p>This week's summary couldn't be built this run "
                 f"({html.escape(type(e).__name__)}). The other pages are current.</p>")
-    with open(f"{out}/index.html", "w", encoding="utf-8") as f:
-        f.write(page("Today", "digest", body, updated))
+    with open(f"{out}/ideas.html", "w", encoding="utf-8") as f:
+        f.write(page("Ideas", "ideas", body, updated))
     bt_json = load_report(con, "reports/backtest.json")
     bt_md = load_report(con, "reports/backtest.md")
     if bt_json:
@@ -417,6 +426,7 @@ def build(con, today, out=OUT):
             f.write(page(title, "odds" if name == "markets" else name, body, updated))
     with open(f"{out}/leaders.html", "w", encoding="utf-8") as f:
         f.write(page("Leaderboard", "leaders", leaders.render(con, board, built), updated))
+    home.write(con, today, out, data, page, updated)  # last: it checks which pages exist
     open(f"{out}/.nojekyll", "w").close()
     return out
 
@@ -427,10 +437,14 @@ def selftest():
     signals.make_fixture(con)
     out = build(con, datetime.date(2025, 3, 15), tempfile.mkdtemp())
     idx = open(f"{out}/index.html", encoding="utf-8").read()
-    assert "30-second version" in idx and "AAA" in idx
-    assert "href='s/AAA.html'" in idx, "idea cards link to their stock page"
+    assert "Your market briefing" in idx and "href='s/AAA.html'" in idx, "home shows top ideas"
+    assert "href='index.html' class='on'" in idx and "href=\"ideas.html\"" in idx
+    ideas = open(f"{out}/ideas.html", encoding="utf-8").read()
+    assert "30-second version" in ideas and "AAA" in ideas
+    assert "href='s/AAA.html'" in ideas, "idea cards link to their stock page"
+    assert "Coming soon" in open(f"{out}/economy.html", encoding="utf-8").read()
     st = open(f"{out}/s/AAA.html", encoding="utf-8").read()
-    assert "About this stock" in st and "href=\"../leaders.html\"" in st
+    assert "About this stock" in st and "href=\"../index.html\"" in st
     # home-screen app: files at the site root, every page points at them
     assert all(os.path.exists(f"{out}/{f}") for f in ("manifest.webmanifest", "sw.js", "icon-180.png"))
     assert json.load(open(f"{out}/manifest.webmanifest"))["start_url"] == "./index.html"
@@ -448,7 +462,7 @@ def selftest():
     assert "watchlist" not in idx.lower() or "Your watchlist" not in idx
     assert "first check runs on sunday" in open(f"{out}/backtest.html", encoding="utf-8").read().lower()
     cg = open(f"{out}/congress.html", encoding="utf-8").read()
-    assert "Congress trading" in cg and "class='tabs'" in cg and "href='congress.html' class='on'" in cg
+    assert "Congress trading" in cg and "class='tabs'" in cg and 'href="congress.html" class="nav on"' in cg
     assert "Insider trading" in open(f"{out}/insiders.html", encoding="utf-8").read()
     assert "Funds" in open(f"{out}/funds.html", encoding="utf-8").read()
     assert "What bettors expect" in open(f"{out}/markets.html", encoding="utf-8").read()

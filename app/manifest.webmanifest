@@ -1,7 +1,7 @@
 {
   "name": "Quantreyda",
   "short_name": "Quantreyda",
-  "description": "What Congress, insiders and big funds are buying, from public filings.",
+  "description": "Market intel every morning: markets, news, ideas, and what insiders, Congress and big funds are buying.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
