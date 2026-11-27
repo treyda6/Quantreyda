@@ -69,12 +69,13 @@ display:flex;flex-direction:column;gap:10px;min-width:0}
 .soon{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--mut);
 background:var(--chip);border-radius:999px;padding:2px 9px;white-space:nowrap}
 .hxs{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
-.hx{display:flex;flex-direction:column;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:16px;
+.hx{position:relative;display:flex;flex-direction:column;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:16px;
 padding:14px 16px;color:var(--fg);text-decoration:none;transition:border-color .15s,transform .15s}
 .hx:hover{border-color:color-mix(in srgb,var(--acc) 45%,var(--line));transform:translateY(-1px)}
 .hx .th{display:flex;justify-content:space-between;align-items:center;gap:8px}.hx b{font-size:15px}
 .hx small{color:var(--mut);font-size:13px;line-height:1.4}.hx .tz{font-size:13px}
-.hx.later{opacity:.75}
+.hx.later{opacity:.75}.hx .hl{color:var(--fg);text-decoration:none}
+.hx .hl:after{content:'';position:absolute;inset:0;border-radius:16px}.hx .tz{position:relative;z-index:1}
 @media(max-width:760px){.duo{grid-template-columns:1fr}.brief .stats{grid-template-columns:1fr}
 .brief .stat{display:flex;justify-content:space-between;align-items:baseline;gap:10px}.brief .stat b{font-size:22px}}
 """
@@ -120,9 +121,10 @@ def _tile(con, today, soon, s):
     key, href, title, blurb, _, _ = s
     ready = key not in soon
     tz = teaser(con, today, key) if key not in ("economy", "news") else ""
-    return (f"<a class='hx{'' if ready else ' later'}' href='{href}'><div class='th'><b>{E(title)}</b>"
-            f"{'' if ready else '<span class=soon>Soon</span>'}</div><small>{E(blurb)}</small>"
-            + (f"<div class='tz'>{tz}</div>" if tz else "") + "</a>")
+    # a div, not one big link: a teaser can hold links of its own, and links can't nest
+    return (f"<div class='hx{'' if ready else ' later'}'><div class='th'><a class='hl' href='{href}'>"
+            f"<b>{E(title)}</b></a>{'' if ready else '<span class=soon>Soon</span>'}</div>"
+            f"<small>{E(blurb)}</small>" + (f"<div class='tz'>{tz}</div>" if tz else "") + "</div>")
 
 
 def render(con, today, data=None, soon=()):
