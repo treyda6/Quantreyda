@@ -27,6 +27,7 @@ import time
 
 import requests
 
+import links
 import prices
 
 E = html.escape
@@ -721,9 +722,7 @@ def link_for(ref, root, built):
     """(label, href) for a related item: an asset or indicator slug, or a ticker."""
     if ref in A or ref in IND:
         return f"{root}{DIR}/{ref}.html"
-    if ref in built:
-        return f"{root}s/{ref}.html"
-    return f"https://finance.yahoo.com/quote/{ref}"
+    return links.stock(ref, built, root)
 
 
 def asset_card(v, root=""):
@@ -1165,7 +1164,7 @@ def selftest():
     assert "Recession warning lights" in pg and "Crude oil (WTI)" in pg and "Unemployment rate" in pg
     assert "href='e/oil.html'" in pg and "href='e/curve.html'" in pg and "<svg class='espark'" in pg
     ap = asset_page(con, A["oil"], {"XOM"})
-    assert "href='../s/XOM.html'" in ap and "finance.yahoo.com/quote/CVX" in ap
+    assert "href='../s/XOM.html'" in ap and "look.html?s=CVX" in ap
     assert "Which parts of the market move with it" in ap and "data-pts=" in ap
     assert re.search(r"<td class='num'>\+0\.\d\d</td>", ap), "related stock correlations shown"
     ip = ind_page(con, IND["unemployment"])

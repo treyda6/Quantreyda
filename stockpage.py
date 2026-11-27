@@ -24,6 +24,7 @@ import companyintel
 import funds
 import health
 import leaders
+import links
 import news
 import pictures
 import profiles
@@ -66,12 +67,8 @@ CSS = """
 """
 
 
-def slug(tkr):
-    return re.sub(r"[^A-Za-z0-9]+", "-", tkr).strip("-").upper()
-
-
-def href(tkr, root=""):
-    return f"{root}s/{slug(tkr)}.html"
+slug = links.slug
+href = links.stock_page
 
 
 def pick(con, today, idea_tickers):
@@ -496,7 +493,7 @@ def render(con, tkr, today, records=None, known=None):
         elif m["kind"] == "whitehouse":
             who = front.official_html(con, m["slug"], m["who"], face=True, root="../") + f" <span class='hint'>({E(m['role'])})</span>"
         else:
-            who = front.insider_html(con, m["who"], face=True) + f" <span class='hint'>({E(m['role'])})</span>"
+            who = front.insider_html(con, m["who"], face=True, root="../") + f" <span class='hint'>({E(m['role'])})</span>"
         rows.append(f"<li><span class='d'>{m['d']:%b %d, %Y}</span>{who} bought {E(m['amt'] or '')}</li>")
     buys_panel = (f"<section class='panel'><h2>Who bought</h2><ul class='list'>"
                   + ("".join(rows) or "<li class='hint'>No buys in the last two years.</li>")

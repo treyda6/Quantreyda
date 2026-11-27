@@ -26,6 +26,7 @@ import digest
 import funds
 import health
 import leaders
+import links
 import activists
 import bills
 import whitehouse
@@ -49,6 +50,7 @@ border-radius:22px;padding:26px 26px 22px;margin:4px 0 8px;box-shadow:var(--shad
 .hero p{margin:6px 0 0;font-size:16.5px;max-width:860px}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}
 .stat{background:color-mix(in srgb,var(--bg) 55%,transparent);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+a.stat{color:inherit;text-decoration:none}a.stat:hover{border-color:var(--acc)}
 .stat b{display:block;font-size:34px;line-height:1.05;letter-spacing:-1px;font-variant-numeric:tabular-nums}
 .stat span{color:var(--mut);font-size:13px}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
@@ -94,6 +96,7 @@ display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow);transition:
 background:var(--card2);color:var(--fg);border:1px solid var(--line);border-radius:14px;padding:12px 14px;
 box-shadow:0 12px 40px rgba(0,0,0,.35);font-size:13px;font-weight:400;line-height:1.45;text-align:left}
 .bio b{display:block;font-size:14px;margin-bottom:4px}.bio .bl{display:block;color:var(--mut);margin-top:3px}
+.bio a.bt{color:var(--acc);font-weight:600;margin-top:6px;text-decoration:none}
 .who:hover .bio,.who:focus .bio,.who:focus-within .bio{display:block}
 details{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 18px;margin:10px 0}
 details summary{cursor:pointer;font-weight:700;font-size:15px;list-style:none}
@@ -138,10 +141,13 @@ def friendly_who(r):
     return who
 
 
-def who_html(label, lines, title=None):
+def who_html(label, lines, title=None, search=None, root=""):
     """A name with a hover/tap card. Everything is escaped here, so callers
-    can drop the result straight into HTML."""
+    can drop the result straight into HTML. search: the name as the
+    all-trades page knows it, for an "every trade" link in the card."""
     body = "".join(f"<span class='bl'>{E(x)}</span>" for x in lines)
+    if search:
+        body += f"<a class='bl bt' href='{E(links.person(search, root))}'>Every trade on file →</a>"
     return (f"<span class='who' tabindex='0'>{E(label)}<span class='bio' role='tooltip'>"
             f"<b>{E(title or label)}</b>{body}</span></span>")
 
@@ -152,7 +158,8 @@ def _with_face(face, card):
 
 def member_html(con, r, label, face=False, root=""):
     m = profiles.member(con, r.last_name, r.first_name, r.chamber)
-    card = who_html(label, profiles.member_lines(m), m.get("name"))
+    raw = f"{r.first_name or ''} {str(r.last_name or '').strip(' ,.')}".strip()
+    card = who_html(label, profiles.member_lines(m), m.get("name"), raw, root)
     if not face:
         return card
     pic = pictures.face_html(m.get("bioguide") and pictures.member_key(m["bioguide"]),
@@ -160,14 +167,14 @@ def member_html(con, r, label, face=False, root=""):
     return _with_face(pic, card)
 
 
-def insider_html(con, name, cik=None, face=False):
-    card = who_html(name, profiles.insider_lines(profiles.insider(con, cik, name)))
+def insider_html(con, name, cik=None, face=False, root=""):
+    card = who_html(name, profiles.insider_lines(profiles.insider(con, cik, name)), search=name, root=root)
     return _with_face(pictures.face_html(None, name), card) if face else card
 
 
 def official_html(con, slug, name, face=False, root=""):
     o = whitehouse.official(con, slug)
-    card = who_html(name, whitehouse.official_lines(o), name)
+    card = who_html(name, whitehouse.official_lines(o), name, name, root)
     return _with_face(pictures.face_html(pictures.official_key(slug), name, root), card) if face else card
 
 
@@ -207,7 +214,6 @@ def collect(con, today, days=7, records=None):
     records: {buyer key: {n, avg, beat}} from leaders.json, for the track-record points."""
     records = records or {}
     start = today - datetime.timedelta(days=days)
-    month = today - datetime.timedelta(days=30)
     ideas = {}
 
     def idea(t):
@@ -393,8 +399,9 @@ def _spark(vals, up):
             f"vector-effect='non-scaling-stroke' stroke-linejoin='round'/></svg>")
 
 
-def _pct(x):
-    return "—" if x is None else f"{'+' if x >= 0 else ''}{x * 100:.0f}%"
+def _pct_whole(x):
+    # was a second _pct, silently replaced by the one further down
+    return "—" if x is None else f"{x * 100:+.0f}%"
 
 
 def conviction_label(score):
@@ -430,8 +437,8 @@ def _card(i):
     if pr.get("price"):
         up = (pr.get("chg_1y") or 0) >= 0
         price = (f"<div class='px'><b>${pr['price']:,.2f}</b>"
-                 f"<span class='{'up' if up else 'down'}'>{_pct(pr.get('chg_1y'))} 1y</span></div>")
-    stats = [("Sales", profiles.money(pr.get("revenue")) or "—"), ("Growth", _pct(pr.get("growth"))),
+                 f"<span class='{'up' if up else 'down'}'>{_pct_whole(pr.get('chg_1y'))} 1y</span></div>")
+    stats = [("Sales", profiles.money(pr.get("revenue")) or "—"), ("Growth", _pct_whole(pr.get("growth"))),
              ("Profit", profiles.money(pr.get("net_income")) or "—"),
              ("P/E", f"{pr['pe']:.0f}" if pr.get("pe") else "—")]
     stat_html = "".join(f"<div><span>{k}</span><b>{E(v)}</b></div>" for k, v in stats)
@@ -482,14 +489,24 @@ def _section(title, items, empty="Nothing this week."):
             f"{'<ul>' + body + '</ul>' if items else body}</details>")
 
 
-def render(data, today, days=7):
+def _tk(tkr, pages=None):
+    """A ticker as a link: its page, or the lookup page when none was built.
+    pages=None means "assume built" (idea tickers always are)."""
+    if not tkr:
+        return ""
+    href = links.stock_page(tkr) if pages is None else links.stock(tkr, pages)
+    return f"<a class='pl' href='{E(href)}'><b>{E(tkr)}</b></a>"
+
+
+def render(data, today, days=7, pages=None):
+    tk = lambda t: _tk(t, pages)
     ideas = data["ideas"]
     multi = [i for i in ideas if len(i["kinds"]) >= 2]
     top = ideas[:8]
     n_cong, n_ins = len(data["congress"]), len(data["clusters"]) + len(data["big"])
     if top:
         lead = top[0]
-        summary = (f"The strongest lead right now is <b>{E(lead['tkr'])}</b>"
+        summary = (f"The strongest lead right now is {_tk(lead['tkr'])}"
                    f"{' (' + E(lead['company']) + ')' if lead['company'] else ''}. "
                    f"{lead['why'][0] if lead['why'] else ''}")
     else:
@@ -498,33 +515,33 @@ def render(data, today, days=7):
     out = [f"<div class='hero'><div class='eyebrow'>{period}</div><h1>The 30-second version</h1>",
            f"<p>{summary}</p>",
            "<div class='stats'>",
-           f"<div class='stat'><b>{n_cong}</b><span>Congress buys of $15k+</span></div>",
-           f"<div class='stat'><b>{n_ins}</b><span>notable insider buys</span></div>",
-           f"<div class='stat'><b>{len(multi)}</b><span>stocks with 2+ kinds of support</span></div>",
+           f"<a class='stat' href='#everything'><b>{n_cong}</b><span>Congress buys of $15k+</span></a>",
+           f"<a class='stat' href='#everything'><b>{n_ins}</b><span>notable insider buys</span></a>",
+           f"<a class='stat' href='#ideas'><b>{len(multi)}</b><span>stocks with 2+ kinds of support</span></a>",
            "</div></div>",
-           "<h2>Ideas worth researching</h2>",
+           "<h2 id='ideas'>Ideas worth researching</h2>",
            "<p class='hint'>Ranked by conviction: how many different kinds of people are "
            "buying, how much money, how healthy the company is, and how informed the buyers "
            "look. Hover a name for who they are. A lead to look into, not a buy signal.</p>"]
     out.append("<div class='cards'>" + "".join(_card(i) for i in top) + "</div>" if top else
                "<div class='empty'>No ideas this week. That's normal; check back tomorrow.</div>")
 
-    out.append("<h2>Everything else</h2>")
+    out.append("<h2 id='everything'>Everything else</h2>")
     def cong_line(r):
         n = f" in {r['n']} purchases" if r["n"] > 1 else ""
         late = f" ({int(r['lag'])} days after the trade)" if r["lag"] is not None else ""
         flag = f" · ⚑ {E(r['flag'])}" if r["flag"] else ""
-        return (f"<b>{E(r['tkr'])}</b>: {r['who_h']} bought {E(r['amount'])}{n}, disclosed "
+        return (f"{tk(r['tkr'])}: {r['who_h']} bought {E(r['amount'])}{n}, disclosed "
                 f"{E(_days_ago(r['filed'], today))}{late}{flag}")
     out.append(_section("Congress buys", [cong_line(r) for r in data["congress"]]))
     out.append(_section("Insider buying", [
-        f"<b>{E(r['tkr'])}</b>{' (' + E(r['company']) + ')' if r['company'] else ''}: "
+        f"{tk(r['tkr'])}{' (' + E(r['company']) + ')' if r['company'] else ''}: "
         f"{r['n']} insiders bought {E(digest._money(r['value']))} together ({r['buyers_h']})"
         for r in data["clusters"]] + [
-        f"<b>{E(r['tkr'])}</b>{' (' + E(r['company']) + ')' if r['company'] else ''}: "
+        f"{tk(r['tkr'])}{' (' + E(r['company']) + ')' if r['company'] else ''}: "
         f"{r['who_h']} ({E(r['role'])}) bought {E(digest._money(r['value']))}" for r in data["big"]]))
     out.append(_section("White House, cabinet and Fed stock buys", [
-        f"<b>{E(r['tkr'])}</b>: {r['who_h']} ({E(r['title'])}) bought {E(r['amount'])}"
+        f"{tk(r['tkr'])}: {r['who_h']} ({E(r['title'])}) bought {E(r['amount'])}"
         f"{' in ' + str(r['n']) + ' purchases' if r['n'] > 1 else ''}, reported "
         f"{E(_days_ago(r['filed'], today))}" for r in data["whitehouse"]],
         "No stock buys reported by tracked officials lately."))
@@ -532,17 +549,17 @@ def render(data, today, days=7):
         out.append(_section("White House, cabinet and Fed: everything they reported (60 days)",
                             [wh_line(n, t, rows) for (n, t), rows in _group_wh(data["wh_summary"])]))
     out.append(_section("Activist investors taking 5%+ stakes", [
-        f"<b>{E(r['tkr'])}</b>{' (' + E(r['company']) + ')' if r['company'] else ''}: "
+        f"{tk(r['tkr'])}{' (' + E(r['company']) + ')' if r['company'] else ''}: "
         f"{E(r['investor'])} filed a 13D {E(_days_ago(r['filed'], today))} "
         f"(<a href='{E(r['url'])}'>filing</a>)" for r in data["activists"]],
         "No new activist stakes this week."))
     out.append(_section("Big new government contracts", [
-        f"<b>{E(r['tkr'])}</b>: {E(digest._money(r['amount']))} from the {E(r['agency'] or '')}"
+        f"{tk(r['tkr'])}: {E(digest._money(r['amount']))} from the {E(r['agency'] or '')}"
         for r in data["contracts"]]))
     label = {"new": "started buying", "added": "bought more of", "sold": "sold all of"}
     out.append(_section("What top investors changed (quarterly reports)", [
-        f"<b>{E(r['fund'])}</b> {label.get(r['change'], r['change'])} "
-        f"<b>{E(r['tkr'] or r['issuer'] or '')}</b>" for r in data["funds"]],
+        f"<a class='pl' href='{E(funds.href(r['fund']))}'><b>{E(r['fund'])}</b></a> {label.get(r['change'], r['change'])} "
+        + (tk(r['tkr']) if r['tkr'] else f"<b>{E(r['issuer'] or '')}</b>") for r in data["funds"]],
         "No new quarterly reports this week."))
     if data["stale"]:
         out.append(f"<p class='hint'>Left out {data['stale']} Congress buys disclosed more than "
@@ -704,7 +721,7 @@ def selftest():
     assert top["flag"].startswith("Armed Services"), top
     assert top["health"] == "Solid" and top["company"] == "Aaa Inc"
     page = render(d, today, 90)
-    assert "The last 12 weeks" in page and "30-second version" in page and "strongest lead right now is <b>AAA</b>" in page
+    assert "The last 12 weeks" in page and "30-second version" in page and "strongest lead right now is <a class='pl' href='s/AAA.html'><b>AAA</b></a>" in page
     assert "Sen. A Alpha<span class='bio'" in page, page
     assert "Conviction <b>" in page and top["conviction"] >= 60, top["conviction"]
     assert "b-Solid" in page and "⚑ Armed Services" in page

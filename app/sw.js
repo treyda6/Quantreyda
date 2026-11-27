@@ -1,9 +1,9 @@
 // Lets Quantreyda open from the home screen and show the last pages you
 // viewed when you're offline. Network first: the data changes every day, so
 // a fresh copy always wins when there's a connection.
-const CACHE = "quantreyda-v3";
+const CACHE = "quantreyda-v4";
 const FILES = ["./", "index.html", "manifest.webmanifest", "icon-180.png", "icon-192.png", "icon-512.png",
-               "personal.js", "mine.html", "mine.js", "brokerimport.js"];
+               "personal.js", "mine.html", "mine.js", "brokerimport.js", "app.css", "ui.js"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));

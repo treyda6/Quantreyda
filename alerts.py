@@ -26,6 +26,7 @@ import duckdb
 import mailer
 import signals
 from schema import DB_PATH, ensure_schema
+import fmt
 
 LOOKBACK_DAYS = 14
 MIN_INSIDER_SALE = 50_000
@@ -51,8 +52,7 @@ def ensure_table(con):
     con.execute("CREATE TABLE IF NOT EXISTS alerts_sent (key VARCHAR PRIMARY KEY, sent_on DATE)")
 
 
-def _money(x):
-    return f"${x / 1e6:.1f}M" if x >= 1e6 else f"${x / 1e3:.0f}k"
+_money = fmt.money
 
 
 def find_events(con, tickers, start, end):

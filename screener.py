@@ -30,8 +30,10 @@ import html
 import json
 import sys
 
+import links
 import pictures
 import profiles
+import fmt
 
 E = html.escape
 DAYS = 90
@@ -63,10 +65,7 @@ POINTS = [  # (what, points) shown on the page so the score is never a black box
 ]
 
 
-def _money(x):
-    a = abs(x or 0)
-    return (f"${a / 1e9:.1f}B" if a >= 1e9 else f"${a / 1e6:.0f}M" if a >= 1e6
-            else f"${a / 1e3:.0f}k" if a >= 1e3 else f"${a:.0f}")
+_money = fmt.money
 
 
 def tier(cap):
@@ -331,9 +330,7 @@ draw();
 
 
 def _href(tkr, pages, root=""):
-    import stockpage
-    return (f"{root}{stockpage.href(tkr)}" if tkr in pages
-            else f"{root}trades.html?q={E(tkr)}")
+    return links.stock(tkr, pages, root)
 
 
 def _tier_label(r):
@@ -434,7 +431,7 @@ def home_teaser(con, today, n=3, root=""):
         return ""
     items = "".join(
         f"<li><a href='{root}screener.html'>{pictures.logo_html(r['tkr'], root)}</a>"
-        f"<div><b>{E(r['tkr'])}</b> <span class='scr-tier {r['tier']}'>{_tier_label(r)}</span>"
+        f"<div><a class='pl' href='{E(links.stock_page(r['tkr'], root))}'><b>{E(r['tkr'])}</b></a> <span class='scr-tier {r['tier']}'>{_tier_label(r)}</span>"
         f"<small style='display:block;color:var(--mut)'>{E(r['why'][0][0]) if r['why'] else ''}</small></div></li>"
         for r in rows)
     return (f"<style>{CSS}.scr-tz{{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}}"
@@ -506,7 +503,7 @@ def selftest():
     assert tier(10e6) == "nano" and tier(5e9) == "big" and tier(None) is None
     html_ = page(con, today, {"TINY"})
     assert "Small companies people in the know are buying" in html_
-    assert "s/TINY.html" in html_ and "trades.html?q=DUMP" in html_
+    assert "s/TINY.html" in html_ and "look.html?s=DUMP" in html_
     con.execute("UPDATE health SET company = '</script><b>x' WHERE tkr = 'TINY'")
     assert "</script><b>x" not in page(con, today), "data can't break out of the script tag"
     tz = home_teaser(con, today)

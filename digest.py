@@ -28,6 +28,7 @@ import funds
 import health
 import signals
 from schema import DB_PATH, ensure_schema
+import fmt
 
 
 MAX_LAG_DAYS = 90
@@ -42,9 +43,7 @@ def _who(r):
 
 
 def _money(x):
-    if x is None or x != x:
-        return "?"
-    return f"${x / 1e6:.1f}M" if x >= 1e6 else f"${x / 1e3:.0f}k"
+    return fmt.money(x, "?")
 
 
 def _bracket(lo, hi):
@@ -277,10 +276,10 @@ def selftest():
                 "'Department of the Navy','2025-03-20','2030-03-20',250e6,'MISSILES','2025-03-30')")
     text = build(con, datetime.date(2025, 5, 20), days=90)
     assert "⚑ Armed Services (defense)" in text, text
-    assert "- **AAA**: Congress:" in text and "Contract: won $250.0M" in text \
+    assert "- **AAA**: Congress:" in text and "Contract: won $250M" in text \
         and "Funds: held by Berkshire (new)" in text, text
     assert "**Berkshire**, quarter ending 2025-03-31: new position: **AAA**" in text, text
-    assert "**AAA**: $250.0M from Department of Defense / Department of the Navy" in text
+    assert "**AAA**: $250M from Department of Defense / Department of the Navy" in text
     print(text)
     print("digest selftest ok")
 

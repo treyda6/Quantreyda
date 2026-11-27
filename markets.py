@@ -23,6 +23,7 @@ import time
 import requests
 
 import companyintel
+import fmt
 
 POLY_MARKETS = "https://gamma-api.polymarket.com/markets"
 POLY_TRADES = "https://data-api.polymarket.com/trades"
@@ -212,8 +213,7 @@ def for_company(con, tkr, name):
     return [r for r in top(con, 400) if rx.search(r[2])][:5]
 
 
-def _money(x):
-    return f"${x / 1e6:.1f}M" if x >= 1e6 else f"${x / 1e3:.0f}k"
+_money = fmt.money
 
 
 def card(r):

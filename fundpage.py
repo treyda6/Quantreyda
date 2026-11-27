@@ -12,13 +12,13 @@ link there, and other tickers link to a quote page elsewhere.
 
 import datetime
 import html
-import json
 
 import activists
 import funds
+import links
 import pictures
 import sections
-import stockpage
+import fmt
 
 E = html.escape
 CHANGE = {"new": ("New", "up"), "added": ("Added", "up"), "trimmed": ("Trimmed", "down"),
@@ -26,17 +26,12 @@ CHANGE = {"new": ("New", "up"), "added": ("Added", "up"), "trimmed": ("Trimmed",
 NOLOGO = "<span class='lg mono'>?</span>"
 
 
-def _money(x):
-    return f"${x / 1e12:.1f}T" if abs(x or 0) >= 1e12 else sections._money(x)
+_money = fmt.money
 
 
 def stock_link(tkr, issuer, pages, root=""):
-    """(href, external?) for a holding: our stock page if there is one."""
-    if tkr and tkr in pages:
-        return stockpage.href(tkr, root), False
-    if tkr:
-        return f"https://finance.yahoo.com/quote/{E(tkr.replace('.', '-').replace('/', '-'))}", True
-    return "", False
+    """(href, external?) for a holding: our stock page, else the lookup page."""
+    return (links.stock(tkr, pages, root) if tkr else ""), False
 
 
 def _a(href, inner, ext=False, cls=""):
@@ -353,7 +348,7 @@ def selftest():
         assert [r["tkr"] for r in ports[1]["rows"]][:1] and len(ports[1]["rows"]) == 4
         page = fund_page(con, cat[0], ports[1], funds.sold(con).get(1, []), {"AAA"})
         assert "href='../s/AAA.html'" in page, "holdings with a stock page link to it"
-        assert "finance.yahoo.com/quote/BBB" in page, "others link out"
+        assert "look.html?s=BBB" in page, "others open the lookup page"
         assert "DDD" in page and "Sold everything of" in page
         assert "+50% shares" in page and "New buy" in page
         assert "haven't been loaded yet" in fund_page(con, cat[2], None, [], set())

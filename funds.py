@@ -31,6 +31,8 @@ import xml.etree.ElementTree as ET
 import duckdb
 import requests
 
+import links
+
 from entities import load_sec_names, make_sec_resolver
 from schema import DB_PATH, sec_user_agent
 
@@ -407,7 +409,8 @@ def home_teaser(con, today=None):
     word = {"new": "started buying", "added": "bought more"}
     return "<ul class='teaser'>" + "".join(
         f"<li><a href='{href(r.fund)}'><b>{html.escape(r.fund)}</b></a> {word[r.change]} "
-        f"<b>{html.escape(r.tkr or (r.issuer or '').title())}</b></li>" for r in f.itertuples()) + "</ul>"
+        + (f"<a href='{html.escape(links.look(r.tkr))}'><b>{html.escape(r.tkr)}</b></a>" if r.tkr
+           else f"<b>{html.escape((r.issuer or '').title())}</b>") + "</li>" for r in f.itertuples()) + "</ul>"
 
 
 # ------------------------------------------------------------------ selftest

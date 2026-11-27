@@ -10,3 +10,6 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt
       - run: python selftest.py
+      # unused imports and undefined names; DuckDB reads DataFrames by
+      # variable name, so "df assigned but never used" is expected
+      - run: pip install pyflakes && ! python -m pyflakes *.py | grep -v "f-string is missing placeholders\|'df' is assigned"

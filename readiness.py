@@ -51,6 +51,8 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 import zipfile
 
+import links
+
 E = html.escape
 UA = "QuantreydaBot/1.0 (https://github.com/treyda6/Quantreyda; personal research tool)"
 FRED_CSV = "https://fred.stlouisfed.org/graph/fredgraph.csv"
@@ -1012,7 +1014,7 @@ def _ago_words(iso, now):
 
 
 def _href(tkr, pages):
-    return f"s/{E(tkr)}.html" if tkr in pages else f"https://finance.yahoo.com/quote/{E(tkr)}"
+    return E(links.stock(tkr, pages))
 
 
 def _ret(r):
@@ -1423,7 +1425,7 @@ def selftest():
     assert "href='s/CRWD.html'" in h and "+8.1%" in h and "-12.0%" in h
     assert "Companies that reported a material cyber incident" in h and "Acme Corp" in h
     assert "For investors" in h and "Be prepared" in h and "id='rd-hazards'" in h
-    assert "finance.yahoo.com/quote/PANW" in h
+    assert "look.html?s=PANW" in h
 
     # daily storage, page, home tile, hourly output
     import duckdb

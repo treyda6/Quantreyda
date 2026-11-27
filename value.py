@@ -39,6 +39,7 @@ import sys
 import time
 
 import health
+import fmt
 
 DISCOUNT = 0.10        # the return you ask for: about what stocks have paid over the long run
 TERMINAL = 0.025       # growth after year 10: roughly inflation plus a little
@@ -146,11 +147,7 @@ def _pct(x, dp=0):
 
 
 def _money(x):
-    a, s = abs(x), "-" if x < 0 else ""
-    for div, unit in ((1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "K")):
-        if a >= div:
-            return f"{s}${a / div:.1f}{unit}"
-    return f"{s}${a:,.0f}"
+    return fmt.money(x)
 
 
 def _px(x):

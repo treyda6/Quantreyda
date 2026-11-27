@@ -14,7 +14,6 @@ senate_trades-only check would re-fetch forever.
 """
 
 import io
-import re
 import sys
 import time
 
