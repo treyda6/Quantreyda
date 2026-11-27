@@ -11,6 +11,7 @@ Pages:
                  browser, no server
   backtest.html  the latest "did it beat SPY?" report, if backtest.py has run
   leaders.html   politicians and insiders ranked by how their buys did
+  moves.html     sector heatmap, analyst rating changes, unusual options bets
   s/<TKR>.html   one page per stock: chart with the buys, health, news,
                  and a plain-English explainer
 
@@ -36,6 +37,7 @@ import headlines
 import home
 import economy
 import markets
+import moves
 import pictures
 import sections
 import leaders
@@ -134,7 +136,7 @@ ICONS = {  # simple 24px line icons for the phone tab bar
 # it in a dropdown instead of on the bar itself.
 NAV = (("home", "index.html", "Home"),
        ("economy", "economy.html", "Markets & economy"), ("calendar", "calendar.html", "Calendar"),
-       ("odds", "markets.html", "Odds"),
+       ("odds", "markets.html", "Odds"), ("moves", "moves.html", "Moves"),
        ("news", "news.html", "News"),
        ("ideas", "ideas.html", "Ideas"), ("screener", "screener.html", "Small caps"),
        ("themes", "themes.html", "Future themes"),
@@ -143,7 +145,7 @@ NAV = (("home", "index.html", "Home"),
        ("leaders", "leaders.html", "Leaderboard"), ("backtest", "backtest.html", "Did it work?"))
 # key -> dropdown it lives in on desktop. Phones and tablets show every link
 # in one scrolling row instead. Keys left out sit on the bar directly.
-GROUP = {"economy": "Markets", "calendar": "Markets", "odds": "Markets",
+GROUP = {"economy": "Markets", "calendar": "Markets", "odds": "Markets", "moves": "Markets",
          "ideas": "Ideas", "screener": "Ideas", "themes": "Ideas",
          "funds": "Who's buying", "congress": "Who's buying", "insiders": "Who's buying",
          "trades": "Who's buying", "leaders": "Who's buying", "backtest": "Who's buying"}
@@ -194,7 +196,7 @@ def page(title, active, body, updated, root=""):
     return (f"<!DOCTYPE html><html lang='en' data-theme='dark'><head><meta charset='utf-8'>"
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
             f"<title>{html.escape(title)} · Quantreyda</title>{THEME_HEAD}{app_head(root)}"
-            f"<style>{CSS}{front.CSS}{home.CSS}{stockpage.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}{calendars.CSS}{economy.CSS}</style></head><body>"
+            f"<style>{CSS}{front.CSS}{home.CSS}{stockpage.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}{calendars.CSS}{moves.CSS}{economy.CSS}</style></head><body>"
             f"<header><div class='bar'><span class='logo'><i></i>Quantreyda</span>{nav}"
             f"<span class='sp'></span>"
             f"<button class='toggle' id='theme' type='button'>☀ Light</button></div></header>"
@@ -461,8 +463,8 @@ def build(con, today, out=OUT):
                               ("insiders", "Insiders", lambda: sections.page_insiders(con, rows, today, bt, set(built))),
                               ("funds", "Funds", lambda: sections.page_funds(con, today, set(built))),
                               ("markets", "Odds", lambda: markets.page(con)),
+                              ("moves", "Market moves", lambda: moves.page(con, today, set(built))),
                               ("calendar", "Calendar", lambda: calendars.page(con, today, set(built))),
-
                               ("economy", "Markets & economy", lambda: economy.page(con, set(built)))):
         try:
             body = make()
@@ -536,6 +538,8 @@ def selftest():
     assert "Recession warning lights" in open(f"{out}/economy.html", encoding="utf-8").read() \
         or "next daily update" in open(f"{out}/economy.html", encoding="utf-8").read()
     assert os.path.exists(f"{out}/e/gold.html") and "href='../economy.html" in open(f"{out}/e/cpi.html").read()
+    mv = open(f"{out}/moves.html", encoding="utf-8").read()
+    assert "Market moves" in mv and 'class="nav on">Moves' in mv
     print("dashboard selftest ok")
 
 

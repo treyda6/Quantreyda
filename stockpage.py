@@ -28,6 +28,7 @@ import pictures
 import profiles
 import economy
 import markets
+import moves
 import secextras
 import today as front
 
@@ -495,7 +496,7 @@ def render(con, tkr, today, records=None):
                   + "</ul></section>")
     return (head + chart_panel + about + f"<div class='two'>{health_panel}{news_panel}</div>"
             + calendars.stock_panel(con, tkr, today) + intel_panel + risks_panel + markets.stock_panel(con, tkr, name)
-            + economy.stock_panel(con, tkr) + bills_panel + buys_panel
+            + moves.stock_panel(con, tkr) + economy.stock_panel(con, tkr) + bills_panel + buys_panel
             + funds.owners_panel(con, tkr))
 
 

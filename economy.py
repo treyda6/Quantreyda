@@ -597,7 +597,7 @@ def spark(px, w=120, h=34):
     d0, span = pts[0][0], max(1, (pts[-1][0] - pts[0][0]).days)
     p = " ".join(f"{(d - d0).days / span * w:.1f},{h - 2 - (v - lo) / rng * (h - 4):.1f}" for d, v in pts)
     col = "var(--up)" if pts[-1][1] >= pts[0][1] else "var(--down)"
-    return (f"<svg class='spark' viewBox='0 0 {w} {h}' preserveAspectRatio='none' aria-hidden='true'>"
+    return (f"<svg class='espark' viewBox='0 0 {w} {h}' preserveAspectRatio='none' aria-hidden='true'>"
             f"<polyline points='{p}' fill='none' stroke='{col}' stroke-width='1.6' "
             f"vector-effect='non-scaling-stroke' stroke-linejoin='round'/></svg>")
 
@@ -833,13 +833,13 @@ def page(con, built=frozenset()):
                 "latest daily close (crops and cattle converted from cents to dollars).</p>")
     for g in GROUPS:
         cards = [asset_card(v) for v in assets if v["a"][3] == g]
-        body.append(f"<h3>{E(g)}</h3><div class='ecs'>{''.join(cards)}</div>")
+        body.append(f"<h3 class='eg'>{E(g)}</h3><div class='ecs'>{''.join(cards)}</div>")
     body.append("<h2 id='economy'>The economy</h2><p class='hint'>Official numbers from the St. Louis Fed's free "
                 "FRED database. <b>Good</b> / <b>Watch</b> / <b>Weak</b> is a rough rule of thumb for each "
                 "one, explained on its page. Monthly numbers come out a few weeks after the month ends.</p>")
     for g in IND_GROUPS:
         cards = [ind_card(inds[i[1]]) for i in INDICATORS if i[3] == g]
-        body.append(f"<h3>{E(g)}</h3><div class='ecs'>{''.join(cards)}</div>")
+        body.append(f"<h3 class='eg'>{E(g)}</h3><div class='ecs'>{''.join(cards)}</div>")
     body.append(f"<script>{CHART_JS}</script>")
     return "".join(body)
 
@@ -1024,7 +1024,7 @@ padding:14px;color:var(--fg);text-decoration:none;box-shadow:var(--shadow)}
 .ec-h{display:flex;justify-content:space-between;align-items:center;gap:8px}.ec-h b{font-size:14.5px}
 .ec-v{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.ec-v .big{font-size:24px;font-weight:800;
 letter-spacing:-.5px;font-variant-numeric:tabular-nums}.ec-v.hdr .big{font-size:36px}
-.spark{width:100%;height:34px;display:block}
+.espark{width:100%;height:34px;display:block}
 .ec-c{display:flex;justify-content:space-between;gap:6px;font-size:12px;color:var(--mut)}
 .ec-c span span,.chg b span{font-weight:700}.up{color:var(--up)}.dn{color:var(--down)}
 .ec-r{font-size:13px;color:var(--mut)}
@@ -1033,7 +1033,7 @@ letter-spacing:-.5px;font-variant-numeric:tabular-nums}.ec-v.hdr .big{font-size:
 .tone{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;border-radius:999px;
 padding:2px 8px;background:var(--chip);white-space:nowrap}
 .tone i{font-style:normal;font-size:10px}.tone.good{color:var(--up)}.tone.ok{color:var(--warn)}.tone.bad{color:var(--down)}
-h3{font-size:15px;color:var(--mut);margin:22px 0 10px;text-transform:uppercase;letter-spacing:.6px}
+h3.eg{font-size:15px;color:var(--mut);margin:22px 0 10px;text-transform:uppercase;letter-spacing:.6px}
 .movers{display:flex;gap:8px;flex-wrap:wrap}.movers a{display:flex;gap:8px;background:var(--card);border:1px solid var(--line);
 border-radius:999px;padding:6px 12px;color:var(--fg);text-decoration:none;font-size:13.5px;font-weight:600}
 .lts{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
@@ -1153,7 +1153,7 @@ def selftest():
     make_fixture(con)
     pg = page(con, {"XOM"})
     assert "Recession warning lights" in pg and "Crude oil (WTI)" in pg and "Unemployment rate" in pg
-    assert "href='e/oil.html'" in pg and "href='e/curve.html'" in pg and "<svg class='spark'" in pg
+    assert "href='e/oil.html'" in pg and "href='e/curve.html'" in pg and "<svg class='espark'" in pg
     ap = asset_page(con, A["oil"], {"XOM"})
     assert "href='../s/XOM.html'" in ap and "finance.yahoo.com/quote/CVX" in ap
     assert "Which parts of the market move with it" in ap and "data-pts=" in ap

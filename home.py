@@ -47,6 +47,8 @@ SECTIONS = (
      ("funds", "sections"), False),
     ("odds", "markets.html", "Odds", "What prediction markets expect from the Fed, Washington "
      "and big companies.", (), False),
+    ("moves", "moves.html", "Market moves", "Sector heatmap, analyst upgrades and downgrades, and "
+     "unusual options bets.", ("moves",), False),
     ("congress", "congress.html", "Congress", "Stock trades members of Congress disclosed.", (), False),
     ("insiders", "insiders.html", "Insiders", "Executives buying and selling their own company's stock.",
      (), False),
