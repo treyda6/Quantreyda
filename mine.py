@@ -179,6 +179,25 @@ border-radius:10px;background:var(--bg);color:var(--fg)}
 .mi-msg{font-size:13px;margin-top:8px}
 .mi-stock{display:flex;align-items:center;gap:10px}.mi-stock small{display:block;color:var(--mut);font-size:12px;max-width:180px;
 overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mi-chip.add{color:var(--mut);background:none;border:1px dashed var(--line)}
+button.mi-chip{font-family:inherit;cursor:pointer;border:0}button.mi-chip.add{border:1px dashed var(--line)}
+.mi-kind.due{color:var(--down);background:color-mix(in srgb,var(--down) 14%,transparent)}
+.mi-j.due{border-color:color-mix(in srgb,var(--down) 45%,var(--line))}.mi-j.closed{opacity:.85}
+.mi-j.flash{animation:mi-flash 1.6s ease-out}@keyframes mi-flash{from{box-shadow:0 0 0 3px var(--acc)}}
+.mi-jgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px 22px;margin:12px 0 2px}
+.mi-jgrid span{color:var(--mut);font-size:12px;font-weight:600}
+.mi-jgrid p{margin:3px 0 0;font-size:14.5px;white-space:pre-wrap;overflow-wrap:anywhere}
+.mi-jhist{margin-top:10px}.mi-jhist summary,.mi-jclosed>summary{cursor:pointer;color:var(--mut);font-size:13px;font-weight:600}
+.mi-jclosed>summary{margin:4px 0 12px;font-size:14px}
+.mi-jhist .v-holds{color:var(--up)}.mi-jhist .v-broken{color:var(--down)}.mi-jhist .v-changed{color:var(--warn)}
+.mi-jbtns{display:flex;gap:8px;margin:12px 0 0}
+.mi-form label.wide{flex:1 1 100%}.mi-form label.wide textarea{font-family:inherit;font-size:14px;min-height:76px}
+.mi-jv{display:flex;flex-wrap:wrap;gap:6px 16px;flex:1 1 100%}
+.mi-jv label{flex-direction:row;align-items:center;gap:6px;font-size:14px;color:var(--fg)}
+.mi-jv input{accent-color:var(--acc);width:16px;height:16px}
+.mi-form label[hidden]{display:none}
+.mi-jrev{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
+@media(max-width:640px){.mi-jgrid{grid-template-columns:1fr}}
 @media(max-width:640px){.mi-hide-sm{display:none}.mi-t td,.mi-t th{padding:7px 4px;font-size:13px}.mi-card{padding:14px}
 .mi-stats b{font-size:17px}.mi-big b{font-size:24px}.mi-stock .lg{width:28px;height:28px}.mi-stock small{max-width:110px}}
 """
@@ -190,12 +209,12 @@ def page():
             "<h1>Mine</h1>"
             "<div class='mi-priv'><svg viewBox='0 0 24 24' aria-hidden='true'><rect x='5' y='11' width='14' "
             "height='10' rx='2'/><path d='M8 11V7a4 4 0 0 1 8 0v4'/></svg><div><b>Private to this device.</b> "
-            "Your accounts, watchlist and settings are saved only in this browser. Anyone else who opens "
+            "Your accounts, watchlist, journal and settings are saved only in this browser. Anyone else who opens "
             "this link sees an empty page, and nothing you type is ever sent anywhere. Use "
             "<a href='#backup'>Backup</a> to move it to your phone or keep a copy.</div></div>"
             "<div class='mi-tabs' role='tablist'>"
             "<button data-tab='accounts'>Accounts</button><button data-tab='watch'>Watchlist</button>"
-            "<button data-tab='alerts'>Alerts</button><button data-tab='settings'>Customize</button>"
+            "<button data-tab='journal'>Journal</button><button data-tab='alerts'>Alerts</button><button data-tab='settings'>Customize</button>"
             "<button data-tab='backup'>Backup</button></div>"
             "<div id='mi-view'><p class='mut'>Loading…</p></div>"
             "<noscript><p>This page needs JavaScript, because it runs entirely in your browser.</p></noscript>"
@@ -237,6 +256,7 @@ def selftest():
     assert "VTI" in u and "BRK.B" in u and "#" not in "".join(u), u[:5]
     body = page()
     assert "Private to this device" in body and "mine.js" in body
+    assert "data-tab='journal'" in body, "the decision journal has its own tab"
     # nothing personal is ever written to the site
     assert "watchlist.txt" not in body and not re.search(r"WATCHLIST", body)
     print("mine selftest ok")

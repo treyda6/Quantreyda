@@ -19,9 +19,9 @@
 
   function blank() {
     return {
-      v: 1, accounts: [], watch: [],
+      v: 1, accounts: [], watch: [], journal: [],
       rules: { insBuy: true, insSell: false, polBuy: true, polSell: true, news: true, move: 5, holdings: true },
-      prefs: { navHidden: [], hide: {}, homeCard: true, notify: false, privacy: false },
+      prefs: { navHidden: [], hide: {}, homeCard: true, notify: false, privacy: false, focus: true },
       seen: {}, notified: {}
     };
   }
@@ -29,7 +29,7 @@
   function fill(s) {  // add any fields an older save is missing
     var b = blank();
     s = s && typeof s === "object" ? s : {};
-    ["accounts", "watch"].forEach(function (k) { if (!Array.isArray(s[k])) s[k] = []; });
+    ["accounts", "watch", "journal"].forEach(function (k) { if (!Array.isArray(s[k])) s[k] = []; });
     ["rules", "prefs"].forEach(function (k) {
       s[k] = Object.assign({}, b[k], s[k] && typeof s[k] === "object" ? s[k] : {});
     });
@@ -64,7 +64,9 @@
     if (/\/s\/[^\/]*$/.test(p)) return "s/stock";  // one layout for every stock page
     return p.split("/").pop() || "index.html";
   }
-  function hasStuff(s) { return s.watch.length > 0 || s.accounts.some(function (a) { return a.holdings.length; }); }
+  function hasStuff(s) {
+    return s.watch.length > 0 || s.journal.length > 0 || s.accounts.some(function (a) { return a.holdings.length; });
+  }
 
   // ---------------------------------------------------------------- alerts
   function tracked(s) {
@@ -103,13 +105,29 @@
     });
     out.sort(function (a, b) { return a.d < b.d ? 1 : a.d > b.d ? -1 : 0; });
     out.forEach(function (a) { a.unread = !s.seen[a.id] && daysAgo(a.d, asof) <= 14; a.why = want[a.t]; });
-    return out;
+    // decision-journal reviews that have come due sit on top until you write the review
+    var due = dueReviews(s).map(function (j) {
+      return { id: "jr|" + j.id + "|" + j.review, t: j.t, d: j.review, k: "journal", e: j, why: "journal", unread: !s.seen["jr|" + j.id + "|" + j.review] };
+    });
+    return due.concat(out);
+  }
+
+  // ---------------------------------------------------------------- decision journal
+  function today() {  // local date, YYYY-MM-DD
+    var d = new Date();
+    return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+  }
+  function dueReviews(s) {
+    var now = today();
+    return s.journal.filter(function (j) { return !j.closed && j.review && j.review <= now; })
+      .sort(function (a, b) { return a.review < b.review ? -1 : 1; });
   }
 
   function alertText(a) {
     var e = a.e;
     if (a.k === "move") return (e.r >= 0 ? "Up " : "Down ") + Math.abs(e.r * 100).toFixed(1) + "% " + e.span;
     if (a.k === "news") return "Company news: " + (e.x || "SEC filing");
+    if (a.k === "journal") return "Time to review why you bought it" + (e.d ? " (bought " + e.d + ")" : "");
     var who = e.w || "", group = e.g || "";
     if (a.k === "ins") return "Insider " + (e.s === "buy" ? "bought" : "sold") + (e.a ? " " + e.a : "") + (who ? ": " + who : "");
     return group + " " + (e.s === "buy" ? "buy" : "sale") + (e.a ? " (" + e.a + ")" : "") + (who ? ": " + who : "");
@@ -204,6 +222,37 @@
     return (plus !== false && x >= 0 ? "+" : "") + (x * 100).toFixed(1) + "%";
   }
 
+  // ---------------------------------------------------------------- focus mode
+  // On by default: trims what long-term investors (Buffett, Munger, Lynch...)
+  // would call noise. Hourly headlines, the live intraday chart, options bets,
+  // prediction odds, analyst calls, most Congress trades and trending/buzz.
+  // Kept: insider buying, fund holdings, the economy, small caps, fundamentals.
+  var FOCUS = {
+    // whole pages: off the menu and tab bar, with a note if you open one anyway
+    pages: { "news.html": "hourly headlines", "markets.html": "prediction-market odds", "congress.html": "Congress trades" },
+    // sections, by heading (as a slug), on each page layout
+    units: {
+      "index.html": ["trending-now", "what-the-crowd-expects"],
+      "moves.html": ["analyst-calls-this-week", "unusual-options-activity"],
+      "ideas.html": ["congress-buys"],
+      "s/stock": ["latest-headlines", "what-analysts-say", "options-activity", "what-bettors-expect"]
+    },
+    feed: ["news", "congress", "wh", "bets", "analysts"],  // home live-feed kinds left out
+    hides: ["Hourly news headlines", "The live 1-day chart", "Unusual options bets", "Prediction-market odds",
+            "Analyst upgrades and price targets", "Congress and White House trades", "Trending tickers and buzz"],
+    keeps: ["Insider buying", "Fund holdings (13F)", "The economy", "Small caps", "Company fundamentals"]
+  };
+  function focusOn() { return !!state.prefs.focus; }
+
+  function focusCss() {
+    var css = Object.keys(FOCUS.pages).map(function (f) {
+      return ".bar a.nav[href$='" + f + "'],.tabs a[href$='" + f + "'],.hx:has(a.hl[href='" + f + "'])";
+    }).join(",") + "{display:none!important}";
+    css += FOCUS.feed.map(function (k) { return ".ops .pill[data-f='" + k + "'],.ops .feed li[data-k='" + k + "']"; }).join(",") +
+      ",.lk-ranges button[data-r='1D'],.chip.buzz{display:none!important}";
+    return css;
+  }
+
   // ---------------------------------------------------------------- page layout
   var state = load();
 
@@ -213,6 +262,11 @@
       return ".bar a.nav[href$='" + f + "'],.tabs a[href$='" + f + "']{display:none!important}";
     }).join("");
     if (state.prefs.privacy) css += ".qt-money{filter:blur(7px)}";
+    if (focusOn()) css += focusCss();
+    var root = document.documentElement;
+    root.classList.toggle("qt-focus", focusOn());
+    // the home feed's own script reads this so its counts and "Show more" skip these kinds
+    if (focusOn()) root.dataset.feedSkip = FOCUS.feed.join(" "); else delete root.dataset.feedSkip;
     var el = document.getElementById("qt-prefs-style");
     if (!el) { el = document.createElement("style"); el.id = "qt-prefs-style"; document.head.appendChild(el); }
     el.textContent = css;
@@ -234,7 +288,15 @@
     ".qt-home{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;margin:0 0 18px;padding:14px 18px;",
     "border:1px solid var(--line);border-radius:16px;background:var(--card);box-shadow:var(--shadow);text-decoration:none;color:var(--fg)}",
     ".qt-home b{font-size:18px}.qt-home .mut{font-size:13px}.qt-home .go{margin-left:auto;color:var(--acc);font-weight:700}",
-    ".qt-home .up{color:var(--up)}.qt-home .down{color:var(--down)}"
+    ".qt-home .up{color:var(--up)}.qt-home .down{color:var(--down)}",
+    ".qt-focus-btn{display:inline-flex;align-items:center;gap:6px;margin-right:8px;white-space:nowrap}",
+    ".qt-focus-btn i{width:8px;height:8px;border-radius:50%;border:1.5px solid var(--mut)}",
+    ".qt-focus-btn.on{border-color:var(--acc);color:var(--acc)}.qt-focus-btn.on i{background:var(--acc);border-color:var(--acc)}",
+    ".qt-focusnote{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:0 0 18px;padding:12px 16px;font-size:14px;",
+    "border:1px solid color-mix(in srgb,var(--acc) 30%,var(--line));border-radius:14px;background:color-mix(in srgb,var(--acc) 8%,var(--card))}",
+    ".qt-focusnote button{font:600 13px Inter,system-ui,sans-serif;padding:5px 12px;border-radius:999px;cursor:pointer;",
+    "border:1px solid var(--line);background:var(--card);color:var(--fg)}",
+    "@media(max-width:700px){.qt-focus-btn{padding:6px 9px}.qt-focus-btn span{display:none}}"
   ].join("");
 
   // A page "unit" is a top-level heading with everything under it until the
@@ -273,14 +335,29 @@
     return out;
   }
 
+  function byFocus(key, u) {  // ids carry a kind prefix (h-, s-, d-); focus lists the slug
+    return focusOn() && (FOCUS.units[key] || []).indexOf(u.id.replace(/^[a-z]-/, "")) >= 0;
+  }
+
   function applyHide(main, custom) {
     var key = pageKey(), hidden = state.prefs.hide[key] || [];
     var list = units(main), off = new Set();
-    list.forEach(function (u) { if (hidden.indexOf(u.id) >= 0) u.els.forEach(function (el) { off.add(el); }); });
+    list.forEach(function (u) {
+      if (hidden.indexOf(u.id) >= 0 || byFocus(key, u)) u.els.forEach(function (el) { off.add(el); });
+    });
     list.forEach(function (u) { u.els.forEach(function (el) { el.classList.toggle("qt-hidden", off.has(el)); }); });
     list.forEach(function (u) {
       var off = hidden.indexOf(u.id) >= 0;
       if (!custom) return;
+      if (byFocus(key, u)) {  // Focus mode owns this one; say so instead of offering a toggle
+        if (!u.head.querySelector(":scope > .qt-unit-btn")) {
+          var tag = document.createElement("span");
+          tag.className = "qt-unit-btn off"; tag.textContent = "Hidden by Focus";
+          tag.title = "Turn Focus off (top of the page) to see it";
+          u.head.appendChild(tag);
+        }
+        return;
+      }
       var b = u.head.querySelector(":scope > .qt-unit-btn");
       if (!b) {
         b = document.createElement("button");
@@ -311,6 +388,35 @@
     bar.querySelector("#qt-reset").onclick = function () {
       delete state.prefs.hide[pageKey()]; save(state); applyHide(main, true);
     };
+  }
+
+  function setFocus(on) {
+    state.prefs.focus = !!on; save(state); location.reload();
+  }
+
+  function focusButton() {  // in the header, next to the light/dark toggle, on every page
+    var theme = document.getElementById("theme");
+    if (!theme || document.getElementById("qt-focus")) return;
+    var b = document.createElement("button");
+    b.type = "button"; b.id = "qt-focus"; b.className = "toggle qt-focus-btn" + (focusOn() ? " on" : "");
+    b.setAttribute("aria-pressed", focusOn() ? "true" : "false");
+    b.title = focusOn() ? "Focus is on: hourly news, odds, options, analyst calls, Congress trades and trending are hidden. Tap to show everything."
+                        : "Focus is off. Tap to hide short-term noise and keep what matters for long-term investing.";
+    b.innerHTML = "<i></i>Focus<span>" + (focusOn() ? " on" : " off") + "</span>";
+    b.setAttribute("aria-label", "Focus mode " + (focusOn() ? "on" : "off"));
+    b.onclick = function () { setFocus(!focusOn()); };
+    theme.parentNode.insertBefore(b, theme);
+  }
+
+  function focusNote(main) {  // you opened a page Focus keeps off the menu
+    var what = FOCUS.pages[pageKey()];
+    if (!focusOn() || !what) return;
+    var n = document.createElement("div");
+    n.className = "qt-focusnote";
+    n.innerHTML = "<span><b>Focus mode keeps " + esc(what) + " off your menu.</b> For a long-term investor it's mostly short-term noise. " +
+      "It's here if you want it.</span><span style='flex:1'></span><button type='button'>Turn Focus off</button>";
+    n.querySelector("button").onclick = function () { setFocus(false); };
+    main.insertBefore(n, main.firstChild);
   }
 
   function badge(n) {
@@ -366,9 +472,11 @@
     var st = document.createElement("style"); st.textContent = CSS; document.head.appendChild(st);
     var main = document.querySelector("main");
     var custom = /[?&]customize\b/.test(location.search);
+    focusButton();
     if (main && !document.getElementById("mine-app")) {
       if (custom) { document.body.classList.add("qt-custom"); customBar(main); }
       applyHide(main, custom);
+      focusNote(main);
     }
     if (!hasStuff(state) || document.getElementById("mine-app")) return;  // the Mine page draws its own
     getData().then(function (data) {
@@ -382,7 +490,8 @@
   window.QT = {
     KEY: KEY, ROOT: ROOT, KINDS: KINDS, IRA_LIMIT: IRA_LIMIT,
     load: load, save: save, blank: blank, fill: fill, norm: norm, esc: esc, getData: getData,
-    alerts: alerts, alertText: alertText, markSeen: markSeen, badge: badge, notify: notify,
+    alerts: alerts, alertText: alertText, dueReviews: dueReviews, today: today, markSeen: markSeen, badge: badge, notify: notify,
+    FOCUS: FOCUS, focusOn: focusOn,
     priceOf: priceOf, totals: totals, fillQuotes: fillQuotes, quoteFrom: quoteFrom, money: money, pct: pct, navStyle: navStyle,
     saveFailed: function () { return !saveOk; },
     get state() { return state; }, set state(s) { state = fill(s); }
