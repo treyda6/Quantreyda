@@ -280,42 +280,8 @@ def page_insiders(con, rows, today, bt, pages):
 
 
 def page_funds(con, today, pages):
-    import activists
-    import funds
-    mgr = funds.managers()
-    moves = {}
-    try:
-        for cik, tkr, issuer, change, value, period in con.execute(
-                """SELECT cik, tkr, issuer, change, value, period FROM fund_changes
-                   WHERE change IN ('new', 'added') ORDER BY value DESC NULLS LAST""").fetchall():
-            moves.setdefault(cik, []).append((tkr, issuer, change, period))
-    except Exception:  # no 13Fs fetched yet
-        pass
-    cards = []
-    for cik, (label, person) in mgr.items():
-        src = pictures.face_src(pictures.fund_key(cik))
-        pic = (f"<img src='{E(src)}' alt='' loading='lazy'>" if src
-               else f"<span class='mono'>{E(pictures.initials(person or label))}</span>")
-        mv = moves.get(cik, [])[:3]
-        lines = "".join(
-            f"<li>{pictures.logo_html(t) if t else ''}<span>{E(t or (i or '')[:18])}</span>"
-            f"<small>{E(c)}</small></li>" for t, i, c, _ in mv)
-        q = f"Quarter to {mv[0][3]}" if mv else "Latest quarter"
-        cards.append(f"<div class='fund'><div class='ph'>{pic}<b>{E(person or label)}</b></div>"
-                     f"<div class='fb'><small>{E(label)} · {E(str(q))}</small>"
-                     + (f"<ul>{lines}</ul>" if lines else "<p class='hint'>No new buys last quarter.</p>")
-                     + "</div></div>")
-    filings = activists.recent_13f(con, 25)
-    rows = "".join(f"<tr><td><a href='{E(u)}'>{E(f.title())}</a></td><td>{d:%b %d, %Y}</td></tr>"
-                   for d, f, u in filings)
-    return ("<div class='sec-top'><h1>Funds</h1><p class='hint'>What long-term investors bought last "
-            "quarter, from their 13F filings (filed up to 45 days after each quarter ends). Edit "
-            "<code>funds.txt</code> to follow others.</p></div>"
-            + "<div class='funds'>" + "".join(cards) + "</div>"
-            + "<section><div class='sec-h'><h2>Recently reported 13F filings</h2></div>"
-            + (f"<div class='wrap'><table><thead><tr><th>Fund</th><th>Filed</th></tr></thead><tbody>{rows}"
-               "</tbody></table></div>" if rows else "<p class='hint'>These fill in from the daily SEC index over the next week.</p>")
-            + "</section>")
+    import fundpage  # lazy: fundpage builds on this module
+    return fundpage.overview(con, pages)
 
 
 CSS = """
@@ -373,16 +339,6 @@ font-size:13px;font-weight:600;background:linear-gradient(90deg,#c8343b,#8a4a3a 
 .stats div{padding:10px;text-align:center;border-left:1px solid var(--line)}.stats div:first-child{border-left:0}
 .stats span{display:block;color:var(--mut);font-size:12px}.stats b{font-size:19px}.stats small{display:block;color:var(--mut);font-size:11px}
 .stats b.up{color:var(--up)}.stats b.down{color:var(--down)}
-.funds{display:flex;gap:14px;overflow-x:auto;padding:4px 2px 12px;scroll-snap-type:x mandatory}
-.fund{flex:none;width:250px;scroll-snap-align:start;background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden}
-.fund .ph{position:relative;height:220px;background:var(--chip);display:flex;align-items:center;justify-content:center}
-.fund .ph img{width:100%;height:100%;object-fit:cover;object-position:50% 20%}
-.fund .ph .mono{font-size:48px;font-weight:800;color:var(--mut)}
-.fund .ph b{position:absolute;left:0;right:0;bottom:0;padding:30px 14px 10px;color:#fff;font-size:18px;
-background:linear-gradient(transparent,rgba(0,0,0,.75))}
-.fund .fb{padding:10px 14px 12px}.fund .fb small{color:var(--mut)}
-.fund ul{list-style:none;margin:8px 0 0;padding:0}.fund li{display:flex;align-items:center;gap:8px;padding:4px 0}
-.fund li .lg{width:26px;height:26px;font-size:11px;border-radius:8px}.fund li small{margin-left:auto;color:var(--up);font-weight:700}
 @media(max-width:640px){.rt li{grid-template-columns:1fr 1.25fr auto;padding:10px}.rt .lg,.rt .face{width:30px;height:30px}}
 """
 
