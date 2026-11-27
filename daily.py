@@ -11,7 +11,7 @@ January, so the prior year stays live for a few weeks after New Year's.
 Older years never gain filings after publication.
 
 Usage:
-    py daily.py            # senate + house + tickers + insiders (7 days) + contracts + 13Fs + committees + White House + activists + calendars + digest + alerts + news
+    py daily.py            # senate + house + tickers + insiders (7 days) + contracts + 13Fs + committees + White House + activists + calendars + readiness + digest + alerts + news
     py daily.py --selftest # offline check of the year window, no network
 
 Meant to run under Windows Task Scheduler once a day; stdout/stderr redirect
@@ -31,6 +31,7 @@ import alerts
 import bills
 import calendars
 import committees
+import business
 import companyintel
 import contracts
 import fec
@@ -45,6 +46,7 @@ import funds
 import health
 import news
 import prices
+import readiness
 import screener
 import stockpage
 import themes
@@ -142,7 +144,9 @@ def main():
                         ("Bills moving in Congress", lambda: bills.refresh(_con())),
                         ("Prediction markets (Polymarket, Kalshi)", lambda: markets.refresh(_con())),
                         ("Earnings, economic and IPO calendars", lambda: calendars.refresh(_con())),
-                        ("Commodities, crypto and the economy (Yahoo, FRED)", lambda: economy.refresh(_con()))):
+                        ("Commodities, crypto and the economy (Yahoo, FRED)", lambda: economy.refresh(_con())),
+                        ("Readiness levels (cyber, geopolitics, grid, weather, supply, health)",
+                         lambda: readiness.refresh(_con()))):
         section(f"{label}")
         try:
             step()
@@ -184,6 +188,8 @@ def main():
                          lambda: calendars.refresh_tickers(con, pages, minutes=8)),
                         ("short interest (FINRA)", lambda: secextras.refresh_short(con, pages)),
                         ("new risk factors (10-K)", lambda: secextras.refresh_risks(con, pages)),
+                        ("what each company does (Wikipedia, annual reports)",
+                         lambda: business.refresh(con, pages)),
                         ("heatmap, analyst ratings, options", lambda: moves.refresh(con, pages)),
                         ("logos and portraits",
                          lambda: pictures.refresh(con, list(pages) + recent_tickers(con, today)
@@ -219,6 +225,7 @@ def small_caps_and_themes(con, today, done=()):
                         ("health and size", lambda: health.refresh(con, picks)),
                         ("size for older checks", lambda: health.refresh(con, unsized[:150], force=True)),
                         ("logos", lambda: pictures.refresh(con, picks)),
+                        ("what they do", lambda: business.refresh(con, picks, wiki=60, tenk=8)),
                         ("theme attention (Wikipedia)", lambda: themes.refresh(con, today))):
         try:
             step()

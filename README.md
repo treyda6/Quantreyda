@@ -6,13 +6,14 @@ economy, the news, research ideas, prediction-market odds, and what insiders,
 Congress and proven funds are buying. It's meant for finding long-term ideas
 (for example for a Roth IRA), not for day trading.
 
-Sections: **Home** (the briefing), **Markets** (stocks, rates, commodities,
+Sections: **Home** (the briefing), **Readiness** (DEFCON-style threat and
+preparedness levels), **Markets** (stocks, rates, commodities,
 crypto, economic numbers), **News**, **Ideas**, **Small caps** and **Future**
 themes, **Funds**, **Odds**, and the who's-buying pages (**Congress**,
 **Insiders**, **All trades**, **Leaderboard**, **Did it work?**). A section
 that's still being built shows a "coming soon" page until it lands.
 
-Under the hood, the who's-buying side does six things:
+Under the hood, the who's-buying side does seven things:
 
 1. **Collects public filings** every day: stock trades that members of Congress
    must disclose (STOCK Act), and SEC Form 4 filings that company executives and
@@ -31,7 +32,13 @@ Under the hood, the who's-buying side does six things:
    a ⚑ when a member of Congress trades in an industry their committee
    oversees, and a "where signals agree" list of stocks with several kinds of
    support at once.
-6. **Checks whether any of it has ever worked** (`reports/backtest.md`): if you'd
+6. **Explains what each company does**: every stock page opens with a
+   "What it does" snapshot (a plain-English one-liner, the Wikipedia summary,
+   founded / HQ / CEO / employees, sales by business, product and region read
+   from the latest annual report's tagged numbers, the report's own business
+   overview, competition and big customers, and similar companies). The Ideas
+   cards show the one-liner and where the money comes from.
+7. **Checks whether any of it has ever worked** (`reports/backtest.md`): if you'd
    bought every signal and held it for 3, 6 or 12 months, would you have beaten
    just owning SPY (an S&P 500 index fund)? The "If you had copied them" section
    on the site answers it year by year for every Congress buy, politicians who
@@ -52,7 +59,8 @@ The search box at the top of every page finds any US-listed stock or ETF and
 any mutual or money market fund, by ticker or name, and opens
 `look.html?s=TICKER` (or the full research page for a tracked stock). Each one
 gets what you'd look for on Yahoo Finance: an interactive price chart
-(5D, 1M, 6M, YTD, 1Y, 5Y, Max, with an S&P 500 comparison), key stats
+(5D, 1M, 6M, YTD, 1Y, 5Y, Max, with an S&P 500 comparison, plus a live 1D
+chart for stocks and ETFs from TradingView's free widget), key stats
 (52-week range, 1/3/5/10-year returns, market cap, P/E, P/S, P/B, dividend
 yield, payout), 10 years and 8 quarters of income statement, balance sheet
 and cash flow, valuation over the years, and dividends and splits. Tracked
@@ -64,13 +72,28 @@ the whole market and writes small JSON files the page reads. Symbols come
 from Nasdaq's symbol directory (all exchanges) and fund list, prices from
 Yahoo (yfinance), and financials from SEC's companyfacts bulk file (weekly).
 The first fill of price history takes a few daily runs; until a ticker's
-prices arrive its page says so. Prices are daily closes: there are no
-intraday quotes. Foreign companies that file 20-F reports usually have no
+prices arrive its page says so. Stored prices are daily closes; the 1D chart loads
+live from TradingView in your browser. Foreign companies that file 20-F reports usually have no
 statements.
 
 **Buy and Sell** open the same symbol at Fidelity in a new tab (and copy the
 ticker, in case you need to paste it). You sign in and place the order on
 Fidelity's own site or app; this site never places trades or sees your login.
+
+## Readiness levels
+
+`readiness.html` gives one overall level and seven area levels, numbered like
+DEFCON (5 calm, 1 most serious; our own yardstick, not an official level):
+markets & money, cyber, geopolitics, grid & infrastructure, weather &
+disasters, supply chain & prices, and health. Each area shows the signals
+behind it with their calm and severe marks, the latest events (for example
+CISA's newly exploited flaws and companies that filed an SEC 8-K Item 1.05
+cyber-incident report), what it means for investors, practical preparedness
+notes, and the stocks and funds tied to it. Sources are all free: FRED, CISA,
+SEC EDGAR, GDELT, the State Department, NOAA, NWS, USGS, FEMA, the NY Fed,
+CDC and WHO. The daily run stores a snapshot; the hourly news job rechecks
+every source and the page picks up the newer reading. Other code can read the
+levels with `readiness.levels(con)`.
 
 ## The website (runs itself on GitHub)
 
