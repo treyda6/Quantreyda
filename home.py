@@ -4,9 +4,8 @@ Phone first. Top to bottom:
 
   1. A status line and a search bar (tickers jump to their page; anything
      else searches every trade, and it filters the live feed as you type).
-  2. Readiness: the overall DEFCON-style level (5 calm .. 1 severe) and its
-     sub-levels, from readiness.levels() when that module exists, otherwise
-     clearly-marked sample levels.
+  2. Readiness: the overall DEFCON-style level (5 calm .. 1 severe) and each
+     area's level, from readiness.levels() (readiness.py).
   3. Trending now: the most-mentioned tickers today with their day move.
   4. Sitrep: one plain sentence and three numbers.
   5. Live feed: insider buys, Congress and White House trades, big
@@ -160,14 +159,13 @@ color:color-mix(in srgb,var(--c5) 80%,var(--mut));background:color-mix(in srgb,v
 .subs li{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:4px 10px;align-items:center;
 padding:8px 0;border-top:1px dashed color-mix(in srgb,var(--edge) 70%,transparent)}
 .subs .led{background:var(--lc);box-shadow:var(--glow) var(--lc);animation:none}.subs .l1 .led,.subs li.l1 .led{animation:led 1.2s infinite}
-.subs .nm{font:700 13px var(--mono);letter-spacing:1px;text-transform:uppercase}
+.subs .nm{font:700 12px var(--mono);letter-spacing:.5px;text-transform:uppercase;min-width:0}
 .subs .segs{display:flex;gap:2px}.subs .segs i{width:12px;height:10px;border-radius:1px;background:color-mix(in srgb,var(--lc) 15%,transparent)}
 .subs .segs i.f{background:var(--lc);box-shadow:var(--glow) color-mix(in srgb,var(--lc) 60%,transparent)}
 .subs .lvl{display:flex;gap:8px;align-items:center;justify-content:flex-end;font-size:11px;color:var(--lc);letter-spacing:1px;white-space:nowrap}
 .subs .nm a{color:inherit;text-decoration:none}.subs .nm a:hover{color:var(--g)}
-.subs .nd{--lc:var(--mut)}.subs .nd .led{opacity:.4}
+.subs .nd,.ops-ready.nd{--lc:var(--mut)}.subs .nd .led{opacity:.4}
 .subs small{grid-column:2/4;color:var(--mut);font-size:12.5px;line-height:1.35}
-.sim{font:700 10px var(--mono);letter-spacing:1px;color:var(--a);border:1px solid var(--a);border-radius:3px;padding:1px 5px}
 .tks{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -2px;padding:2px}
 .tks::-webkit-scrollbar{display:none}
 .tk{display:flex;gap:8px;align-items:center;white-space:nowrap;border:1px solid var(--edge);border-radius:4px;
@@ -272,44 +270,15 @@ def _tile(con, today, soon, s):
 # ------------------------------------------------------------------ readiness
 
 LEVEL_NAMES = {5: "Normal", 4: "Watch", 3: "Elevated", 2: "High", 1: "Severe"}  # as readiness.py
-# Shown until readiness.py lands (or when it has no data yet), clearly marked as samples.
-SAMPLE_LEVELS = {
-    "overall": {"level": 3, "label": "ELEVATED",
-                "why": "Sample reading: markets are steady, but cyber activity is running hot."},
-    "subs": [
-        {"key": "markets", "name": "Markets", "level": 4, "label": "WATCH",
-         "why": "Volatility is a little above normal; credit is steady."},
-        {"key": "cyber", "name": "Cyber", "level": 2, "label": "HIGH",
-         "why": "Several actively exploited flaws were added to the government's watch list this week."},
-        {"key": "geopolitics", "name": "Geopolitics", "level": 3, "label": "ELEVATED",
-         "why": "Conflict and sanctions headlines are above their usual pace."},
-        {"key": "infrastructure", "name": "Infrastructure", "level": 4, "label": "WATCH",
-         "why": "One regional grid alert; no major outages."},
-        {"key": "hazards", "name": "Hazards", "level": 5, "label": "NORMAL",
-         "why": "No severe weather or quake warnings for major US metros."},
-        {"key": "supply", "name": "Supply", "level": 4, "label": "WATCH",
-         "why": "Shipping costs are rising; no shortages."},
-        {"key": "health", "name": "Health", "level": 5, "label": "NORMAL",
-         "why": "Nothing unusual in public-health alerts."},
-    ],
-    "href": "", "asof": None, "sample": True,
-}
-
-
 def readiness_levels(con, today):
-    """The readiness board: readiness.levels() when that module exists and has data,
-    otherwise SAMPLE_LEVELS (marked sample=True so the page says so)."""
+    """readiness.levels(): the overall level and each area's, or None before the first readings."""
     try:
-        mod = importlib.import_module("readiness")
-        fn = getattr(mod, "levels", None)
-        got = fn(con, today) if fn else None
-        if got and (got.get("overall") or {}).get("level"):
-            return dict(got, sample=False)
-    except ImportError:
-        pass
+        import readiness
+        got = readiness.levels(con, today)
+        return got if got and (got.get("overall") or {}).get("level") else None
     except Exception as e:  # a broken board shouldn't take the home page down
         print(f"home readiness skipped ({type(e).__name__}: {e})")
-    return SAMPLE_LEVELS
+        return None
 
 
 def _lvl(x):
@@ -342,13 +311,17 @@ def _sub_li(s):
 
 
 def _ready_html(r):
+    if not r:
+        return ("<section class='blk ops-ready nd'><div class='hh'><h2>Readiness</h2>"
+                "<a class='go' href='readiness.html'>Board →</a></div>"
+                "<div class='big'><span class='lvl-d' aria-hidden='true'>–</span><div class='lvl-n'>"
+                "<span class='mono'>Overall level</span><b>Awaiting readings</b></div></div>"
+                "<p class='why'>The first threat and preparedness check runs with the next daily update.</p></section>")
     ov = r.get("overall") or {}
     lv = _lvl(ov.get("level"))
     label = ov.get("label") or LEVEL_NAMES[lv]
     href = r.get("href") or ""
-    link = f"<a class='go' href='{E(href)}'>Full board →</a>" if href else (
-        "<span class='sim' title='Placeholder levels until the live readiness board is built'>SAMPLE</span>"
-        if r.get("sample") else "")
+    link = f"<a class='go' href='{E(href)}'>Full board →</a>" if href else ""
     ladder = "".join(f"<i class='l{n}{' on' if n == lv else ''}'>{n}</i>" for n in (5, 4, 3, 2, 1))
     subs = "".join(_sub_li(s) for s in (r.get("subs") or []))
     return (f"<section class='blk ops-ready l{lv}'><div class='hh'><h2>Readiness</h2>{link}</div>"
@@ -713,7 +686,7 @@ def selftest():
     body = render(con, datetime.date(2026, 11, 27), now=now)
     assert "Sitrep" in body and "Fri 27 Nov 2026" in body and "class='blk ops-ready" in body
     assert "No new research leads" in body and "What the crowd expects" not in body
-    assert "SAMPLE" in body, "placeholder levels are labeled as samples until readiness.py exists"
+    assert "Awaiting readings" in body, "before the first readiness check the panel says so"
     for s in SECTIONS:
         if s[0] != "economy":
             assert f"href='{s[1]}'" in body, s
@@ -756,7 +729,16 @@ def selftest():
     th = _trend_html(tr, {"TSLA"})
     assert "+4.83%" in th and "href='s/TSLA.html'" in th and "class='tk dn'" in th
 
-    # readiness: a real module's levels replace the samples
+    # readiness: the real board, from readiness.py's offline fixture
+    import readiness
+    rnow = datetime.datetime(2026, 11, 27, 12, 0, tzinfo=datetime.timezone.utc)
+    rcon = duckdb.connect()
+    readiness.refresh(rcon, readiness.fixture_web(rnow), rnow)
+    lv = readiness_levels(rcon, datetime.date(2026, 11, 27))
+    assert lv and lv["overall"]["level"] in range(1, 6) and len(lv["subs"]) == 7, lv
+    rb = render(rcon, datetime.date(2026, 11, 27), now=now)
+    assert f"ops-ready l{lv['overall']['level']}" in rb and "readiness.html#rd-cyber" in rb
+    assert "Awaiting readings" not in rb
     r = _ready_html({"overall": {"level": 2, "label": "High", "why": "x"}, "subs": [
         {"name": "Cyber", "level": 1, "why": "<b>"}], "href": "readiness.html"})
     assert "ops-ready l2" in r and "Full board" in r and "SAMPLE" not in r and "&lt;b&gt;" in r
