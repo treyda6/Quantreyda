@@ -34,6 +34,7 @@ import companyintel
 import contracts
 import fec
 import markets
+import mine
 import pictures
 import secextras
 import digest
@@ -161,6 +162,9 @@ def main():
                         ("prices for the other traded stocks",  # charts on the basic pages
                          lambda: prices.fetch(con, set(recent_tickers(con, today)) - set(pages),
                                               start=today - datetime.timedelta(days=740), minutes=10)),
+                        ("prices for popular funds and stocks (Mine page)",  # public list, not your holdings
+                         lambda: prices.fetch(con, mine.universe(), start=today - datetime.timedelta(days=400),
+                                              minutes=8)),
                         ("industry codes", lambda: committees.refresh_companies(con, pages)),
                         ("health", lambda: health.refresh(con, pages)),
                         ("news", lambda: news.refresh(con, pages)),

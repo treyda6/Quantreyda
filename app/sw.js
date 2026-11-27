@@ -1,8 +1,9 @@
 // Lets Quantreyda open from the home screen and show the last pages you
 // viewed when you're offline. Network first: the data changes every day, so
 // a fresh copy always wins when there's a connection.
-const CACHE = "quantreyda-v1";
-const FILES = ["./", "index.html", "manifest.webmanifest", "icon-180.png", "icon-192.png", "icon-512.png"];
+const CACHE = "quantreyda-v2";
+const FILES = ["./", "index.html", "manifest.webmanifest", "icon-180.png", "icon-192.png", "icon-512.png",
+               "personal.js", "mine.html", "mine.js"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
@@ -31,4 +32,14 @@ self.addEventListener("fetch", (e) => {
       .catch(() => caches.match(e.request, { ignoreSearch: true })
         .then((hit) => hit || (e.request.mode === "navigate" ? caches.match("index.html") : undefined)))
   );
+});
+
+// Alerts from the Mine page: tapping one opens it.
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || "mine.html#alerts";
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+    for (const c of list) if ("focus" in c) { c.navigate(url); return c.focus(); }
+    return self.clients.openWindow(url);
+  }));
 });

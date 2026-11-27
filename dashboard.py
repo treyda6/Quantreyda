@@ -29,6 +29,7 @@ import duckdb
 import committees
 import digest
 import markets
+import mine
 import pictures
 import sections
 import leaders
@@ -111,12 +112,13 @@ ICONS = {  # simple 24px line icons for the phone tab bar
     "insiders": "<circle cx='12' cy='8' r='4'/><path d='M4 21c1-4.5 4.2-6.5 8-6.5s7 2 8 6.5'/>",
     "funds": "<path d='M4 20V10M10 20V4M16 20v-7M21 20H3'/>",
     "trades": "<circle cx='11' cy='11' r='6.5'/><path d='M16 16l5 5'/>",
+    "mine": "<rect x='5' y='11' width='14' height='10' rx='2'/><path d='M8 11V7a4 4 0 0 1 8 0v4'/>",
 }
 NAV = (("digest", "index.html", "Ideas"), ("congress", "congress.html", "Congress"),
        ("insiders", "insiders.html", "Insiders"), ("funds", "funds.html", "Funds"),
        ("trades", "trades.html", "All trades"), ("odds", "markets.html", "Odds"),
        ("leaders", "leaders.html", "Leaderboard"),
-       ("backtest", "backtest.html", "Did it work?"))
+       ("backtest", "backtest.html", "Did it work?"), ("mine", "mine.html", "Mine"))
 
 
 APP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app")
@@ -132,6 +134,8 @@ def app_head(root=""):
             "<meta name='apple-mobile-web-app-capable' content='yes'>"
             "<meta name='apple-mobile-web-app-title' content='Quantreyda'>"
             "<meta name='apple-mobile-web-app-status-bar-style' content='black'>"
+            # your own accounts, watchlist and layout: read from this browser only
+            f"<script src='{root}personal.js'></script>"
             "<script>if('serviceWorker' in navigator)addEventListener('load',()=>"
             f"navigator.serviceWorker.register('{root}sw.js').catch(()=>{{}}))</script>")
 
@@ -417,6 +421,13 @@ def build(con, today, out=OUT):
             f.write(page(title, "odds" if name == "markets" else name, body, updated))
     with open(f"{out}/leaders.html", "w", encoding="utf-8") as f:
         f.write(page("Leaderboard", "leaders", leaders.render(con, board, built), updated))
+    # Mine: the same empty page for everyone; your data stays in your browser
+    try:
+        mine.write(con, rows, today, out, idea_tickers, built)
+    except Exception as e:
+        print(f"mine.json skipped ({type(e).__name__}: {e})")
+    with open(f"{out}/mine.html", "w", encoding="utf-8") as f:
+        f.write(page("Mine", "mine", mine.page(), updated))
     open(f"{out}/.nojekyll", "w").close()
     return out
 
@@ -451,6 +462,9 @@ def selftest():
     assert "Congress trading" in cg and "class='tabs'" in cg and "href='congress.html' class='on'" in cg
     assert "Insider trading" in open(f"{out}/insiders.html", encoding="utf-8").read()
     assert "Funds" in open(f"{out}/funds.html", encoding="utf-8").read()
+    mn = open(f"{out}/mine.html", encoding="utf-8").read()
+    assert "Private to this device" in mn and "src='personal.js'" in mn
+    assert "src='../personal.js'" in st and os.path.exists(f"{out}/mine.json")
     assert "What bettors expect" in open(f"{out}/markets.html", encoding="utf-8").read()
     print("dashboard selftest ok")
 
