@@ -422,10 +422,8 @@ def stock_panel(tkr, pages=None):
 
 
 def home_teaser(con=None, today=None):
-    """Top 5 headlines for the home page."""
-    return ("<section class='panel'><h2 style='margin-top:0'>Latest news "
-            "<a href='news.html' class='hint' style='font-size:13px;font-weight:600'>All news →</a></h2>"
-            f"{_box('', limit=5)}</section>")
+    """Top 5 headlines for the home page's News box (home.py adds the heading)."""
+    return _box("", limit=5)
 
 
 # ---------------------------------------------------------------- selftest
@@ -509,7 +507,7 @@ def selftest():
     body = page_body({"NVDA": "NVDA"})
     assert "hl-feed" in body and "data-local='news.json'" in body and "Tracked stocks" in body
     assert "data-tkr='NVDA'" in stock_panel("NVDA") and "../news.json" in stock_panel("NVDA")
-    assert "news.html" in home_teaser(None, None)
+    assert "data-limit='5'" in home_teaser(None, None)
     print("headlines selftest ok")
 
 
