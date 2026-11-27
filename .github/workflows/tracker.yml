@@ -75,6 +75,14 @@ jobs:
         continue-on-error: true  # one government site being down shouldn't skip the dashboard
         run: timeout 60m python daily.py
 
+      - name: Lookup data for any stock, ETF or mutual fund
+        # symbols daily, SEC financials weekly, then Yahoo prices until the
+        # budget runs out (the first fill takes a few days, then it's a top-up).
+        # Skipped on backfill runs, which already use most of the job's time.
+        if: ${{ !inputs.backfill && steps.db.outputs.cache-matched-key != '' }}
+        continue-on-error: true
+        run: timeout 50m python lookup.py --minutes 40
+
       - name: Is it Sunday?
         id: day
         run: echo "sunday=$([ "$(date -u +%u)" = 7 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
