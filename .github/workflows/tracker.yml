@@ -89,6 +89,10 @@ jobs:
       - name: Build dashboard
         run: python dashboard.py
 
+      - name: Headlines (a starting copy; news.yml refreshes them hourly)
+        continue-on-error: true
+        run: timeout 10m python headlines.py site/tracked.json site/news.json
+
       - name: Add the investing course
         run: mkdir -p site/course && cp course/* site/course/
 

@@ -1,0 +1,66 @@
+# Refreshes the headlines on the site every hour, without rebuilding the
+# whole site (that's tracker.yml, once a day).
+#
+#   1. reads tracked.json from the live site (the stocks with full pages,
+#      written by the daily build)
+#   2. runs headlines.py: free RSS feeds + fresh SEC 8-Ks for those stocks
+#   3. pushes news.json to the `news-feed` branch (one commit, replaced each
+#      hour, so the repo doesn't grow). The News page and the stock pages
+#      read it from there in the browser.
+#
+# Settings: uses SEC_CONTACT_EMAIL like tracker.yml (optional here; without it
+# the SEC filings part is skipped). Nothing else to set up.
+
+name: news
+on:
+  schedule:
+    - cron: "17 * * * *"  # GitHub can run scheduled jobs a few minutes late
+  workflow_dispatch:
+
+permissions:
+  contents: write  # to push the news-feed branch
+  pages: read      # to look up the site's address
+
+concurrency:
+  group: news
+  cancel-in-progress: true
+
+jobs:
+  headlines:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONUNBUFFERED: "1"
+      SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+
+      - name: Which stocks to look for
+        run: |
+          site=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq .html_url 2>/dev/null \
+                 || echo "https://$GITHUB_REPOSITORY_OWNER.github.io/${GITHUB_REPOSITORY#*/}/")
+          curl -fsSL "${site%/}/tracked.json" -o tracked.json || echo "[]" > tracked.json
+          echo "$(python -c 'import json;print(len(json.load(open("tracked.json"))))') tracked stocks from $site"
+
+      - name: Last hour's feed (so headlines build up over 3 days)
+        run: |
+          git fetch --depth=1 origin news-feed && git show FETCH_HEAD:news.json > old.json \
+            || echo "{}" > old.json
+
+      - run: python headlines.py tracked.json feed/news.json old.json
+
+      - name: Publish to the news-feed branch
+        run: |
+          cd feed
+          printf 'Hourly headlines for the site, written by .github/workflows/news.yml.\nThis branch is replaced every hour; nothing to edit here.\n' > README.md
+          git init -q -b news-feed
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add news.json README.md
+          git commit -qm "Headlines $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" news-feed

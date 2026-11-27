@@ -749,13 +749,9 @@ def ind_card(v, root=""):
             f"<div class='ec-r'>{E(v['words'])}</div></a>")
 
 
-def glance(inds):
-    """The 'how's the economy?' summary at the top of the page."""
+def _mood(inds):
+    """(tone counts, recession lights [(label, lit, slug)], 'mixed'/...) for the summary."""
     got = [v for v in inds.values() if v["v"] is not None and v["tone"] != "info"]
-    if not got:
-        return ("<div class='hero'><div class='eyebrow'>The economy at a glance</div><h1>Markets &amp; economy</h1>"
-                "<p>Prices for oil, gold, bitcoin and more, plus the numbers that show how the economy is "
-                "doing. The first numbers arrive with the next daily update.</p></div>")
     n = {t: sum(1 for v in got if v["tone"] == t) for t in ("good", "ok", "bad")}
 
     def val(slug):
@@ -780,6 +776,23 @@ def glance(inds):
         mood = "in decent shape"
     else:
         mood = "mixed"
+    return n, lights, mood
+
+
+def glance(inds):
+    """The 'how's the economy?' summary at the top of the page."""
+    got = [v for v in inds.values() if v["v"] is not None and v["tone"] != "info"]
+    if not got:
+        return ("<div class='hero'><div class='eyebrow'>The economy at a glance</div><h1>Markets &amp; economy</h1>"
+                "<p>Prices for oil, gold, bitcoin and more, plus the numbers that show how the economy is "
+                "doing. The first numbers arrive with the next daily update.</p></div>")
+    n, lights, mood = _mood(inds)
+    on = sum(1 for _, l, _ in lights if l)
+
+    def val(slug):
+        v = inds.get(slug)
+        return v["v"] if v else None
+
     infl = val("corepce")
     fed = val("fedfunds")
     bits = []
@@ -926,7 +939,14 @@ def ind_page(con, ind, built=frozenset(), root="../"):
 
 def home_teaser(con, today=None, root=""):
     """A few numbers for the home page's Markets tile."""
-    inds = {i[1]: ind_view(con, i) for i in INDICATORS if i[1] in ("unemployment", "corepce", "fedfunds")}
+    inds = {i[1]: ind_view(con, i) for i in INDICATORS}
+    mood = ""
+    if any(v["v"] is not None for v in inds.values()):
+        n, lights, m = _mood(inds)
+        on = sum(1 for _, l, _ in lights if l)
+        mood = (f"<p>The economy looks <b>{E(m)}</b>: {n['good']} numbers look good, {n['ok']} worth "
+                f"watching, {n['bad']} weak. {on} of {len(lights)} recession warning lights lit.</p>")
+    inds = {k: v for k, v in inds.items() if k in ("unemployment", "corepce", "fedfunds")}
     bits = []
     for slug in ("gold", "oil", "bitcoin"):
         v = asset_view(con, A[slug])
@@ -938,7 +958,7 @@ def home_teaser(con, today=None, root=""):
             bits.append(f"<a href='{root}{DIR}/{slug}.html'><span>{E(v['i'][2])}</span> <b>{fmt_ind(v['v'], v['i'][5])}</b></a>")
     if not bits:
         return ""
-    return "<div class='movers'>" + "".join(bits) + "</div>"
+    return mood + "<div class='movers'>" + "".join(bits) + "</div>"
 
 
 def stock_panel(con, tkr, root="../"):
@@ -1140,7 +1160,7 @@ def selftest():
     assert re.search(r"<td class='num'>\+0\.\d\d</td>", ap), "related stock correlations shown"
     ip = ind_page(con, IND["unemployment"])
     assert "Why it matters" in ip and "fred.stlouisfed.org/series/UNRATE" in ip and "Jobs are plentiful" in ip
-    assert "e/gold.html" in home_teaser(con) and home_teaser(empty := duckdb.connect()) == ""
+    assert "e/gold.html" in home_teaser(con) and "The economy looks" in home_teaser(con) and home_teaser(empty := duckdb.connect()) == ""
     assert "Commodities it's tied to" in stock_panel(con, "XOM") and stock_panel(con, "ZZZZ") == ""
     empty = duckdb.connect()
     assert "next daily update" in page(empty)  # renders before the first fetch

@@ -11,7 +11,7 @@ January, so the prior year stays live for a few weeks after New Year's.
 Older years never gain filings after publication.
 
 Usage:
-    py daily.py            # senate + house + tickers + insiders (7 days) + contracts + 13Fs + committees + White House + activists + digest + alerts + news
+    py daily.py            # senate + house + tickers + insiders (7 days) + contracts + 13Fs + committees + White House + activists + calendars + digest + alerts + news
     py daily.py --selftest # offline check of the year window, no network
 
 Meant to run under Windows Task Scheduler once a day; stdout/stderr redirect
@@ -29,6 +29,7 @@ import sys
 import activists
 import alerts
 import bills
+import calendars
 import committees
 import companyintel
 import contracts
@@ -136,6 +137,7 @@ def main():
                         ("Activist 5%+ stakes (13D/13G)", lambda: activists.refresh(_con())),
                         ("Bills moving in Congress", lambda: bills.refresh(_con())),
                         ("Prediction markets (Polymarket, Kalshi)", lambda: markets.refresh(_con())),
+                        ("Earnings, economic and IPO calendars", lambda: calendars.refresh(_con())),
                         ("Commodities, crypto and the economy (Yahoo, FRED)", lambda: economy.refresh(_con()))):
         section(f"{label}")
         try:
@@ -161,7 +163,8 @@ def main():
     for label, step in (("prices", lambda: prices.fetch(con, set(pages) | {prices.BENCHMARK},
                                                          start=today - datetime.timedelta(days=740))),
                         ("prices for the other traded stocks",  # charts on the basic pages
-                         lambda: prices.fetch(con, set(recent_tickers(con, today)) - set(pages),
+                         lambda: prices.fetch(con, set(recent_tickers(con, today) + funds.page_tickers(con))
+                                              - set(pages),
                                               start=today - datetime.timedelta(days=740), minutes=10)),
                         ("industry codes", lambda: committees.refresh_companies(con, pages)),
                         ("health", lambda: health.refresh(con, pages)),
@@ -170,10 +173,13 @@ def main():
                          lambda: companyintel.refresh(con, company_names(con, pages))),
                         ("election money (FEC)",
                          lambda: fec.refresh(con, company_names(con, pages))),
+                        ("earnings dates and beats/misses",
+                         lambda: calendars.refresh_tickers(con, pages, minutes=8)),
                         ("short interest (FINRA)", lambda: secextras.refresh_short(con, pages)),
                         ("new risk factors (10-K)", lambda: secextras.refresh_risks(con, pages)),
                         ("logos and portraits",
-                         lambda: pictures.refresh(con, list(pages) + recent_tickers(con, today)))):
+                         lambda: pictures.refresh(con, list(pages) + recent_tickers(con, today)
+                                                 + funds.page_tickers(con)))):
         t0 = time.monotonic()
         try:
             step()
