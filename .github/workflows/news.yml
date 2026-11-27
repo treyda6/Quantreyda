@@ -4,7 +4,8 @@
 #   1. reads tracked.json from the live site (the stocks with full pages,
 #      written by the daily build)
 #   2. runs headlines.py: free RSS feeds + fresh SEC 8-Ks for those stocks
-#   3. pushes news.json to the `news-feed` branch (one commit, replaced each
+#   3. rechecks the readiness levels (readiness.py) into readiness.json
+#   4. pushes news.json and readiness.json to the `news-feed` branch (one commit, replaced each
 #      hour, so the repo doesn't grow). The News page and the stock pages
 #      read it from there in the browser.
 #
@@ -28,7 +29,7 @@ concurrency:
 jobs:
   headlines:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       PYTHONUNBUFFERED: "1"
       SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
@@ -54,13 +55,23 @@ jobs:
 
       - run: python headlines.py tracked.json feed/news.json old.json
 
+      - name: Readiness levels (rechecks every source; reuses the daily build's stock links)
+        continue-on-error: true  # headlines still publish if this fails
+        run: |
+          site=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq .html_url 2>/dev/null \
+                 || echo "https://$GITHUB_REPOSITORY_OWNER.github.io/${GITHUB_REPOSITORY#*/}/")
+          curl -fsSL "${site%/}/readiness.json" -o rd-site.json || echo "{}" > rd-site.json
+          git show FETCH_HEAD:readiness.json > rd-old.json 2>/dev/null || echo "{}" > rd-old.json
+          timeout 8m python readiness.py feed/readiness.json rd-site.json rd-old.json
+
       - name: Publish to the news-feed branch
         run: |
           cd feed
-          printf 'Hourly headlines for the site, written by .github/workflows/news.yml.\nThis branch is replaced every hour; nothing to edit here.\n' > README.md
+          printf 'Hourly headlines and readiness levels for the site, written by .github/workflows/news.yml.\nThis branch is replaced every hour; nothing to edit here.\n' > README.md
           git init -q -b news-feed
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add news.json README.md
+          [ -f readiness.json ] && git add readiness.json
           git commit -qm "Headlines $(date -u +%Y-%m-%dT%H:%MZ)"
           git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" news-feed
