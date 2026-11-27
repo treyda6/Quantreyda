@@ -27,6 +27,7 @@ import sys
 
 import duckdb
 
+import calendars
 import committees
 import digest
 import fundpage
@@ -192,7 +193,7 @@ def page(title, active, body, updated, root=""):
     return (f"<!DOCTYPE html><html lang='en' data-theme='dark'><head><meta charset='utf-8'>"
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
             f"<title>{html.escape(title)} · Quantreyda</title>{THEME_HEAD}{app_head(root)}"
-            f"<style>{CSS}{front.CSS}{home.CSS}{stockpage.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}</style></head><body>"
+            f"<style>{CSS}{front.CSS}{home.CSS}{stockpage.CSS}{leaders.LB_CSS}{pictures.CSS}{sections.CSS}{markets.CSS}{calendars.CSS}</style></head><body>"
             f"<header><div class='bar'><span class='logo'><i></i>Quantreyda</span>{nav}"
             f"<span class='sp'></span>"
             f"<button class='toggle' id='theme' type='button'>☀ Light</button></div></header>"
@@ -458,7 +459,8 @@ def build(con, today, out=OUT):
     for name, title, make in (("congress", "Congress", lambda: sections.page_congress(con, rows, today, bt, set(built))),
                               ("insiders", "Insiders", lambda: sections.page_insiders(con, rows, today, bt, set(built))),
                               ("funds", "Funds", lambda: sections.page_funds(con, today, set(built))),
-                              ("markets", "Odds", lambda: markets.page(con))):
+                              ("markets", "Odds", lambda: markets.page(con)),
+                              ("calendar", "Calendar", lambda: calendars.page(con, today, set(built)))):
         try:
             body = make()
         except Exception as e:  # one section failing shouldn't take the site down
@@ -521,6 +523,7 @@ def selftest():
     assert "Funds" in fp and "href='f/berkshire.html'" in fp, "every fund opens its own page"
     assert "All funds" in open(f"{out}/f/berkshire.html", encoding="utf-8").read()
     assert "What bettors expect" in open(f"{out}/markets.html", encoding="utf-8").read()
+    assert "Earnings calendar" in open(f"{out}/calendar.html", encoding="utf-8").read()
     assert "hl-feed" in open(f"{out}/news.html", encoding="utf-8").read()
     assert "Latest headlines" in st and "AAA" in [r["tkr"] for r in json.load(open(f"{out}/tracked.json"))]
     print("dashboard selftest ok")
