@@ -174,7 +174,9 @@
   function priceOf(h, data) {
     var q = data.quotes[h.t];
     if (h.px > 0) return { c: +h.px, r1: q ? q[1] : null, manual: true };
-    return q ? { c: q[0], r1: q[1] } : null;
+    if (q) return { c: q[0], r1: q[1] };
+    // last price from an imported broker file: better than nothing for plan-only funds
+    return h.fpx > 0 ? { c: +h.fpx, r1: null, file: true } : null;
   }
 
   function totals(accounts, data) {
