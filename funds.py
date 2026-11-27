@@ -406,7 +406,7 @@ def home_teaser(con, today=None):
     f = f[f.change.isin(["new", "added"])].sort_values("filed", ascending=False).head(4)
     word = {"new": "started buying", "added": "bought more"}
     return "<ul class='teaser'>" + "".join(
-        f"<li><b>{html.escape(r.fund)}</b> {word[r.change]} "
+        f"<li><a href='{href(r.fund)}'><b>{html.escape(r.fund)}</b></a> {word[r.change]} "
         f"<b>{html.escape(r.tkr or (r.issuer or '').title())}</b></li>" for r in f.itertuples()) + "</ul>"
 
 
