@@ -263,7 +263,6 @@
       var f = k.replace(/[^a-z0-9_.\-]/gi, "");
       return ".bar a.nav[href$='" + f + "'],.tabs a[href$='" + f + "']{display:none!important}";
     }).join("");
-    if (state.prefs.privacy) css += ".qt-money{filter:blur(7px)}";
     if (focusOn()) css += focusCss();
     var root = document.documentElement;
     root.classList.toggle("qt-focus", focusOn());

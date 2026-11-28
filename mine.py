@@ -203,7 +203,9 @@ button.mi-chip{font-family:inherit;cursor:pointer;border:0}button.mi-chip.add{bo
 .mi-jv{display:flex;flex-wrap:wrap;gap:6px 16px;flex:1 1 100%}
 .mi-jv label{flex-direction:row;align-items:center;gap:6px;font-size:14px;color:var(--fg)}
 .mi-jv input{accent-color:var(--acc);width:16px;height:16px}
-.mi-form label[hidden]{display:none}
+.mi-form label[hidden],.mi-form[hidden],.mi-tabs[hidden]{display:none}
+.mi-lockcard{text-align:center;padding:34px 18px}.mi-lockcard svg{width:40px;height:40px;fill:none;stroke:var(--acc);stroke-width:2;
+stroke-linecap:round;stroke-linejoin:round}.mi-lockcard h3{margin:8px 0 2px}.mi-lockcard .mi-note{max-width:420px;margin:6px auto 14px}
 .mi-jrev{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
 @media(max-width:640px){.mi-jgrid{grid-template-columns:1fr}}
 @media(max-width:640px){.mi-hide-sm{display:none}.mi-t td,.mi-t th{padding:7px 4px;font-size:13px}.mi-card{padding:14px}
@@ -219,7 +221,8 @@ def page():
             "height='10' rx='2'/><path d='M8 11V7a4 4 0 0 1 8 0v4'/></svg><div><b>Private to this device.</b> "
             "Your accounts, watchlist, journal and settings are saved only in this browser. Anyone else who opens "
             "this link sees an empty page, and nothing you type is ever sent anywhere. Use "
-            "<a href='#backup'>Backup</a> to move it to your phone or keep a copy.</div></div>"
+            "<a href='#backup'>Backup</a> to move it to your phone or keep a copy, and "
+            "<a href='#settings'>Customize</a> to lock it with a passcode.</div></div>"
             "<div class='mi-tabs' role='tablist'>"
             "<button data-tab='accounts'>Accounts</button><button data-tab='watch'>Watchlist</button>"
             "<button data-tab='journal'>Journal</button><button data-tab='alerts'>Alerts</button><button data-tab='settings'>Customize</button>"

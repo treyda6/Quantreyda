@@ -9,6 +9,7 @@
   var S = QT.state, D = null, editing = {}, pending = null, IMP = null, watchOdd = null;
   var TABS = ["accounts", "watch", "journal", "alerts", "settings", "backup"];
   var IRA = { roth: 1, trad: 1, custodial_roth: 1 };
+  var LK = QT.lock;  // lock.js: hide amounts, passcode lock
 
   var NOTES = {
     roth: "Grows and comes out tax-free in retirement. What you put in (not the gains) can come out any time.",
@@ -54,10 +55,10 @@
     return src ? "<span class='lg'><img src='" + esc(src) + "' alt='' loading='lazy'></span>"
                : "<span class='lg mono'>" + esc(t.charAt(0) || "?") + "</span>";
   }
-  function stockCell(t, sub) {
+  function stockCell(t, sub, priv) {  // priv: the sub line is yours (shares), hidden with the amounts
     var name = D.names[t] || "";
     return "<div class='mi-stock'>" + logo(t) + "<div>" + stockLink(t, "<b>" + esc(t) + "</b>") +
-      (name || sub ? "<small>" + esc(sub || name) + "</small>" : "") + "</div></div>";
+      (name || sub ? "<small" + (priv && sub ? " class='qt-money'" : "") + ">" + esc(sub || name) + "</small>" : "") + "</div></div>";
   }
 
   function recent(t, days) {
@@ -120,8 +121,8 @@
     if (IRA[a.kind]) {
       var L = QT.IRA_LIMIT, used = iraUsed(a.owner), left = Math.max(0, L.base - used);
       h += "<p class='mi-note'>" + L.year + " IRA contributions" + (a.owner ? " for " + esc(a.owner) : "") + ": <b class='qt-money'>" +
-        money(used) + "</b> of " + money(L.base) + " · <b>" + money(left) + " left</b> (Roth and traditional share one limit; +" +
-        money(L.catchup) + " if 50 or older)</p><div class='mi-room'><i style='width:" + Math.min(100, used / L.base * 100) + "%'></i></div>";
+        money(used) + "</b> of " + money(L.base) + " · <b><span class='qt-money'>" + money(left) + "</span> left</b> (Roth and traditional share one limit; +" +
+        money(L.catchup) + " if 50 or older)</p><div class='mi-room qt-money'><i style='width:" + Math.min(100, used / L.base * 100) + "%'></i></div>";
     }
     if (ed) {
       h += "<div class='mi-form'><label>Name<input data-f='name' value='" + esc(a.name) + "'></label>" +
@@ -129,8 +130,8 @@
           return "<option value='" + k + "'" + (k === a.kind ? " selected" : "") + ">" + esc(KINDS[k]) + "</option>";
         }).join("") + "</select></label>" +
         "<label>For (optional)<input data-f='owner' placeholder='e.g. Emma' value='" + esc(a.owner || "") + "'></label>" +
-        "<label>Cash<input data-f='cash' inputmode='decimal' value='" + esc(a.cash || "") + "'></label>" +
-        (IRA[a.kind] ? "<label>Put in this year<input data-f='contrib' inputmode='decimal' value='" + esc(a.contrib || "") + "'></label>" : "") +
+        "<label>Cash<input class='qt-money' data-f='cash' inputmode='decimal' value='" + esc(a.cash || "") + "'></label>" +
+        (IRA[a.kind] ? "<label>Put in this year<input class='qt-money' data-f='contrib' inputmode='decimal' value='" + esc(a.contrib || "") + "'></label>" : "") +
         "</div>";
     }
     if (rows.length) {
@@ -142,15 +143,15 @@
         var hh = r.h;
         if (ed) {
           h += "<tr data-i='" + r.i + "'><td>" + stockCell(hh.t) + "</td>" +
-            "<td><input data-h='sh' inputmode='decimal' value='" + esc(hh.sh) + "'></td>" +
-            "<td><input data-h='cost' inputmode='decimal' value='" + esc(hh.cost || "") + "' placeholder='optional'></td>" +
+            "<td><input class='qt-money' data-h='sh' inputmode='decimal' value='" + esc(hh.sh) + "'></td>" +
+            "<td><input class='qt-money' data-h='cost' inputmode='decimal' value='" + esc(hh.cost || "") + "' placeholder='optional'></td>" +
             "<td><input data-h='px' inputmode='decimal' value='" + esc(hh.px || "") + "' placeholder='" +
               (D.quotes[hh.t] ? "auto " + D.quotes[hh.t][0] : "needed") + "'></td>" +
             "<td><button class='mi-x' data-act='rm' title='Remove'>×</button></td></tr>";
         } else {
           var sub = num(hh.sh).toLocaleString("en-US", { maximumFractionDigits: 4 }) + " sh" +
             (r.p ? " @ " + money(r.p.c, true) + (r.p.manual ? " (manual)" : r.p.file ? " (from import)" : "") : "");
-          h += "<tr><td>" + stockCell(hh.t, sub) + "<div>" + journalChip(hh.t) + chips(hh.t) + "</div></td>" +
+          h += "<tr><td>" + stockCell(hh.t, sub, true) + "<div>" + journalChip(hh.t) + chips(hh.t) + "</div></td>" +
             "<td class='num'><span class='qt-money'>" + (r.val == null ? "<span class='mut'>no price</span>" : money(r.val)) + "</span></td>" +
             "<td class='num'>" + (r.gain == null ? "<span class='mut'>—</span>" : "<span class='qt-money " + cls(r.gain) + "'>" +
               money(r.gain) + "</span><br><small class='" + cls(r.gp) + "'>" + pct(r.gp) + "</small>") + "</td>" +
@@ -397,8 +398,8 @@
           "<th class='num'>Shares</th><th class='num'>Cost / share</th><th class='num'>Price in file</th></tr></thead><tbody>" +
           pa.holdings.map(function (x) {
             return "<tr><td><b>" + esc(x.t) + "</b>" + (knownTicker(x.t) ? "" : " <span class='mi-chip sell' title='Not found among US stocks, ETFs and mutual funds. Fine for a plan-only fund: the price from the file is used.'>not found</span>") +
-              "<small class='mut' style='display:block'>" + esc(x.desc) + "</small></td><td class='num'>" +
-              x.sh.toLocaleString("en-US", { maximumFractionDigits: 4 }) + "</td><td class='num'>" + (x.cost ? money(x.cost, true) : "—") +
+              "<small class='mut' style='display:block'>" + esc(x.desc) + "</small></td><td class='num qt-money'>" +
+              x.sh.toLocaleString("en-US", { maximumFractionDigits: 4 }) + "</td><td class='num qt-money'>" + (x.cost ? money(x.cost, true) : "—") +
               "</td><td class='num'>" + (x.price ? money(x.price, true) : "—") + "</td></tr>";
           }).join("") + "</tbody></table></div>" +
           (pa.skipped.length ? "<p class='mi-note'>Left out (no stock or fund ticker, such as bonds, CDs or options): " +
@@ -936,12 +937,106 @@
           "<a class='mi-btn sm' style='text-decoration:none' href='" + esc(pg[0]) + "?customize'>Customize</a></div>";
       }).join("") + "</div>";
     h += "<div class='mi-card mi-set'><h3>Display</h3>" +
-      box("prefs.homeCard", p.homeCard, "Show my accounts and alerts at the top of Home") +
-      box("prefs.privacy", p.privacy, "Blur dollar amounts (handy when showing someone your screen)") + "</div>";
+      box("prefs.homeCard", p.homeCard, "Show my accounts and alerts at the top of Home") + "</div>";
+    h += renderLock();
     return h;
   }
 
+  // ---------------------------------------------------------------- privacy lock
+  var AUTO = [[1, "1 minute"], [5, "5 minutes"], [15, "15 minutes"], [60, "1 hour"], [0, "Only when I close the app"]];
+  function renderLock() {
+    var p = S.prefs, on = LK && LK.isSet();
+    var h = "<div class='mi-card mi-set' id='privacy'><h3>Privacy lock</h3>" +
+      "<p class='mi-note'>For when you're showing someone the app. The <b>" + (on ? "Lock" : "Hide $") + "</b> button at the top of every page " +
+      (on ? "hides your dollar amounts and locks Mine in one tap; it takes your passcode to open again."
+          : "blurs your dollar amounts and share counts in one tap. Add a passcode so nobody else can tap them back.") + "</p>" +
+      "<label class='row'><input type='checkbox' data-lock='privacy'" + (p.privacy ? " checked" : "") + "> Always hide dollar amounts until I tap to show them</label>";
+    if (!LK || !LK.canHash()) return h + "<p class='mi-note down'>This browser can't set a passcode here (it needs a secure https page).</p></div>";
+    if (!on) {
+      h += "<form class='mi-form' data-lock='set'><label>New passcode<input name='a' type='password' inputmode='numeric' autocomplete='new-password' minlength='4' required></label>" +
+        "<label>Again<input name='b' type='password' inputmode='numeric' autocomplete='new-password' minlength='4' required></label>" +
+        "<button class='mi-btn pri'>Turn on lock</button></form>" +
+        "<p class='mi-note'>At least 4 digits (letters work too). It's saved only on this device, as a scrambled check value, never the passcode itself.</p>";
+    } else {
+      h += "<label class='row'>Lock again after <select data-lock='auto'>" + AUTO.map(function (o) {
+          return "<option value='" + o[0] + "'" + (LK.autoMin() === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") +
+        "</select> <span class='mut'>of not using it</span></label>" +
+        "<div id='mi-bio'></div>" +
+        "<p style='margin:12px 0 0;display:flex;gap:8px;flex-wrap:wrap'><button class='mi-btn pri' data-lock='now'>Lock now</button>" +
+        "<button class='mi-btn' data-lock='change'>Change passcode</button><button class='mi-btn dan' data-lock='off'>Turn off lock</button></p>" +
+        "<form class='mi-form' data-lock='chg' hidden><label>Current passcode<input name='o' type='password' inputmode='numeric' autocomplete='current-password' required></label>" +
+        "<label>New passcode<input name='a' type='password' inputmode='numeric' autocomplete='new-password' minlength='4' required></label>" +
+        "<label>Again<input name='b' type='password' inputmode='numeric' autocomplete='new-password' minlength='4' required></label>" +
+        "<button class='mi-btn pri'>Save</button></form>";
+    }
+    return h + "<p class='mi-note'>It keeps out people looking at your screen. It isn't encryption: someone with your unlocked computer and developer tools " +
+      "could still dig the data out of the browser. The passcode stays on this device and isn't put in backup files, so set one on each device. " +
+      "If you forget it, the only way back in is to erase Mine here and restore a backup.</p></div>";
+  }
+
+  function wireLock() {
+    var pv = view.querySelector("[data-lock=privacy]");
+    if (pv) pv.onchange = function () { LK.setPrivacy(pv.checked); };
+    function pair(f) {
+      if (f.a.value !== f.b.value) { flash("The two passcodes don't match.", true); return false; }
+      if (f.a.value.length < 4) { flash("Use at least 4 digits.", true); return false; }
+      return true;
+    }
+    var set = view.querySelector("form[data-lock=set]");
+    if (set) set.onsubmit = function (ev) {
+      ev.preventDefault();
+      if (!pair(set)) return;
+      LK.setPasscode(set.a.value).then(function () {
+        draw(); flash("Lock is on. Tap Lock at the top of any page before you hand someone your phone.");
+      }, function (e) { flash("Couldn't turn on the lock: " + e.message + ".", true); });
+    };
+    if (!LK || !LK.isSet()) return;
+    view.querySelector("[data-lock=auto]").onchange = function () { LK.setAuto(this.value); flash("Saved."); };
+    view.querySelector("[data-lock=now]").onclick = function () { LK.lockNow(); };
+    var chg = view.querySelector("form[data-lock=chg]");
+    view.querySelector("[data-lock=change]").onclick = function () { chg.hidden = !chg.hidden; if (!chg.hidden) chg.o.focus(); };
+    chg.onsubmit = function (ev) {
+      ev.preventDefault();
+      if (!pair(chg)) return;
+      LK.check(chg.o.value).then(function (ok) {
+        if (!ok) return flash("The current passcode isn't right.", true);
+        return LK.setPasscode(chg.a.value).then(function () { draw(); flash("Passcode changed."); });
+      });
+    };
+    view.querySelector("[data-lock=off]").onclick = function () {
+      var code = prompt("Enter your passcode to turn the lock off:");
+      if (code == null) return;
+      LK.check(code).then(function (ok) {
+        if (!ok) return flash("That's not the passcode. The lock is still on.", true);
+        LK.remove(); draw(); flash("Lock is off.");
+      });
+    };
+    LK.bioAvailable().then(function (yes) {
+      var el = document.getElementById("mi-bio");
+      if (!yes || !el) return;
+      el.innerHTML = "<label class='row'><input type='checkbox' data-lock='bio'" + (LK.hasBio() ? " checked" : "") +
+        "> Unlock with Face ID, Touch ID or fingerprint <span class='mut'>(your passcode still works)</span></label>";
+      var cb = el.querySelector("input");
+      cb.onchange = function () {
+        if (!cb.checked) { LK.dropBio(); return flash("Face ID / fingerprint unlock is off."); }
+        LK.enrollBio().then(function () { flash("Face ID / fingerprint unlock is on."); },
+          function () { cb.checked = false; flash("This device didn't set it up. Your passcode still works.", true); });
+      };
+    });
+  }
+
+  function drawLocked() {  // nothing personal is drawn while locked
+    document.querySelector(".mi-tabs").hidden = true;
+    var fl = document.getElementById("mi-flash"); if (fl) fl.textContent = "";
+    view.classList.add("mi-locked");
+    view.innerHTML = "<div class='mi-card mi-lockcard'><svg viewBox='0 0 24 24' aria-hidden='true'><rect x='5' y='11' width='14' height='10' rx='2'/>" +
+      "<path d='M8 11V7a4 4 0 0 1 8 0v4'/></svg><h3>Mine is locked</h3><p class='mi-note'>Your accounts, holdings, watchlist and journal are hidden. " +
+      "The rest of the site works as usual.</p><p><button class='mi-btn pri' data-act='unlock'>Unlock</button></p></div>";
+    view.querySelector("[data-act=unlock]").onclick = function () { LK.ask({ auto: true }); };
+  }
+
   function wireSettings() {
+    wireLock();
     view.querySelectorAll("[data-set]").forEach(function (el) {
       el.onchange = function () {
         var k = el.dataset.set.split("."), v = el.type === "checkbox" ? el.checked : +el.value;
@@ -1101,6 +1196,9 @@
   function go(t) { if (location.hash.slice(1) !== t) location.hash = t; else draw(); }
 
   function draw() {
+    if (LK && LK.locked()) return drawLocked();
+    view.classList.remove("mi-locked");
+    document.querySelector(".mi-tabs").hidden = false;
     var tab = current(), list = QT.alerts(S, D), unread = list.filter(function (a) { return a.unread; }).length;
     document.querySelectorAll(".mi-tabs button").forEach(function (b) { b.classList.toggle("on", b.dataset.tab === tab); });
     tabBadge(tab === "alerts" ? 0 : unread);
@@ -1115,6 +1213,11 @@
   }
 
   document.querySelectorAll(".mi-tabs button").forEach(function (b) { b.onclick = function () { go(b.dataset.tab); }; });
+  document.addEventListener("qt-privacy", function (e) {  // hidden, shown, locked or unlocked from the header button
+    if (!D) return;
+    var wasLocked = view.classList.contains("mi-locked");
+    if (e.detail.locked !== wasLocked || current() === "settings") draw();
+  });
   addEventListener("hashchange", function () { if (TABS.indexOf(location.hash.slice(1)) >= 0) { draw(); scrollTo(0, 0); } });
   addEventListener("storage", function (e) { if (e.key === QT.KEY) { S = QT.load(); QT.state = S; draw(); } });  // another tab changed it
   QT.getData().then(function (d) {
