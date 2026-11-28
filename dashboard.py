@@ -247,6 +247,8 @@ def app_head(root=""):
             "<meta name='apple-mobile-web-app-status-bar-style' content='black'>"
             # your own accounts, watchlist and layout: read from this browser only
             f"<script src='{root}personal.js'></script>"
+            # hide amounts / passcode lock for Mine, applied before the page draws
+            f"<script src='{root}lock.js'></script>"
             "<script>if('serviceWorker' in navigator)addEventListener('load',()=>"
             f"navigator.serviceWorker.register('{root}sw.js').catch(()=>{{}}))</script>")
 
@@ -666,6 +668,7 @@ def selftest():
     assert "All funds" in open(f"{out}/f/berkshire.html", encoding="utf-8").read()
     mn = open(f"{out}/mine.html", encoding="utf-8").read()
     assert "Private to this device" in mn and "src='personal.js'" in mn
+    assert "src='lock.js'" in mn and "src='../lock.js'" in st, "the privacy lock loads on every page"
     assert "src='../personal.js'" in st and os.path.exists(f"{out}/mine.json")
     assert "What bettors expect" in open(f"{out}/markets.html", encoding="utf-8").read()
     assert "Small companies people in the know are buying" in open(f"{out}/screener.html", encoding="utf-8").read()

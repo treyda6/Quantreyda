@@ -253,6 +253,18 @@ caps and company fundamentals stay. The **Focus** button at the top of every
 page turns it off (or back on); Mine → Customize lists what it hides. The
 choice is saved in your browser only.
 
+## Privacy lock
+
+For when you're showing someone the app. The eye button at the top of every
+page blurs your dollar amounts and share counts (Mine and the Home card) in
+one tap, like QuickBooks' privacy mode. Mine → Customize → **Privacy lock**
+adds a passcode: then the button hides your amounts *and* locks Mine, and it
+takes the passcode (or Face ID / fingerprint, where the device has it) to open
+again. It re-locks after the idle time you pick (1 minute to 1 hour) and when
+you close the app. The passcode is never stored, only a salted PBKDF2 hash,
+on this device only and outside backup files (`app/lock.js`). It keeps out
+people looking at your screen; it isn't encryption of the browser's storage.
+
 ## Decision journal
 
 Mine → **Journal**: for each buy, write down why you bought it, what would make
