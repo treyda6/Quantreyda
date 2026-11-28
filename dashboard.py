@@ -110,6 +110,10 @@ box-shadow:none;background:none;min-width:0}.nv .menu:before{display:none}
 @media(max-width:700px){
 .bar{gap:6px;padding:10px 12px}.upd{display:none}
 .logo{gap:7px}.logo svg{width:28px;height:28px}.logo .wm b{font-size:12px;letter-spacing:2px}.logo .wm small{display:none}.toggle .tl,.nvb .tl{display:none}.toggle,.nvb{padding:7px 10px}
+/* the header must fit on a phone even with the privacy eye: search shrinks to an icon, never over the Menu button */
+.bar .lk-search{flex:1 1 44px;min-width:44px}.bar .qt-focus-btn,.bar .qt-eye{margin-right:0}
+@media(max-width:430px){.bar:has(#qt-eye) .qt-focus-btn{font-size:0;gap:0;padding:7px 10px}}
+@media(max-width:380px){.bar:has(#qt-eye) .logo .wm{display:none}}@media(max-width:370px){.bar .logo .wm{display:none}}
 .tabs{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:30;justify-content:space-around;
 padding:8px 4px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--line);
 background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px)}
