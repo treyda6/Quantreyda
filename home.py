@@ -10,7 +10,8 @@ Phone first. Top to bottom:
   4. Sitrep: one plain sentence and three numbers.
   5. Live feed: insider buys, Congress and White House trades, big
      prediction-market bets, analyst calls, activist stakes and headlines,
-     newest first, with filter pills (All, Insiders, Congress, ...).
+     newest first, with filter pills (All, Insiders, Congress, ...). It shows
+     8 items; "Show more" adds 10 at a time up to 30, then links to every trade.
   6. Markets & economy, ideas worth researching, what the crowd expects,
      and every section of the site as a tile.
 
@@ -193,6 +194,7 @@ font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;curso
 .feed{list-style:none;margin:0 -14px;padding:0}
 .feed>li{display:flex;gap:12px;padding:12px 14px;border-top:1px solid color-mix(in srgb,var(--edge) 60%,transparent)}
 .feed>li[hidden]{display:none}
+.feed:not(.js)>li:nth-child(n+9){display:none}
 .feed .fb{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
 .feed .ft{font-size:15.5px;line-height:1.4;color:var(--fg);text-decoration:none;overflow-wrap:anywhere}
 .feed a.ft:hover{text-decoration:underline}
@@ -508,7 +510,8 @@ def _search_html(pages, names):
 JS = r"""<script>(function(){
 var feed=document.querySelector('.ops .feed');if(!feed)return;
 var box=feed.closest('section'),more=box.querySelector('.feed-more'),none=box.querySelector('.feed-none');
-var f='all',q='',shown=20,STEP=20,skip={};
+// a short list by default: 8 items, "Show more" adds 10 at a time up to 30, then links to every trade
+var f='all',q='',FIRST=8,STEP=10,MAX=30,shown=FIRST,skip={};feed.classList.add('js');
 // Focus mode (personal.js) lists feed kinds to leave out, so counts and "Show more" skip them too
 (document.documentElement.dataset.feedSkip||'').split(' ').forEach(function(k){if(k)skip[k]=1});
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
@@ -522,10 +525,11 @@ function ago(li){var d=li.dataset.d;
 function draw(){var n=0,all=feed.children;
   for(var i=0;i<all.length;i++){var li=all[i],ok=(f==='all'||li.dataset.k===f)&&!skip[li.dataset.k]&&(!q||li.textContent.toLowerCase().indexOf(q)>=0);
     li.hidden=!ok||n>=shown;if(ok)n++;var a=li.querySelector('.ago');if(a)a.textContent=ago(li)}
-  more.hidden=n<=shown;none.hidden=n>0}
-box.querySelectorAll('.pill').forEach(function(b){b.onclick=function(){f=b.dataset.f;shown=STEP;
+  var cap=shown>=MAX;more.hidden=n<=shown;more.textContent=cap?'See every trade →':'Show more';none.hidden=n>0}
+box.querySelectorAll('.pill').forEach(function(b){b.onclick=function(){f=b.dataset.f;shown=FIRST;
   box.querySelectorAll('.pill').forEach(function(x){x.classList.toggle('on',x===b)});draw()}});
-more.onclick=function(){shown+=STEP;draw()};
+more.onclick=function(){if(shown>=MAX){location.href='trades.html'+(q?'?q='+encodeURIComponent(q):'');return}
+  shown=Math.min(MAX,shown+STEP);draw()};
 var pages={};JSON.parse((document.getElementById('ops-idx')||{}).textContent||'[]').forEach(function(r){pages[r[0]]=r[1]||' '});
 function slug(s){return s.replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'').toUpperCase()}
 function addNews(items){
@@ -551,7 +555,7 @@ var inp=form.querySelector('input'),sug=form.querySelector('.ops-sug'),keys=Obje
 function hits(v){var u=v.toUpperCase(),l=v.toLowerCase(),a=[],b=[];
   keys.forEach(function(k){if(k.indexOf(u)===0)a.push(k);else if(l.length>2&&pages[k].toLowerCase().indexOf(l)>=0)b.push(k)});
   a.sort(function(x,y){return x.length-y.length});return a.concat(b).slice(0,6)}
-function paint(){var v=inp.value.trim();q=v.toLowerCase();shown=STEP;draw();
+function paint(){var v=inp.value.trim();q=v.toLowerCase();shown=FIRST;draw();
   if(!v){sug.classList.remove('open');return}
   var h=hits(v);sel=-1;
   sug.innerHTML=h.map(function(k){return "<a href='s/"+esc(slug(k))+".html'><b>"+esc(k)+"</b><span>"+esc(pages[k].trim())+"</span></a>"}).join('')
